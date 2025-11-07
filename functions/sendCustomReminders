@@ -1,0 +1,67 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+
+Deno.serve(async (req) => {
+    try {
+        const CRON_SECRET = Deno.env.get('CRON_SECRET');
+        
+        const url = new URL(req.url);
+        const providedSecret = url.searchParams.get('secret') || '';
+        
+        if (!CRON_SECRET || providedSecret !== CRON_SECRET) {
+            return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        }
+        
+        const base44 = createClientFromRequest(req, { serviceRole: true });
+        
+        const today = new Date().toISOString().split('T')[0];
+        const reminders = await base44.entities.Reminder.filter({ 
+            due_date: today,
+            completed: false
+        });
+        
+        let sent = 0;
+        let skipped = 0;
+
+        for (const reminder of reminders) {
+            try {
+                const users = await base44.entities.User.filter({ 
+                    email: reminder.created_by 
+                });
+                
+                if (users.length === 0 || users[0].notifications_reminders === false) {
+                    skipped++;
+                    continue;
+                }
+                
+                const owner = users[0];
+
+                const result = await base44.asServiceRole.functions.invoke('sendNotification', {
+                    toUserId: owner.id,
+                    title: `⏰ Reminder: ${reminder.title}`,
+                    body: reminder.description || `Don't forget about ${reminder.plant_name}`,
+                    screen: '/Schedule'
+                });
+
+                if (result?.data?.success) {
+                    sent++;
+                }
+            } catch (err) {
+                skipped++;
+            }
+        }
+
+        return Response.json({ 
+            success: true, 
+            reminders_count: reminders.length,
+            sent: sent,
+            skipped: skipped,
+            at: new Date().toISOString()
+        });
+    } catch (err) {
+        return Response.json({ 
+            success: false, 
+            error: String(err),
+            message: err.message
+        }, { status: 500 });
+    }
+});

@@ -1,0 +1,123 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { plant_id, notes, watering_date } = await req.json();
+
+        const plant = await base44.entities.Plant.filter({ id: plant_id });
+        if (!plant || plant.length === 0) {
+            return Response.json({ error: 'Plant not found' }, { status: 404 });
+        }
+
+        const plantData = plant[0];
+        const waterDate = watering_date || new Date().toISOString().split('T')[0];
+        const newTotalWaterings = (plantData.total_waterings || 0) + 1;
+
+        let newGrowthStage = plantData.growth_stage || 'seedling';
+        let grewThisWatering = false;
+
+        if (newTotalWaterings >= 20 && newGrowthStage !== 'mature') {
+            newGrowthStage = 'mature';
+            grewThisWatering = true;
+        } else if (newTotalWaterings >= 15 && newGrowthStage !== 'large' && newGrowthStage !== 'mature') {
+            newGrowthStage = 'large';
+            grewThisWatering = true;
+        } else if (newTotalWaterings >= 10 && newGrowthStage !== 'medium' && newGrowthStage !== 'large' && newGrowthStage !== 'mature') {
+            newGrowthStage = 'medium';
+            grewThisWatering = true;
+        } else if (newTotalWaterings >= 5 && newGrowthStage !== 'small' && newGrowthStage !== 'medium' && newGrowthStage !== 'large' && newGrowthStage !== 'mature') {
+            newGrowthStage = 'small';
+            grewThisWatering = true;
+        }
+
+        // Calculate next watering FROM THE ACTUAL WATERING DATE, not from today
+        const nextWatering = new Date(waterDate);
+        nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
+
+        await base44.asServiceRole.entities.Plant.update(plant_id, {
+            last_watered: waterDate,
+            next_watering_due: nextWatering.toISOString().split('T')[0],
+            total_waterings: newTotalWaterings,
+            growth_stage: newGrowthStage,
+            status: 'healthy',
+        });
+
+        await base44.asServiceRole.entities.WateringLog.create({
+            plant_id: plant_id,
+            plant_name: plantData.name,
+            watered_date: waterDate,
+            method: 'manual',
+            notes: notes || null,
+        });
+
+        const newLifetimeWaterings = (user.lifetime_waterings || 0) + 1;
+        let newTotalPlantGrowths = (user.total_plant_growths || 0);
+
+        if (grewThisWatering) {
+            newTotalPlantGrowths++;
+        }
+
+        let tier = 'New Sprout';
+
+        if (newLifetimeWaterings >= 200) {
+            tier = 'Legendary Botanist';
+        } else if (newLifetimeWaterings >= 100) {
+            tier = 'Plant Whisperer';
+        } else if (newLifetimeWaterings >= 50) {
+            tier = 'Master Gardener';
+        } else if (newLifetimeWaterings >= 25) {
+            tier = 'Gold Thumb';
+        } else if (newLifetimeWaterings >= 10) {
+            tier = 'Green Thumb';
+        }
+
+        await base44.auth.updateMe({
+            lifetime_waterings: newLifetimeWaterings,
+            current_tier: tier,
+            total_plant_growths: newTotalPlantGrowths,
+        });
+
+        const events = await base44.asServiceRole.entities.GameEvent.filter({
+            resolved: false,
+        });
+
+        const plantEvents = events.filter(e =>
+            e.affected_plant_ids && e.affected_plant_ids.includes(plant_id)
+        );
+
+        if (plantEvents.length > 0) {
+            for (const event of plantEvents) {
+                const remainingPlants = event.affected_plant_ids.filter(id => id !== plant_id);
+                if (remainingPlants.length === 0) {
+                    await base44.asServiceRole.entities.GameEvent.update(event.id, {
+                        resolved: true,
+                    });
+                } else {
+                    await base44.asServiceRole.entities.GameEvent.update(event.id, {
+                        affected_plant_ids: remainingPlants,
+                    });
+                }
+            }
+        }
+
+        return Response.json({
+            success: true,
+            grew: grewThisWatering,
+            growth_stage: newGrowthStage,
+            new_tier: tier,
+            tier_changed: tier !== user.current_tier,
+            total_waterings: newLifetimeWaterings,
+            total_plant_growths: newTotalPlantGrowths,
+        });
+    } catch (error) {
+        console.error('Error in processWatering:', error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+});
