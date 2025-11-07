@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Home, Calendar, MessageCircle, Settings, Sun, Moon, Leaf, User, Search } from "lucide-react";
@@ -16,6 +15,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,9 +25,10 @@ import NotificationPopup from "@/components/NotificationPopup";
 import OneSignalSetup from "@/components/OneSignalSetup";
 import ThemeMode from "@/components/ThemeMode";
 
-export default function Layout({ children, currentPageName }) {
+function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { setOpen } = useSidebar();
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [theme, setTheme] = useState(() => {
@@ -116,134 +117,144 @@ export default function Layout({ children, currentPageName }) {
     { title: "Settings", url: "/Settings", icon: Settings },
   ];
 
+  const handleNavClick = (url) => {
+    navigate(url);
+    setOpen(false); // Close sidebar after navigation
+  };
+
   return (
-    <SidebarProvider>
-      <ThemeMode />
-      <OneSignalSetup user={user} />
+    <div className="min-h-screen flex w-full theme-bg relative">
+      {(theme === 'dark' || theme === 'botanical' || theme === 'christmas' || theme === 'newyears' || theme === 'fall' || theme === 'fourthofjuly' || theme === 'halloween') && (
+        <div className="fixed inset-0 bg-black/75 -z-10"></div>
+      )}
       
-      <NotificationPopup user={user} />
-      <div className="min-h-screen flex w-full theme-bg relative">
-        {(theme === 'dark' || theme === 'botanical' || theme === 'christmas' || theme === 'newyears' || theme === 'fall' || theme === 'fourthofjuly' || theme === 'halloween') && (
-          <div className="fixed inset-0 bg-black/75 -z-10"></div>
-        )}
-        
-        {(theme === 'spring' || theme === 'summer' || theme === 'kawaii' || theme === 'winter' || theme === 'stpatricks' || theme === 'valentines' || theme === 'light') && (
-          <div className="fixed inset-0 bg-white/60 -z-10"></div>
-        )}
-        
-        <Sidebar className="sidebar-container">
-          <SidebarHeader className="sidebar-header">
-            <div className="flex items-center gap-3">
-              <img 
-                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/9fd059159_HP1.png"
-                alt="Happy Plants"
-                className="w-12 h-12 rounded-2xl object-cover shadow-lg"
-              />
-              <div>
-                <h2 className="font-bold sidebar-text text-xl happy-plants-title">Happy Plants</h2>
-                <p className="text-xs sidebar-text-secondary">AI Plant Care</p>
-              </div>
+      {(theme === 'spring' || theme === 'summer' || theme === 'kawaii' || theme === 'winter' || theme === 'stpatricks' || theme === 'valentines' || theme === 'light') && (
+        <div className="fixed inset-0 bg-white/60 -z-10"></div>
+      )}
+      
+      <Sidebar className="sidebar-container">
+        <SidebarHeader className="sidebar-header">
+          <div className="flex items-center gap-3">
+            <img 
+              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/9fd059159_HP1.png"
+              alt="Happy Plants"
+              className="w-12 h-12 rounded-2xl object-cover shadow-lg"
+            />
+            <div>
+              <h2 className="font-bold sidebar-text text-xl happy-plants-title">Happy Plants</h2>
+              <p className="text-xs sidebar-text-secondary">AI Plant Care</p>
             </div>
-          </SidebarHeader>
-          
-          <SidebarContent className="p-3 sidebar-content">
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {navigationItems.map((item) => {
-                    const isActive = location.pathname === item.url;
-                    return (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton 
-                          asChild 
-                          className={cn(
-                            "rounded-2xl transition-all duration-300 mb-2 h-12",
-                            isActive 
-                              ? `${getActiveButtonClass()} text-white` 
-                              : "bg-slate-800 hover:bg-slate-700 text-white"
-                          )}
-                        >
-                          <Link to={item.url} className="flex items-center gap-3 px-4 py-3">
-                            <div className="relative">
-                              <item.icon className="w-5 h-5" />
-                              {item.badge > 0 && (
-                                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full"></span>
-                              )}
-                            </div>
-                            <span className="font-semibold">{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </SidebarContent>
+          </div>
+        </SidebarHeader>
+        
+        <SidebarContent className="p-3 sidebar-content">
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {navigationItems.map((item) => {
+                  const isActive = location.pathname === item.url;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton 
+                        onClick={() => handleNavClick(item.url)}
+                        className={cn(
+                          "rounded-2xl transition-all duration-300 mb-2 h-12 cursor-pointer",
+                          isActive 
+                            ? `${getActiveButtonClass()} text-white` 
+                            : "sidebar-nav-inactive"
+                        )}
+                      >
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          <div className="relative">
+                            <item.icon className="w-5 h-5" />
+                            {item.badge > 0 && (
+                              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full"></span>
+                            )}
+                          </div>
+                          <span className="font-semibold">{item.title}</span>
+                        </div>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
 
-          <SidebarFooter className="p-3 sidebar-footer">
-            <Button
-              variant="outline"
-              onClick={cycleTheme}
-              className="w-full justify-start gap-3 mb-3 h-12 sidebar-button rounded-2xl font-semibold"
-            >
-              {theme === 'light' && <><Sun className="w-5 h-5" /> Light Mode</>}
-              {theme === 'dark' && <><Moon className="w-5 h-5" /> Dark Mode</>}
-              {theme === 'botanical' && <><Leaf className="w-5 h-5" /> Botanical</>}
-              {theme === 'kawaii' && <><span className="text-pink-500">🌸</span> Kawaii</>}
-              {theme === 'halloween' && <><span className="text-orange-500">🎃</span> Halloween</>}
-              {theme === 'christmas' && <><span className="text-red-500">🎄</span> Christmas</>}
-              {theme === 'valentines' && <><span className="text-rose-500">💖</span> Valentine's</>}
-              {theme === 'newyears' && <><span className="text-purple-500">✨</span> New Year's</>}
-              {theme === 'stpatricks' && <><span className="text-emerald-500">🍀</span> St. Patrick's</>}
-              {theme === 'fourthofjuly' && <><span className="text-blue-500">🎆</span> Fourth of July</>}
-              {theme === 'summer' && <><span className="text-amber-500">☀️</span> Summer</>}
-              {theme === 'spring' && <><span className="text-violet-500">🌷</span> Spring</>}
-              {theme === 'fall' && <><span className="text-orange-700">🍂</span> Fall</>}
-              {theme === 'winter' && <><span className="text-cyan-500">❄️</span> Winter</>}
-            </Button>
-            {!isLoading && user && (
-              <>
-                <button
-                  onClick={() => navigate('/MyProfile')}
-                  className="w-full px-3 py-3 text-sm sidebar-user-info rounded-2xl hover:opacity-80 transition-opacity text-left mb-2"
-                >
-                  <p className="font-semibold sidebar-text truncate">{user.full_name}</p>
-                  <p className="text-xs sidebar-text-secondary truncate">{user.email}</p>
-                </button>
-              </>
-            )}
-          </SidebarFooter>
-        </Sidebar>
+        <SidebarFooter className="p-3 sidebar-footer">
+          <Button
+            variant="outline"
+            onClick={cycleTheme}
+            className="w-full justify-start gap-3 mb-3 h-12 sidebar-button rounded-2xl font-semibold"
+          >
+            {theme === 'light' && <><Sun className="w-5 h-5" /> Light Mode</>}
+            {theme === 'dark' && <><Moon className="w-5 h-5" /> Dark Mode</>}
+            {theme === 'botanical' && <><Leaf className="w-5 h-5" /> Botanical</>}
+          </Button>
+          {!isLoading && user && (
+            <>
+              <button
+                onClick={() => {
+                  navigate('/MyProfile');
+                  setOpen(false);
+                }}
+                className="w-full px-3 py-3 text-sm sidebar-user-info rounded-2xl hover:opacity-80 transition-opacity text-left mb-2"
+              >
+                <p className="font-semibold sidebar-text truncate">{user.full_name}</p>
+                <p className="text-xs sidebar-text-secondary truncate">{user.email}</p>
+              </button>
+            </>
+          )}
+        </SidebarFooter>
+      </Sidebar>
 
-        <main className="flex-1 flex flex-col overflow-x-hidden">
-          <header className="border-b theme-border px-6 py-4 md:hidden sticky top-0 z-10 bg-black/40 backdrop-blur-md flex-shrink-0">
-            <div className="flex items-center gap-4 min-w-0">
-              <SidebarTrigger className="hover:bg-opacity-10 p-2 rounded-lg text-white flex-shrink-0" />
+      <main className="flex-1 flex flex-col overflow-x-hidden">
+        <header className="border-b theme-border px-6 py-3 pt-6 md:hidden sticky top-0 z-10 mobile-header flex-shrink-0">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0 flex-1">
+              <SidebarTrigger className="hover:bg-opacity-10 p-2 rounded-lg mobile-header-text flex-shrink-0" />
               <div className="flex items-center gap-2 rounded-xl px-3 py-2 min-w-0">
                 <img 
                   src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/9fd059159_HP1.png"
                   alt="Happy Plants"
                   className="w-8 h-8 rounded-xl object-cover flex-shrink-0"
                 />
-                <h1 className="text-xl font-bold text-white truncate">Happy Plants</h1>
+                <h1 className="text-xl font-bold mobile-header-text truncate">Happy Plants</h1>
               </div>
             </div>
             {user && (
-              <button onClick={() => navigate('/MyProfile')} className="flex-shrink-0 ml-2">
-                <Avatar className="w-8 h-8">
+              <button 
+                onClick={() => {
+                  navigate('/MyProfile');
+                  setOpen(false);
+                }} 
+                className="flex-shrink-0"
+              >
+                <Avatar className="w-9 h-9 ring-2 ring-white/20">
                   <AvatarImage src={user.profile_picture} className="object-cover" />
                   <AvatarFallback><User className="w-4 h-4" /></AvatarFallback>
                 </Avatar>
               </button>
             )}
-          </header>
-
-          <div className="flex-1 overflow-y-auto">
-            {children}
           </div>
-        </main>
-      </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default function Layout({ children, currentPageName }) {
+  return (
+    <SidebarProvider>
+      <ThemeMode />
+      <OneSignalSetup user={null} />
+      <NotificationPopup user={null} />
+      <LayoutContent children={children} currentPageName={currentPageName} />
       
       <style>{`
         /* Light Theme */
@@ -259,10 +270,15 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-bg: rgba(255, 255, 255, 0.98);
           --sidebar-text: #2d3748;
           --sidebar-text-secondary: #718096;
-          --sidebar-nav-inactive: rgba(0, 0, 0, 0.05);
+          --sidebar-nav-inactive: rgba(243, 244, 246, 1);
+          --sidebar-nav-inactive-text: #374151;
           --sidebar-user-info-bg: rgba(0, 0, 0, 0.03);
           --sidebar-button-border: rgba(0, 0, 0, 0.1);
+          --mobile-header-bg: rgba(255, 255, 255, 0.95);
+          --mobile-header-text: #2d3748;
         }
+
+        /* ... keep existing code (all other theme definitions) ... */
 
         /* Dark Theme */
         [data-theme="dark"] {
@@ -278,8 +294,11 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-text: #f7fafc;
           --sidebar-text-secondary: #cbd5e0;
           --sidebar-nav-inactive: rgba(255, 255, 255, 0.05);
+          --sidebar-nav-inactive-text: #f7fafc;
           --sidebar-user-info-bg: rgba(255, 255, 255, 0.05);
           --sidebar-button-border: rgba(255, 255, 255, 0.2);
+          --mobile-header-bg: rgba(26, 32, 44, 0.95);
+          --mobile-header-text: #f7fafc;
         }
 
         /* Botanical Theme */
@@ -296,8 +315,11 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-text: #e8f5e9;
           --sidebar-text-secondary: #c8e6c9;
           --sidebar-nav-inactive: rgba(30, 80, 30, 0.8);
+          --sidebar-nav-inactive-text: #e8f5e9;
           --sidebar-user-info-bg: rgba(20, 60, 20, 0.9);
           --sidebar-button-border: rgba(76, 175, 80, 0.5);
+          --mobile-header-bg: rgba(5, 15, 5, 0.95);
+          --mobile-header-text: #e8f5e9;
         }
 
         /* Kawaii Theme */
@@ -314,9 +336,12 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-bg: rgba(255, 240, 245, 0.98);
           --sidebar-text: #d81b60;
           --sidebar-text-secondary: #ec407a;
-          --sidebar-nav-inactive: rgba(255, 182, 193, 0.2);
+          --sidebar-nav-inactive: rgba(243, 244, 246, 1);
+          --sidebar-nav-inactive-text: #d81b60;
           --sidebar-user-info-bg: rgba(255, 182, 193, 0.15);
           --sidebar-button-border: rgba(255, 182, 193, 0.4);
+          --mobile-header-bg: rgba(255, 240, 245, 0.95);
+          --mobile-header-text: #d81b60;
         }
 
         /* Halloween Theme */
@@ -333,8 +358,11 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-text: #ff9800;
           --sidebar-text-secondary: #ffb74d;
           --sidebar-nav-inactive: rgba(255, 152, 0, 0.1);
+          --sidebar-nav-inactive-text: #ff9800;
           --sidebar-user-info-bg: rgba(255, 152, 0, 0.15);
           --sidebar-button-border: rgba(255, 152, 0, 0.3);
+          --mobile-header-bg: rgba(26, 13, 0, 0.95);
+          --mobile-header-text: #ff9800;
         }
 
         /* Christmas Theme */
@@ -351,8 +379,11 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-text: #e8f5e9;
           --sidebar-text-secondary: #c8e6c9;
           --sidebar-nav-inactive: rgba(30, 80, 30, 0.8);
+          --sidebar-nav-inactive-text: #e8f5e9;
           --sidebar-user-info-bg: rgba(20, 60, 20, 0.9);
           --sidebar-button-border: rgba(76, 175, 80, 0.5);
+          --mobile-header-bg: rgba(10, 10, 10, 0.95);
+          --mobile-header-text: #e8f5e9;
         }
 
         /* Valentine's Theme */
@@ -368,9 +399,12 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-bg: rgba(255, 240, 245, 0.98);
           --sidebar-text: #d81b60;
           --sidebar-text-secondary: #ec407a;
-          --sidebar-nav-inactive: rgba(255, 182, 193, 0.2);
+          --sidebar-nav-inactive: rgba(243, 244, 246, 1);
+          --sidebar-nav-inactive-text: #d81b60;
           --sidebar-user-info-bg: rgba(255, 182, 193, 0.15);
           --sidebar-button-border: rgba(255, 182, 193, 0.4);
+          --mobile-header-bg: rgba(255, 240, 245, 0.95);
+          --mobile-header-text: #d81b60;
         }
 
         /* New Year's Theme */
@@ -387,8 +421,11 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-text: #ffffff;
           --sidebar-text-secondary: #f0f0f0;
           --sidebar-nav-inactive: rgba(255, 215, 0, 0.1);
+          --sidebar-nav-inactive-text: #ffffff;
           --sidebar-user-info-bg: rgba(255, 215, 0, 0.15);
           --sidebar-button-border: rgba(255, 215, 0, 0.3);
+          --mobile-header-bg: rgba(10, 10, 30, 0.95);
+          --mobile-header-text: #ffffff;
         }
 
         /* St. Patrick's Theme */
@@ -404,9 +441,12 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-bg: rgba(240, 255, 230, 0.98);
           --sidebar-text: #1b5e20;
           --sidebar-text-secondary: #388e3c;
-          --sidebar-nav-inactive: rgba(139, 195, 74, 0.15);
+          --sidebar-nav-inactive: rgba(243, 244, 246, 1);
+          --sidebar-nav-inactive-text: #1b5e20;
           --sidebar-user-info-bg: rgba(139, 195, 74, 0.1);
           --sidebar-button-border: rgba(139, 195, 74, 0.3);
+          --mobile-header-bg: rgba(240, 255, 230, 0.95);
+          --mobile-header-text: #1b5e20;
         }
 
         /* Fourth of July Theme */
@@ -423,8 +463,11 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-text: #ffffff;
           --sidebar-text-secondary: #f0f0f0;
           --sidebar-nav-inactive: rgba(178, 34, 52, 0.15);
+          --sidebar-nav-inactive-text: #ffffff;
           --sidebar-user-info-bg: rgba(178, 34, 52, 0.15);
           --sidebar-button-border: rgba(178, 34, 52, 0.3);
+          --mobile-header-bg: rgba(10, 20, 40, 0.95);
+          --mobile-header-text: #ffffff;
         }
 
         /* Summer Theme */
@@ -440,9 +483,12 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-bg: rgba(255, 248, 225, 0.98);
           --sidebar-text: #e65100;
           --sidebar-text-secondary: #f57c00;
-          --sidebar-nav-inactive: rgba(255, 167, 38, 0.15);
+          --sidebar-nav-inactive: rgba(243, 244, 246, 1);
+          --sidebar-nav-inactive-text: #e65100;
           --sidebar-user-info-bg: rgba(255, 167, 38, 0.1);
           --sidebar-button-border: rgba(255, 167, 38, 0.3);
+          --mobile-header-bg: rgba(255, 248, 225, 0.95);
+          --mobile-header-text: #e65100;
         }
 
         /* Spring Theme */
@@ -458,9 +504,12 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-bg: rgba(248, 237, 252, 0.98);
           --sidebar-text: #4a148c;
           --sidebar-text-secondary: #6a1b9a;
-          --sidebar-nav-inactive: rgba(186, 104, 200, 0.15);
+          --sidebar-nav-inactive: rgba(243, 244, 246, 1);
+          --sidebar-nav-inactive-text: #4a148c;
           --sidebar-user-info-bg: rgba(186, 104, 200, 0.1);
           --sidebar-button-border: rgba(186, 104, 200, 0.3);
+          --mobile-header-bg: rgba(248, 237, 252, 0.95);
+          --mobile-header-text: #4a148c;
         }
 
         /* Fall Theme */
@@ -476,9 +525,12 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-bg: rgba(255, 248, 240, 0.98);
           --sidebar-text: #8B4513;
           --sidebar-text-secondary: #A0522D;
-          --sidebar-nav-inactive: rgba(210, 105, 30, 0.15);
+          --sidebar-nav-inactive: rgba(243, 244, 246, 1);
+          --sidebar-nav-inactive-text: #8B4513;
           --sidebar-user-info-bg: rgba(210, 105, 30, 0.1);
           --sidebar-button-border: rgba(210, 105, 30, 0.3);
+          --mobile-header-bg: rgba(40, 30, 20, 0.95);
+          --mobile-header-text: #ffffff;
         }
 
         /* Winter Theme */
@@ -494,9 +546,12 @@ export default function Layout({ children, currentPageName }) {
           --sidebar-bg: rgba(237, 247, 255, 0.98);
           --sidebar-text: #0d47a1;
           --sidebar-text-secondary: #1565c0;
-          --sidebar-nav-inactive: rgba(100, 181, 246, 0.15);
+          --sidebar-nav-inactive: rgba(243, 244, 246, 1);
+          --sidebar-nav-inactive-text: #0d47a1;
           --sidebar-user-info-bg: rgba(100, 181, 246, 0.1);
           --sidebar-button-border: rgba(100, 181, 246, 0.3);
+          --mobile-header-bg: rgba(237, 247, 255, 0.95);
+          --mobile-header-text: #0d47a1;
         }
 
         /* Apply theme variables */
@@ -562,12 +617,12 @@ export default function Layout({ children, currentPageName }) {
         }
 
         .sidebar-nav-inactive {
-          background: rgba(30, 41, 59, 1) !important;
-          color: white !important;
+          background: var(--sidebar-nav-inactive) !important;
+          color: var(--sidebar-nav-inactive-text) !important;
         }
 
         .sidebar-nav-inactive:hover {
-          background: rgba(51, 65, 85, 1) !important;
+          opacity: 0.8;
         }
 
         .sidebar-user-info {
@@ -585,6 +640,15 @@ export default function Layout({ children, currentPageName }) {
           opacity: 0.8;
         }
 
+        .mobile-header {
+          background: var(--mobile-header-bg) !important;
+          backdrop-filter: blur(10px);
+        }
+
+        .mobile-header-text {
+          color: var(--mobile-header-text) !important;
+        }
+
         .happy-plants-title {
           background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
           -webkit-background-clip: text;
@@ -592,6 +656,6 @@ export default function Layout({ children, currentPageName }) {
           background-clip: text;
         }
       `}</style>
-    </SidebarProvider>
+    </div>
   );
 }
