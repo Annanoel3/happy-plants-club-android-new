@@ -54,7 +54,7 @@ export default function OneSignalInit({ user }) {
           window.OneSignal = window.OneSignal || [];
           window.OneSignal.push(function() {
             window.OneSignal.init({
-              appId: "dc1933bc-e49e-4d8a-aa4a-2c9ca749ff37",
+              appId: "3f0b6a12-b2d3-4c56-8e76-de9baafc41de",
               allowLocalhostAsSecureOrigin: true
             });
             
