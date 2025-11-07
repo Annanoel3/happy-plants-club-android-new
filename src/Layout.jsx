@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Home, Calendar, MessageCircle, Settings, Sun, Moon, Leaf, User, Search } from "lucide-react";
@@ -56,7 +57,7 @@ function LayoutContent({ children, currentPageName }) {
   };
 
   const cycleTheme = () => {
-    const themes = ['light', 'dark', 'botanical'];
+    const themes = ['light', 'dark', 'botanical', 'kawaii', 'halloween', 'christmas', 'valentines', 'newyears', 'stpatricks', 'fourthofjuly', 'summer', 'spring', 'fall', 'winter'];
     const currentIndex = themes.indexOf(theme);
     const nextIndex = (currentIndex + 1) % themes.length;
     setTheme(themes[nextIndex]);
@@ -191,6 +192,19 @@ function LayoutContent({ children, currentPageName }) {
             {theme === 'light' && <><Sun className="w-5 h-5" /> Light Mode</>}
             {theme === 'dark' && <><Moon className="w-5 h-5" /> Dark Mode</>}
             {theme === 'botanical' && <><Leaf className="w-5 h-5" /> Botanical</>}
+            {theme === 'kawaii' && <span className="text-2xl">🌸</span>}
+            {theme === 'halloween' && <span className="text-2xl">🎃</span>}
+            {theme === 'christmas' && <span className="text-2xl">🎄</span>}
+            {theme === 'valentines' && <span className="text-2xl">💖</span>}
+            {theme === 'newyears' && <span className="text-2xl">🎉</span>}
+            {theme === 'stpatricks' && <span className="text-2xl">🍀</span>}
+            {theme === 'fourthofjuly' && <span className="text-2xl">🎆</span>}
+            {theme === 'summer' && <span className="text-2xl">☀️</span>}
+            {theme === 'spring' && <span className="text-2xl">🌷</span>}
+            {theme === 'fall' && <span className="text-2xl">🍂</span>}
+            {theme === 'winter' && <span className="text-2xl">❄️</span>}
+            
+            <span className="ml-2 capitalize">{theme}</span>
           </Button>
           {!isLoading && user && (
             <>
@@ -277,8 +291,6 @@ export default function Layout({ children, currentPageName }) {
           --mobile-header-bg: rgba(255, 255, 255, 0.95);
           --mobile-header-text: #2d3748;
         }
-
-        /* ... keep existing code (all other theme definitions) ... */
 
         /* Dark Theme */
         [data-theme="dark"] {
@@ -656,6 +668,6 @@ export default function Layout({ children, currentPageName }) {
           background-clip: text;
         }
       `}</style>
-    </div>
+    </SidebarProvider>
   );
 }
