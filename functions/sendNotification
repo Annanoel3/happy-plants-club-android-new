@@ -10,12 +10,12 @@ Deno.serve(async (req) => {
         const base44 = createClientFromRequest(req);
         
         const body = await req.json();
-        const { toUserId, title, body: message, screen } = body;
+        const { toUserEmail, title, body: message, screen } = body;
 
-        if (!toUserId || !title || !message) {
+        if (!toUserEmail || !title || !message) {
             return Response.json({ 
                 success: false,
-                error: 'Missing required fields: toUserId, title, body' 
+                error: 'Missing required fields: toUserEmail, title, body' 
             }, { status: 400 });
         }
 
@@ -26,6 +26,8 @@ Deno.serve(async (req) => {
             }, { status: 500 });
         }
 
+        console.log('[sendNotification] Sending to:', toUserEmail);
+
         const response = await fetch('https://onesignal.com/api/v1/notifications', {
             method: 'POST',
             headers: {
@@ -35,7 +37,7 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
                 app_id: ONESIGNAL_APP_ID,
                 include_aliases: {
-                    external_id: [toUserId]
+                    external_id: [toUserEmail]  // CRITICAL: Must be email, not user.id
                 },
                 target_channel: 'push',
                 headings: { en: title },
@@ -56,6 +58,7 @@ Deno.serve(async (req) => {
             }, { status: 500 });
         }
 
+        console.log('[sendNotification] ✅ Sent successfully');
         return Response.json({ success: true, result });
     } catch (error) {
         console.error('Error in sendNotification:', error);

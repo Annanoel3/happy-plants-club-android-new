@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
                 const owner = users[0];
 
                 const result = await base44.asServiceRole.functions.invoke('sendNotification', {
-                    toUserId: owner.id,
+                    toUserEmail: owner.email,  // FIXED: Send email, not user.id
                     title: '💧 Time to Water!',
                     body: `${plant.name} is thirsty and needs watering today`,
                     screen: `/PlantDetail?id=${plant.id}`
@@ -45,6 +45,7 @@ Deno.serve(async (req) => {
                     sent++;
                 }
             } catch (err) {
+                console.error('Error sending watering reminder:', err);
                 skipped++;
             }
         }

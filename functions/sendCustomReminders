@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
                 const owner = users[0];
 
                 const result = await base44.asServiceRole.functions.invoke('sendNotification', {
-                    toUserId: owner.id,
+                    toUserEmail: owner.email,  // FIXED: Send email, not user.id
                     title: `⏰ Reminder: ${reminder.title}`,
                     body: reminder.description || `Don't forget about ${reminder.plant_name}`,
                     screen: '/Schedule'
@@ -46,6 +46,7 @@ Deno.serve(async (req) => {
                     sent++;
                 }
             } catch (err) {
+                console.error('Error sending custom reminder:', err);
                 skipped++;
             }
         }
