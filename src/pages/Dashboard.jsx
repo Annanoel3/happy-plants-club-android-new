@@ -214,11 +214,34 @@ export default function Dashboard() {
   };
 
   const getPlantCardFooterBgClass = () => {
-    if (theme === 'botanical') return 'bg-black/70';
+    if (theme === 'botanical') return 'bg-green-950/70';
     if (theme === 'kawaii') return 'bg-pink-100/80';
-    if (theme === 'halloween') return 'bg-black/70';
-    if (theme === 'dark') return 'bg-black/40';
-    return 'bg-black/5'; // light mode
+    if (theme === 'halloween') return 'bg-orange-950/70';
+    if (theme === 'dark') return 'bg-gray-900/70';
+    if (theme === 'christmas') return 'bg-red-950/70';
+    if (theme === 'valentines') return 'bg-pink-100/80';
+    if (theme === 'newyears') return 'bg-purple-950/70';
+    if (theme === 'stpatricks') return 'bg-green-100/80';
+    if (theme === 'fourthofjuly') return 'bg-blue-950/70';
+    if (theme === 'summer') return 'bg-orange-100/80';
+    if (theme === 'spring') return 'bg-purple-100/80';
+    if (theme === 'fall') return 'bg-amber-950/70';
+    if (theme === 'winter') return 'bg-blue-100/80';
+    return 'bg-white/90'; // light mode
+  };
+
+  const getPlantCardTextColor = () => {
+    // Dark themes need white text on dark backgrounds
+    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'fall') return 'text-white';
+    // Light themes
+    return 'text-gray-900';
+  };
+
+  const getPlantCardSecondaryTextColor = () => {
+    // Dark themes
+    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'fall') return 'text-white/90';
+    // Light themes
+    return 'text-gray-600';
   };
 
   const getSeasonalThemes = () => {
@@ -448,8 +471,8 @@ export default function Dashboard() {
           {allTags.length > 0 && (
             <div className={`mb-6 rounded-2xl p-4 ${getThemedClasses()}`}>
               <div className="flex items-center gap-2 mb-3">
-                <Filter className={`w-4 h-4 ${getTextColor()}`} />
-                <h3 className={`font-semibold ${getTextColor()}`}>Filter by Tags</h3>
+                <Filter className={`w-5 h-5 ${getTextColor()}`} />
+                <h3 className={`font-semibold text-base ${getTextColor()}`}>Filter by Tags</h3>
               </div>
               <div className="flex flex-wrap gap-2">
                 {allTags.map((tag) => (
@@ -463,6 +486,8 @@ export default function Dashboard() {
                         ? 'bg-pink-100 text-pink-700 hover:bg-pink-200'
                         : theme === 'halloween'
                         ? 'bg-orange-500/20 text-orange-500 hover:bg-orange-500/30'
+                        : theme === 'dark' || theme === 'botanical' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'fall'
+                        ? 'bg-white/10 text-white hover:bg-white/20'
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                     }`}
                   >
@@ -474,7 +499,11 @@ export default function Dashboard() {
                     size="sm"
                     variant="ghost"
                     onClick={() => setSelectedTags([])}
-                    className="h-7 text-gray-500 hover:bg-gray-100 dark:text-white/70 dark:hover:bg-white/10"
+                    className={`h-7 ${
+                      theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'fall'
+                        ? 'text-white/70 hover:bg-white/10'
+                        : 'text-gray-500 hover:bg-gray-100'
+                    }`}
                   >
                     Clear
                   </Button>
@@ -573,18 +602,22 @@ export default function Dashboard() {
                         )}
                       </div>
                       <div className={`p-4 ${getPlantCardFooterBgClass()}`}>
-                        <h3 className={`font-bold text-base line-clamp-2 mb-1 ${getTextColor()}`}>
+                        <h3 className={`font-bold text-base line-clamp-2 mb-1 ${getPlantCardTextColor()}`}>
                           {displayName}
                         </h3>
                         {plant.environment && (
                           <div className="flex items-center gap-1 mt-2">
-                            <span className={`text-xs ${getSecondaryTextColor()}`}>{plant.environment}</span>
+                            <span className={`text-xs font-medium ${getPlantCardSecondaryTextColor()}`}>{plant.environment}</span>
                           </div>
                         )}
                         {plant.tags && plant.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {plant.tags.map(tag => (
-                              <Badge key={tag} className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-full dark:bg-white/10 dark:text-white/80">
+                              <Badge key={tag} className={`text-xs px-2 py-0.5 rounded-full ${
+                                theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'fall'
+                                  ? 'bg-white/20 text-white'
+                                  : 'bg-gray-200 text-gray-700'
+                              }`}>
                                 {tag}
                               </Badge>
                             ))}
