@@ -119,8 +119,10 @@ function LayoutContent({ children, currentPageName }) {
   ];
 
   const handleNavClick = (url) => {
-    navigate(url);
-    setOpen(false); // Close sidebar after navigation
+    setOpen(false); // Close sidebar first
+    setTimeout(() => {
+      navigate(url);
+    }, 100); // Small delay to ensure sidebar closes smoothly
   };
 
   return (
@@ -157,7 +159,7 @@ function LayoutContent({ children, currentPageName }) {
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton 
-                        onClick={() => handleNavClick(item.url)}
+                        asChild
                         className={cn(
                           "rounded-2xl transition-all duration-300 mb-2 h-12 cursor-pointer",
                           isActive 
@@ -165,15 +167,17 @@ function LayoutContent({ children, currentPageName }) {
                             : "sidebar-nav-inactive"
                         )}
                       >
-                        <div className="flex items-center gap-3 px-4 py-3">
-                          <div className="relative">
-                            <item.icon className="w-5 h-5" />
-                            {item.badge > 0 && (
-                              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full"></span>
-                            )}
+                        <button onClick={() => handleNavClick(item.url)} className="w-full">
+                          <div className="flex items-center gap-3 px-4 py-3">
+                            <div className="relative">
+                              <item.icon className="w-5 h-5" />
+                              {item.badge > 0 && (
+                                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full"></span>
+                              )}
+                            </div>
+                            <span className="font-semibold">{item.title}</span>
                           </div>
-                          <span className="font-semibold">{item.title}</span>
-                        </div>
+                        </button>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );

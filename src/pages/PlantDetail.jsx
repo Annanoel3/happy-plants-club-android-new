@@ -225,13 +225,14 @@ export default function PlantDetail() {
       queryClient.invalidateQueries(['wateringLogs']);
       queryClient.invalidateQueries(['plants']);
       
+      // Close dialog FIRST
+      setShowWaterDialog(false);
+      
       // Clear the form
       setWateringNotes("");
       setWateringDate(new Date().toISOString().split('T')[0]);
-      
-      // Close dialog
-      setShowWaterDialog(false);
 
+      // Then show success messages
       if (data.grew) {
         toast.success(`🌱 Your plant grew to ${data.growth_stage}!`);
       } else {
