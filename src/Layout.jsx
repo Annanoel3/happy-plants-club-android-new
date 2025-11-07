@@ -263,11 +263,27 @@ function LayoutContent({ children, currentPageName }) {
 }
 
 export default function Layout({ children, currentPageName }) {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    loadUser();
+  }, []);
+
+  const loadUser = async () => {
+    try {
+      const currentUser = await base44.auth.me();
+      setUser(currentUser);
+    } catch (error) {
+      console.error('Error loading user:', error);
+      setUser(null); // Ensure user is null on error
+    }
+  };
+
   return (
     <SidebarProvider>
       <ThemeMode />
-      <OneSignalSetup user={null} />
-      <NotificationPopup user={null} />
+      <OneSignalSetup user={user} />
+      <NotificationPopup user={user} />
       <LayoutContent children={children} currentPageName={currentPageName} />
       
       <style>{`
