@@ -439,33 +439,33 @@ export default function PlantDetail() {
 
   const getThemedClasses = () => {
     if (theme === 'botanical') return 'bg-green-950/50 backdrop-blur-md border border-green-900/50';
-    if (theme === 'kawaii') return 'bg-pink-100/80 backdrop-blur-md border border-pink-200/50';
+    if (theme === 'kawaii') return 'bg-pink-50/95 backdrop-blur-md border border-pink-200/50';
     if (theme === 'halloween') return 'bg-black/70 backdrop-blur-md border border-orange-500/30';
     if (theme === 'christmas') return 'bg-red-950/70 backdrop-blur-md border border-red-800/50';
-    if (theme === 'valentines') return 'bg-pink-900/70 backdrop-blur-md border border-pink-700/50';
+    if (theme === 'valentines') return 'bg-pink-50/95 backdrop-blur-md border border-pink-300/50';
     if (theme === 'newyears') return 'bg-indigo-950/70 backdrop-blur-md border border-indigo-800/50';
-    if (theme === 'stpatricks') return 'bg-green-950/70 backdrop-blur-md border border-green-800/50';
+    if (theme === 'stpatricks') return 'bg-green-50/95 backdrop-blur-md border border-green-300/50';
     if (theme === 'fourthofjuly') return 'bg-blue-950/70 backdrop-blur-md border border-blue-800/50';
-    if (theme === 'summer') return 'bg-yellow-800/70 backdrop-blur-md border border-yellow-600/50';
-    if (theme === 'spring') return 'bg-purple-800/70 backdrop-blur-md border border-purple-600/50';
+    if (theme === 'summer') return 'bg-orange-50/95 backdrop-blur-md border border-orange-300/50';
+    if (theme === 'spring') return 'bg-purple-50/95 backdrop-blur-md border border-purple-300/50';
     if (theme === 'fall') return 'bg-orange-950/70 backdrop-blur-md border border-orange-800/50';
-    if (theme === 'winter') return 'bg-blue-900/70 backdrop-blur-md border border-blue-700/50';
+    if (theme === 'winter') return 'bg-blue-50/95 backdrop-blur-md border border-blue-300/50';
     if (theme === 'dark') return 'bg-black/40 backdrop-blur-md border border-gray-700/50';
-    return 'bg-black/5 backdrop-blur-md border border-gray-300/50'; // light mode - very light frosted
+    return 'bg-white/95 backdrop-blur-md border border-gray-300/50'; // light mode - opaque white
   };
 
   // Helper to determine if theme has a light background (needs dark text)
   const isThemeLight = (currentTheme) => {
-    return currentTheme === 'kawaii' || currentTheme === 'light'; // Default 'light'
+    return currentTheme === 'kawaii' || currentTheme === 'valentines' || currentTheme === 'stpatricks' || currentTheme === 'summer' || currentTheme === 'spring' || currentTheme === 'winter' || currentTheme === 'light'; // Default 'light'
   };
 
   const getTextColor = () => {
-    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly') return 'text-white';
+    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'fall') return 'text-white';
     return 'text-gray-900';
   };
 
   const getSecondaryTextColor = () => {
-    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly') return 'text-white/80';
+    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'fall') return 'text-white/80';
     return 'text-gray-600';
   };
 
