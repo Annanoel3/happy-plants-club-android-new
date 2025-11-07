@@ -1,56 +1,81 @@
 import { useEffect } from 'react';
 
+// Helper function to detect if running in Capacitor mobile app
+function isRunningInCapacitor() {
+    return window !== window.parent;
+}
+
 export default function OneSignalSetup({ user }) {
-
   useEffect(() => {
-    // This function will run whenever the 'user' object changes.
-    const syncUserWithOneSignal = () => {
-      // Find our custom plugin on the global window object.
-      // The name "NotifyBridge" now matches the name in your Java file.
-      const NotifyBridge = window.Capacitor?.Plugins?.NotifyBridge;
-
-      // If the plugin isn't found, we can't do anything.
-      // This is the most likely reason for failure if `npx cap sync` was not run.
-      if (!NotifyBridge) {
-        console.error("[OneSignal] Critical Error: The native 'NotifyBridge' plugin was not found. The app cannot communicate with OneSignal.");
+    const syncOneSignal = async () => {
+      if (!user) {
+        console.log('[OneSignal] No user provided to OneSignalSetup');
         return;
       }
 
-      // --- Handle User Login ---
-      if (user && user.email) {
-        console.log(`[OneSignal] User is present. Attempting to log in user: ${user.email}`);
-        NotifyBridge.login({ externalId: user.email })
-          .then(() => {
-            console.log(`[OneSignal] Successfully called native login for: ${user.email}`);
-          })
-          .catch(e => {
-            console.error('[OneSignal] Native login call failed:', e);
+      const userEmail = user?.email;
+
+      // CRITICAL: Verify we have an email, not an ID
+      if (!userEmail || !userEmail.includes('@')) {
+        console.error('[OneSignal] INVALID EMAIL:', userEmail);
+        console.error('[OneSignal] User object:', user);
+        return;
+      }
+
+      console.log('[OneSignal] ✅ Valid email confirmed:', userEmail);
+      console.log('[OneSignal] User ID (NOT being sent):', user.id);
+
+      if (isRunningInCapacitor()) {
+        // Running in mobile app - send to native wrapper
+        console.log('[OneSignal] Running in Capacitor mobile app');
+        
+        if (userEmail) {
+          // User logged in - set external user ID via postMessage
+          console.log('[OneSignal] ✅ Sending EMAIL (not ID) via postMessage:', userEmail);
+          console.log('[OneSignal] ❌ NOT sending user ID:', user.id);
+          
+          window.parent.postMessage({
+            type: 'setOneSignalExternalUserId',
+            externalUserId: userEmail // ALWAYS the email, NEVER user.id
+          }, '*');
+        } else {
+          // User logged out
+          console.log('[OneSignal] User logged out in mobile app');
+          window.parent.postMessage({
+            type: 'oneSignalLogout'
+          }, '*');
+        }
+      } else {
+        // Running in web browser - use web SDK
+        console.log('[OneSignal] Running in web browser');
+        
+        if (userEmail) {
+          // Initialize OneSignal web SDK
+          window.OneSignal = window.OneSignal || [];
+          window.OneSignal.push(function() {
+            window.OneSignal.init({
+              appId: "dc1933bc-e49e-4d8a-aa4a-2c9ca749ff37",
+              allowLocalhostAsSecureOrigin: true
+            });
+            
+            // FIXED: Use SDK 5.x login() method instead of deprecated setExternalUserId()
+            console.log('[OneSignal] ✅ Web SDK using login() with EMAIL:', userEmail);
+            window.OneSignal.login(userEmail);
           });
-      } 
-      // --- Handle User Logout ---
-      else {
-        console.log('[OneSignal] User is not present. Attempting to log out.');
-        NotifyBridge.logout()
-          .then(() => {
-            console.log('[OneSignal] Successfully called native logout.');
-          })
-          .catch(e => {
-            console.error('[OneSignal] Native logout call failed:', e);
-          });
+        } else {
+          // FIXED: Use SDK 5.x logout() method instead of deprecated removeExternalUserId()
+          if (window.OneSignal) {
+            window.OneSignal.push(function() {
+              window.OneSignal.logout();
+              console.log('[OneSignal] Web SDK logged out');
+            });
+          }
+        }
       }
     };
 
-    // To combat any timing issues with the bridge initializing,
-    // we'll wait a moment after the component loads before trying to sync.
-    const timer = setTimeout(() => {
-      syncUserWithOneSignal();
-    }, 500); // Wait 500ms for the native bridge to be ready.
+    syncOneSignal();
+  }, [user]);
 
-    // Cleanup the timer if the component unmounts
-    return () => clearTimeout(timer);
-
-  }, [user]); // This logic re-runs every time the user prop changes.
-
-  // This component does not render anything visible.
   return null;
 }
