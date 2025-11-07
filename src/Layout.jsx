@@ -134,7 +134,7 @@ function LayoutContent({ children, currentPageName }) {
       )}
       
       <Sidebar className="sidebar-container">
-        <SidebarHeader className="sidebar-header">
+        <SidebarHeader className="sidebar-header pt-8 pb-2">
           <div className="flex items-center gap-3">
             <img 
               src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/9fd059159_HP1.png"
@@ -183,7 +183,7 @@ function LayoutContent({ children, currentPageName }) {
           </SidebarGroup>
         </SidebarContent>
 
-        <SidebarFooter className="p-3 sidebar-footer">
+        <SidebarFooter className="p-3 pb-8 sidebar-footer">
           <Button
             variant="outline"
             onClick={cycleTheme}
