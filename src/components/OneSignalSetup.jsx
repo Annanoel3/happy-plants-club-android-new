@@ -5,11 +5,11 @@ function isRunningInCapacitor() {
     return window !== window.parent;
 }
 
-export default function OneSignalSetup({ user }) {
+export default function OneSignalInit({ user }) {
   useEffect(() => {
     const syncOneSignal = async () => {
       if (!user) {
-        console.log('[OneSignal] No user provided to OneSignalSetup');
+        console.log('[OneSignal] No user provided to OneSignalInit');
         return;
       }
 
