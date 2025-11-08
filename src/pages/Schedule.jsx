@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { generateVacationPDF } from "@/functions/generateVacationPDF";
 
 export default function Schedule() {
   const navigate = useNavigate();
@@ -144,7 +145,7 @@ export default function Schedule() {
   const handleGeneratePDF = async (vacationId) => {
     setIsGeneratingPDF(true);
     try {
-      const { data } = await base44.functions.invoke('generateVacationPDF', {
+      const { data } = await generateVacationPDF({
         vacation_id: vacationId
       });
 

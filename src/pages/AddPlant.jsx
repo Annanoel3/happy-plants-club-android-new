@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import { identifyPlantWithExpert } from "@/functions/identifyPlantWithExpert";
+import { transcribeVoice } from "@/functions/transcribeVoice";
+import { processBulkPlants } from "@/functions/processBulkPlants";
 
 export default function AddPlant() {
   const navigate = useNavigate();
@@ -73,7 +76,7 @@ export default function AddPlant() {
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       
-      const { data } = await base44.functions.invoke('identifyPlantWithExpert', {
+      const { data } = await identifyPlantWithExpert({
         image_url: file_url
       });
 
@@ -136,9 +139,9 @@ export default function AddPlant() {
       const formData = new FormData();
       formData.append('audio', audioBlob);
 
-      const { data: transcriptData } = await base44.functions.invoke('transcribeVoice', formData);
+      const { data: transcriptData } = await transcribeVoice(formData);
       
-      const { data } = await base44.functions.invoke('processBulkPlants', {
+      const { data } = await processBulkPlants({
         plant_names: transcriptData.transcript.split(',').map(n => n.trim())
       });
 
@@ -164,7 +167,7 @@ export default function AddPlant() {
     setIsProcessing(true);
     try {
       const names = plantNames.split(',').map(n => n.trim()).filter(n => n);
-      const { data } = await base44.functions.invoke('processBulkPlants', {
+      const { data } = await processBulkPlants({
         plant_names: names
       });
 

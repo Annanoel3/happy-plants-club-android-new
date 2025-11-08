@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
+import { transcribeVoice } from "@/functions/transcribeVoice";
+import { processVoiceWatering } from "@/functions/processVoiceWatering";
 
 export default function VoiceLog() {
   const navigate = useNavigate();
@@ -104,7 +107,7 @@ export default function VoiceLog() {
       console.log('📁 Audio uploaded to:', uploadResult.file_url);
 
       // Now transcribe using the file URL
-      const { data } = await base44.functions.invoke('transcribeVoice', {
+      const { data } = await transcribeVoice({
         file_url: uploadResult.file_url
       });
       
@@ -124,7 +127,7 @@ export default function VoiceLog() {
 
   const processTranscript = async (text) => {
     try {
-      const { data } = await base44.functions.invoke('processVoiceWatering', {
+      const { data } = await processVoiceWatering({
         transcript: text
       });
 
