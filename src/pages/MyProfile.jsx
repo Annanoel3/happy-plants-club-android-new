@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { User, Camera, Edit2, MapPin, Lock, Sparkles } from "lucide-react";
+import { User, Camera, Edit2, MapPin, Lock, Sparkles, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -73,6 +72,10 @@ export default function MyProfile() {
     },
     enabled: !!user,
   });
+
+  const handleLogout = () => {
+    base44.auth.logout();
+  };
 
   const getThemedClasses = () => {
     if (theme === 'botanical') return 'bg-green-950/50 backdrop-blur-md border border-green-900/50';
@@ -162,14 +165,24 @@ export default function MyProfile() {
                 </div>
               )}
 
-              <Button
-                onClick={() => navigate('/Settings')}
-                variant="outline"
-                className={`w-full max-w-xs ${getThemedClasses()} ${getTextColor()}`}
-                size="lg"
-              >
-                <Edit2 className="w-4 h-4 mr-2" /> Edit Profile
-              </Button>
+              <div className="flex gap-3 max-w-xs mx-auto">
+                <Button
+                  onClick={() => navigate('/Settings')}
+                  variant="outline"
+                  className={`flex-1 ${getThemedClasses()} ${getTextColor()}`}
+                  size="lg"
+                >
+                  <Edit2 className="w-4 h-4 mr-2" /> Edit Profile
+                </Button>
+                <Button
+                  onClick={handleLogout}
+                  variant="outline"
+                  className={`${getThemedClasses()} ${getTextColor()}`}
+                  size="lg"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

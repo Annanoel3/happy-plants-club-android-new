@@ -48,7 +48,7 @@ export default function Dashboard() {
         setUser(currentUser);
         
         if (!currentUser?.location) {
-          window.location.href = '/Welcome';
+          navigate('/Welcome');
           return;
         }
       } else {
@@ -375,7 +375,7 @@ export default function Dashboard() {
             <h1 className={`text-3xl font-bold mb-3 ${getTextColor()}`}>Welcome to Happy Plants</h1>
             <p className={`mb-8 ${getSecondaryTextColor()}`}>Please log in to manage your garden</p>
             <button 
-              onClick={() => base44.auth.redirectToLogin()}
+              onClick={() => navigate('/Welcome')}
               className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl shadow-lg text-lg"
             >
               Login
