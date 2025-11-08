@@ -213,36 +213,46 @@ export default function PlantDetail() {
 
   const waterPlantMutation = useMutation({
     mutationFn: async () => {
-      const { data } = await base44.functions.invoke('processWatering', {
+      console.log('🚰 Starting watering mutation...');
+      const response = await base44.functions.invoke('processWatering', {
         plant_id: plantId,
         notes: wateringNotes,
         watering_date: wateringDate
       });
-      return data;
+      console.log('🚰 Full response:', response);
+      console.log('🚰 Response data:', response.data);
+      return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries(['plant']);
-      queryClient.invalidateQueries(['wateringLogs']);
-      queryClient.invalidateQueries(['plants']);
+      console.log('✅ Watering success! Data:', data);
       
       // Close dialog FIRST
       setShowWaterDialog(false);
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries(['plant']);
+      queryClient.invalidateQueries(['wateringLogs']);
+      queryClient.invalidateQueries(['plants']);
       
       // Clear the form
       setWateringNotes("");
       setWateringDate(new Date().toISOString().split('T')[0]);
 
       // Then show success messages
-      if (data.grew) {
+      if (data?.grew) {
         toast.success(`🌱 Your plant grew to ${data.growth_stage}!`);
       } else {
         toast.success('Plant watered! 💧');
       }
 
-      if (data.tier_changed) {
+      if (data?.tier_changed) {
         toast.success(`🏆 You reached ${data.new_tier}!`);
       }
     },
+    onError: (error) => {
+      console.error('❌ Watering failed:', error);
+      toast.error('Failed to water plant: ' + error.message);
+    }
   });
 
   const updatePlantMutation = useMutation({
