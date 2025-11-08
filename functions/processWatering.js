@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
 
-Deno.serve(async (req) => {
+export default async function handler(req) {
     try {
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
@@ -24,20 +24,16 @@ Deno.serve(async (req) => {
 
         console.log('🌱 Fetching plant with ID:', plant_id);
         
-        // Try to get all plants first to debug
         const allPlants = await base44.asServiceRole.entities.Plant.list();
         console.log('📊 Total plants in database:', allPlants.length);
-        console.log('🔍 Looking for plant_id:', plant_id);
         
-        // Find the plant manually
         const plantData = allPlants.find(p => p.id === plant_id);
         
         if (!plantData) {
-            console.error('❌ Plant not found. Available plant IDs:', allPlants.map(p => p.id));
+            console.error('❌ Plant not found');
             return Response.json({ 
                 error: 'Plant not found',
-                plant_id: plant_id,
-                available_ids: allPlants.map(p => p.id)
+                plant_id: plant_id
             }, { status: 404 });
         }
 
@@ -63,17 +59,10 @@ Deno.serve(async (req) => {
             grewThisWatering = true;
         }
 
-        // Calculate next watering FROM THE ACTUAL WATERING DATE, not from today
         const nextWatering = new Date(waterDate);
         nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
 
-        console.log('💧 Updating plant with:', {
-            last_watered: waterDate,
-            next_watering_due: nextWatering.toISOString().split('T')[0],
-            total_waterings: newTotalWaterings,
-            growth_stage: newGrowthStage,
-            status: 'healthy',
-        });
+        console.log('💧 Updating plant...');
 
         await base44.asServiceRole.entities.Plant.update(plant_id, {
             last_watered: waterDate,
@@ -83,9 +72,8 @@ Deno.serve(async (req) => {
             status: 'healthy',
         });
 
-        console.log('✅ Plant updated successfully');
+        console.log('✅ Plant updated');
 
-        console.log('📝 Creating watering log...');
         await base44.asServiceRole.entities.WateringLog.create({
             plant_id: plant_id,
             plant_name: plantData.name,
@@ -117,7 +105,6 @@ Deno.serve(async (req) => {
             tier = 'Green Thumb';
         }
 
-        console.log('👤 Updating user stats...');
         await base44.auth.updateMe({
             lifetime_waterings: newLifetimeWaterings,
             current_tier: tier,
@@ -126,7 +113,6 @@ Deno.serve(async (req) => {
 
         console.log('✅ User stats updated');
 
-        // Handle game events
         const events = await base44.asServiceRole.entities.GameEvent.filter({
             resolved: false,
         });
@@ -136,7 +122,6 @@ Deno.serve(async (req) => {
         );
 
         if (plantEvents.length > 0) {
-            console.log('🎮 Resolving game events...');
             for (const event of plantEvents) {
                 const remainingPlants = event.affected_plant_ids.filter(id => id !== plant_id);
                 if (remainingPlants.length === 0) {
@@ -149,7 +134,6 @@ Deno.serve(async (req) => {
                     });
                 }
             }
-            console.log('✅ Game events resolved');
         }
 
         console.log('🎉 Watering complete!');
@@ -164,11 +148,9 @@ Deno.serve(async (req) => {
         });
     } catch (error) {
         console.error('💥 Error in processWatering:', error);
-        console.error('Stack:', error.stack);
         return Response.json({ 
             error: error.message,
-            stack: error.stack,
             details: String(error)
         }, { status: 500 });
     }
-});
+}
