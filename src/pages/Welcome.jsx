@@ -12,6 +12,7 @@ export default function Welcome() {
   const navigate = useNavigate();
   const [location, setLocation] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState(null); // New state for user
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   useEffect(() => {
@@ -36,16 +37,31 @@ export default function Welcome() {
 
   const checkIfAlreadySet = async () => {
     try {
-      const user = await base44.auth.me();
-      if (user?.location) {
-        if (user.profile_setup_complete) {
+      const isAuth = await base44.auth.isAuthenticated();
+      
+      if (!isAuth) {
+        console.log('❌ User not authenticated, redirecting to login');
+        base44.auth.redirectToLogin(window.location.pathname);
+        return;
+      }
+
+      const currentUser = await base44.auth.me();
+      setUser(currentUser); // Set the user state
+
+      console.log('✅ User authenticated:', currentUser.email);
+      console.log('📍 User location:', currentUser.location);
+      console.log('✅ Profile setup complete:', currentUser.profile_setup_complete);
+      
+      if (currentUser?.location) {
+        if (currentUser.profile_setup_complete) {
           navigate("/Dashboard");
         } else {
           navigate("/ProfileSetup");
         }
       }
     } catch (error) {
-      console.error("Error checking user:", error);
+      console.error("❌ Error checking user:", error);
+      base44.auth.redirectToLogin(window.location.pathname);
     }
   };
 
@@ -57,11 +73,22 @@ export default function Welcome() {
 
     setIsLoading(true);
     try {
-      await base44.auth.updateMe({ location: location.trim() });
+      console.log('💾 Saving location:', location.trim());
+      
+      await base44.auth.updateMe({ 
+        location: location.trim()
+      });
+      
+      console.log('✅ Location saved successfully');
       toast.success("Welcome to Happy Plants! 🌿");
-      navigate("/ProfileSetup");
+      
+      // Wait a moment for the update to propagate
+      setTimeout(() => {
+        navigate("/ProfileSetup");
+      }, 500);
     } catch (error) {
-      toast.error("Error saving location");
+      console.error('❌ Error saving location:', error);
+      toast.error("Error saving location: " + (error.message || "Unknown error"));
       setIsLoading(false);
     }
   };
@@ -116,6 +143,17 @@ export default function Welcome() {
     if (theme === 'dark') return 'bg-green-600 hover:bg-green-700 text-white';
     return 'bg-green-600 hover:bg-green-700 text-white';
   };
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center theme-bg">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="theme-text text-gray-700 dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center theme-bg p-6">
