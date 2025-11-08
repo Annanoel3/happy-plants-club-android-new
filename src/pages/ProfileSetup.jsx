@@ -20,10 +20,27 @@ export default function ProfileSetup() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
-  // Added theme state to dynamically apply styles based on the user's theme preference.
-  // Defaulting to 'botanical' for this plant-focused application, but could be loaded from user settings.
-  const [theme, setTheme] = useState('botanical'); 
+  useEffect(() => {
+    loadUser();
+  }, []);
+
+  useEffect(() => {
+    const handleThemeChange = () => {
+      const currentTheme = localStorage.getItem('theme') || 'light';
+      setTheme(currentTheme);
+    };
+    
+    handleThemeChange();
+    window.addEventListener('storage', handleThemeChange);
+    const interval = setInterval(handleThemeChange, 100);
+    
+    return () => {
+      window.removeEventListener('storage', handleThemeChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   // --- Theme-related helper functions ---
   // These functions define the styling for different theme elements
@@ -65,25 +82,48 @@ export default function ProfileSetup() {
   // --- End of Theme-related helper functions ---
 
 
-  useEffect(() => {
-    loadUser();
-  }, []);
-
   const loadUser = async () => {
     try {
+      const isAuth = await base44.auth.isAuthenticated();
+      
+      if (!isAuth) {
+        console.log('❌ User not authenticated, redirecting to login');
+        base44.auth.redirectToLogin(window.location.pathname);
+        return;
+      }
+
       const currentUser = await base44.auth.me();
       setUser(currentUser);
       
+      console.log('✅ User authenticated:', currentUser.email);
+      console.log('📍 User location:', currentUser.location);
+      console.log('✅ Profile setup complete:', currentUser.profile_setup_complete);
+      
+      // If they don't have a location yet, send them to Welcome first
+      if (!currentUser.location) {
+        console.log('⚠️ No location set, redirecting to Welcome');
+        navigate('/Welcome');
+        return;
+      }
+      
       // If profile setup is already complete, redirect to Dashboard
       if (currentUser.profile_setup_complete) {
+        console.log('✅ Profile already complete, redirecting to Dashboard');
         navigate('/Dashboard');
         return;
       }
       
       // Generate handle if they don't have one
       if (!currentUser.handle) {
-        const { data } = await base44.functions.invoke('generateHandle');
-        setHandle(data.handle);
+        try {
+          const { data } = await base44.functions.invoke('generateHandle');
+          setHandle(data.handle);
+        } catch (error) {
+          console.error('Error generating handle:', error);
+          // Generate a simple fallback handle
+          const randomNum = Math.floor(Math.random() * 10000);
+          setHandle(`user${randomNum}`);
+        }
       } else {
         setHandle(currentUser.handle);
       }
@@ -91,13 +131,9 @@ export default function ProfileSetup() {
       setBio(currentUser.bio || "");
       setProfilePicture(currentUser.profile_picture || "");
       setIsPrivate(currentUser.profile_private || false);
-      
-      // In a real application, you might load the user's theme preference here
-      // if (currentUser.themePreference) {
-      //   setTheme(currentUser.themePreference);
-      // }
     } catch (error) {
-      console.error('Error loading user:', error);
+      console.error('❌ Error loading user:', error);
+      base44.auth.redirectToLogin(window.location.pathname);
     }
   };
 
@@ -125,6 +161,8 @@ export default function ProfileSetup() {
 
     setIsSaving(true);
     try {
+      console.log('💾 Saving profile setup...');
+      
       // Check if handle is taken (if changed)
       if (handle !== user.handle) {
         try {
@@ -147,25 +185,53 @@ export default function ProfileSetup() {
         profile_setup_complete: true
       });
 
+      console.log('✅ Profile saved successfully');
       toast.success('Profile setup complete! 🌿');
-      navigate('/Dashboard');
+      
+      // Wait a moment for the update to propagate
+      setTimeout(() => {
+        navigate('/Dashboard');
+      }, 500);
     } catch (error) {
-      console.error('Error saving profile:', error);
-      toast.error('Error saving profile');
-    } finally {
+      console.error('❌ Error saving profile:', error);
+      toast.error('Error saving profile: ' + (error.message || 'Unknown error'));
       setIsSaving(false);
     }
   };
 
   const handleSkip = async () => {
-    // Mark profile setup as complete even if skipped
-    await base44.auth.updateMe({ profile_setup_complete: true });
-    navigate('/Dashboard');
+    try {
+      console.log('⏭️ Skipping profile setup...');
+      
+      // Generate a random handle if they don't have one
+      let finalHandle = handle;
+      if (!finalHandle || !finalHandle.trim()) {
+        const randomNum = Math.floor(Math.random() * 10000);
+        finalHandle = `user${randomNum}`;
+      }
+      
+      await base44.auth.updateMe({ 
+        handle: finalHandle,
+        profile_setup_complete: true 
+      });
+      
+      console.log('✅ Profile setup skipped');
+      
+      setTimeout(() => {
+        navigate('/Dashboard');
+      }, 300);
+    } catch (error) {
+      console.error('❌ Error skipping setup:', error);
+      toast.error('Error completing setup');
+    }
   };
 
   if (!user) return (
     <div className={`min-h-screen flex items-center justify-center ${getBackgroundColor()}`}>
-      <p className={getTextColor()}>Loading...</p>
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className={getTextColor()}>Loading...</p>
+      </div>
     </div>
   );
 
