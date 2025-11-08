@@ -1,42 +1,28 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+import { base44 } from '@/api/base44Client';
 
-export default async function handler(req) {
-    console.log('🚀 processWatering function called');
+export async function processWatering({ plant_id, notes, watering_date }) {
+    console.log('🚰 processWatering called with:', { plant_id, notes, watering_date });
     
     try {
-        const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
-
+        
         if (!user) {
-            console.error('❌ No user authenticated');
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+            throw new Error('User not authenticated');
         }
 
         console.log('✅ User authenticated:', user.email);
-
-        const body = await req.json();
-        console.log('📦 Request body:', body);
         
-        const { plant_id, notes, watering_date } = body;
-
         if (!plant_id) {
-            console.error('❌ No plant_id provided');
-            return Response.json({ error: 'plant_id is required' }, { status: 400 });
+            throw new Error('plant_id is required');
         }
 
         console.log('🌱 Fetching plant with ID:', plant_id);
         
-        const allPlants = await base44.asServiceRole.entities.Plant.list();
-        console.log('📊 Total plants in database:', allPlants.length);
-        
+        const allPlants = await base44.entities.Plant.list();
         const plantData = allPlants.find(p => p.id === plant_id);
         
         if (!plantData) {
-            console.error('❌ Plant not found');
-            return Response.json({ 
-                error: 'Plant not found',
-                plant_id: plant_id
-            }, { status: 404 });
+            throw new Error('Plant not found');
         }
 
         console.log('🌿 Plant found:', plantData.name);
@@ -66,7 +52,7 @@ export default async function handler(req) {
 
         console.log('💧 Updating plant...');
 
-        await base44.asServiceRole.entities.Plant.update(plant_id, {
+        await base44.entities.Plant.update(plant_id, {
             last_watered: waterDate,
             next_watering_due: nextWatering.toISOString().split('T')[0],
             total_waterings: newTotalWaterings,
@@ -76,7 +62,7 @@ export default async function handler(req) {
 
         console.log('✅ Plant updated');
 
-        await base44.asServiceRole.entities.WateringLog.create({
+        await base44.entities.WateringLog.create({
             plant_id: plant_id,
             plant_name: plantData.name,
             watered_date: waterDate,
@@ -115,7 +101,7 @@ export default async function handler(req) {
 
         console.log('✅ User stats updated');
 
-        const events = await base44.asServiceRole.entities.GameEvent.filter({
+        const events = await base44.entities.GameEvent.filter({
             resolved: false,
         });
 
@@ -127,11 +113,11 @@ export default async function handler(req) {
             for (const event of plantEvents) {
                 const remainingPlants = event.affected_plant_ids.filter(id => id !== plant_id);
                 if (remainingPlants.length === 0) {
-                    await base44.asServiceRole.entities.GameEvent.update(event.id, {
+                    await base44.entities.GameEvent.update(event.id, {
                         resolved: true,
                     });
                 } else {
-                    await base44.asServiceRole.entities.GameEvent.update(event.id, {
+                    await base44.entities.GameEvent.update(event.id, {
                         affected_plant_ids: remainingPlants,
                     });
                 }
@@ -139,7 +125,8 @@ export default async function handler(req) {
         }
 
         console.log('🎉 Watering complete!');
-        return Response.json({
+        
+        return {
             success: true,
             grew: grewThisWatering,
             growth_stage: newGrowthStage,
@@ -147,12 +134,9 @@ export default async function handler(req) {
             tier_changed: tier !== user.current_tier,
             total_waterings: newLifetimeWaterings,
             total_plant_growths: newTotalPlantGrowths,
-        });
+        };
     } catch (error) {
         console.error('💥 Error in processWatering:', error);
-        return Response.json({ 
-            error: error.message,
-            details: String(error)
-        }, { status: 500 });
+        throw error;
     }
 }

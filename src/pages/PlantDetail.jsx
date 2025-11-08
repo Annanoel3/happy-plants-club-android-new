@@ -216,14 +216,13 @@ export default function PlantDetail() {
   const waterPlantMutation = useMutation({
     mutationFn: async () => {
       console.log('🚰 Starting watering mutation...');
-      const response = await processWatering({
+      const result = await processWatering({
         plant_id: plantId,
         notes: wateringNotes,
         watering_date: wateringDate
       });
-      console.log('🚰 Full response:', response);
-      console.log('🚰 Response data:', response.data);
-      return response.data;
+      console.log('🚰 Result:', result);
+      return result;
     },
     onSuccess: (data) => {
       console.log('✅ Watering success! Data:', data);
