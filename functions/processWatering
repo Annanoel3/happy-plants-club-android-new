@@ -6,17 +6,34 @@ Deno.serve(async (req) => {
         const user = await base44.auth.me();
 
         if (!user) {
+            console.error('❌ No user authenticated');
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { plant_id, notes, watering_date } = await req.json();
+        console.log('✅ User authenticated:', user.email);
 
-        const plant = await base44.entities.Plant.filter({ id: plant_id });
-        if (!plant || plant.length === 0) {
+        const body = await req.json();
+        console.log('📦 Request body:', body);
+        
+        const { plant_id, notes, watering_date } = body;
+
+        if (!plant_id) {
+            console.error('❌ No plant_id provided');
+            return Response.json({ error: 'plant_id is required' }, { status: 400 });
+        }
+
+        console.log('🌱 Fetching plant:', plant_id);
+        const plants = await base44.asServiceRole.entities.Plant.filter({ id: plant_id });
+        console.log('📦 Plants result:', plants);
+        
+        if (!plants || plants.length === 0) {
+            console.error('❌ Plant not found:', plant_id);
             return Response.json({ error: 'Plant not found' }, { status: 404 });
         }
 
-        const plantData = plant[0];
+        const plantData = plants[0];
+        console.log('🌿 Plant data:', plantData);
+        
         const waterDate = watering_date || new Date().toISOString().split('T')[0];
         const newTotalWaterings = (plantData.total_waterings || 0) + 1;
 
@@ -41,6 +58,14 @@ Deno.serve(async (req) => {
         const nextWatering = new Date(waterDate);
         nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
 
+        console.log('💧 Updating plant with:', {
+            last_watered: waterDate,
+            next_watering_due: nextWatering.toISOString().split('T')[0],
+            total_waterings: newTotalWaterings,
+            growth_stage: newGrowthStage,
+            status: 'healthy',
+        });
+
         await base44.asServiceRole.entities.Plant.update(plant_id, {
             last_watered: waterDate,
             next_watering_due: nextWatering.toISOString().split('T')[0],
@@ -49,6 +74,9 @@ Deno.serve(async (req) => {
             status: 'healthy',
         });
 
+        console.log('✅ Plant updated successfully');
+
+        console.log('📝 Creating watering log...');
         await base44.asServiceRole.entities.WateringLog.create({
             plant_id: plant_id,
             plant_name: plantData.name,
@@ -56,6 +84,8 @@ Deno.serve(async (req) => {
             method: 'manual',
             notes: notes || null,
         });
+
+        console.log('✅ Watering log created');
 
         const newLifetimeWaterings = (user.lifetime_waterings || 0) + 1;
         let newTotalPlantGrowths = (user.total_plant_growths || 0);
@@ -78,12 +108,16 @@ Deno.serve(async (req) => {
             tier = 'Green Thumb';
         }
 
+        console.log('👤 Updating user stats...');
         await base44.auth.updateMe({
             lifetime_waterings: newLifetimeWaterings,
             current_tier: tier,
             total_plant_growths: newTotalPlantGrowths,
         });
 
+        console.log('✅ User stats updated');
+
+        // Handle game events
         const events = await base44.asServiceRole.entities.GameEvent.filter({
             resolved: false,
         });
@@ -93,6 +127,7 @@ Deno.serve(async (req) => {
         );
 
         if (plantEvents.length > 0) {
+            console.log('🎮 Resolving game events...');
             for (const event of plantEvents) {
                 const remainingPlants = event.affected_plant_ids.filter(id => id !== plant_id);
                 if (remainingPlants.length === 0) {
@@ -105,8 +140,10 @@ Deno.serve(async (req) => {
                     });
                 }
             }
+            console.log('✅ Game events resolved');
         }
 
+        console.log('🎉 Watering complete!');
         return Response.json({
             success: true,
             grew: grewThisWatering,
@@ -117,7 +154,12 @@ Deno.serve(async (req) => {
             total_plant_growths: newTotalPlantGrowths,
         });
     } catch (error) {
-        console.error('Error in processWatering:', error);
-        return Response.json({ error: error.message }, { status: 500 });
+        console.error('💥 Error in processWatering:', error);
+        console.error('Stack:', error.stack);
+        return Response.json({ 
+            error: error.message,
+            stack: error.stack,
+            details: String(error)
+        }, { status: 500 });
     }
 });
