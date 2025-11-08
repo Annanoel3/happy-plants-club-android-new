@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { processWatering } from "@/functions/processWatering";
+import { chatWithPlant } from "@/functions/chatWithPlant";
 
 export default function PlantDetail() {
   const navigate = useNavigate();
@@ -214,7 +216,7 @@ export default function PlantDetail() {
   const waterPlantMutation = useMutation({
     mutationFn: async () => {
       console.log('🚰 Starting watering mutation...');
-      const response = await base44.functions.invoke('processWatering', {
+      const response = await processWatering({
         plant_id: plantId,
         notes: wateringNotes,
         watering_date: wateringDate
@@ -386,7 +388,7 @@ export default function PlantDetail() {
     setIsProcessingChat(true);
 
     try {
-      const { data } = await base44.functions.invoke('chatWithPlant', {
+      const { data } = await chatWithPlant({
         plant_id: plantId,
         message: userMessage,
         conversation_id: conversation?.id
