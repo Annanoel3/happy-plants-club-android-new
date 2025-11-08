@@ -22,17 +22,26 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'plant_id is required' }, { status: 400 });
         }
 
-        console.log('🌱 Fetching plant:', plant_id);
-        const plants = await base44.asServiceRole.entities.Plant.filter({ id: plant_id });
-        console.log('📦 Plants result:', plants);
+        console.log('🌱 Fetching plant with ID:', plant_id);
         
-        if (!plants || plants.length === 0) {
-            console.error('❌ Plant not found:', plant_id);
-            return Response.json({ error: 'Plant not found' }, { status: 404 });
+        // Try to get all plants first to debug
+        const allPlants = await base44.asServiceRole.entities.Plant.list();
+        console.log('📊 Total plants in database:', allPlants.length);
+        console.log('🔍 Looking for plant_id:', plant_id);
+        
+        // Find the plant manually
+        const plantData = allPlants.find(p => p.id === plant_id);
+        
+        if (!plantData) {
+            console.error('❌ Plant not found. Available plant IDs:', allPlants.map(p => p.id));
+            return Response.json({ 
+                error: 'Plant not found',
+                plant_id: plant_id,
+                available_ids: allPlants.map(p => p.id)
+            }, { status: 404 });
         }
 
-        const plantData = plants[0];
-        console.log('🌿 Plant data:', plantData);
+        console.log('🌿 Plant found:', plantData.name);
         
         const waterDate = watering_date || new Date().toISOString().split('T')[0];
         const newTotalWaterings = (plantData.total_waterings || 0) + 1;
