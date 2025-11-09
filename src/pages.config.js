@@ -15,6 +15,7 @@ import ProfileSetup from './pages/ProfileSetup';
 import Search from './pages/Search';
 import FollowRequests from './pages/FollowRequests';
 import TermsAndConditions from './pages/TermsAndConditions';
+import VacationReview from './pages/VacationReview';
 import Layout from './Layout.jsx';
 
 
@@ -36,6 +37,7 @@ export const PAGES = {
     "Search": Search,
     "FollowRequests": FollowRequests,
     "TermsAndConditions": TermsAndConditions,
+    "VacationReview": VacationReview,
 }
 
 export const pagesConfig = {
