@@ -1,21 +1,17 @@
-
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+import { base44 } from '@/api/base44Client';
 import { jsPDF } from 'npm:jspdf@2.5.1';
 
-Deno.serve(async (req) => {
+export async function generateVacationPDF({ vacation_id }) {
     try {
-        const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
 
         if (!user) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+            throw new Error('User not authenticated');
         }
-
-        const { vacation_id } = await req.json();
 
         const vacations = await base44.entities.VacationDay.filter({ id: vacation_id });
         if (vacations.length === 0) {
-            return Response.json({ error: 'Vacation not found' }, { status: 404 });
+            throw new Error('Vacation not found');
         }
 
         const vacation = vacations[0];
@@ -35,27 +31,18 @@ Deno.serve(async (req) => {
             // Start from either the plant's next watering date or the vacation start date
             let currentDate = plant.next_watering_due 
                 ? new Date(plant.next_watering_due)
-                : (plant.last_watered ? new Date(plant.last_watered) : new Date(startDate));
+                : new Date(plant.last_watered || startDate);
             
             // If the next watering is before vacation starts, calculate when it will need water during vacation
             if (currentDate < startDate) {
-                // Calculate days between current date and start of vacation
-                const daysUntilVacation = Math.floor((startDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-                // Calculate how many watering cycles pass until vacation start
-                const cyclesPassed = Math.floor(daysUntilVacation / plant.water_frequency_days);
-                // Advance currentDate to the first potential watering date during or after vacation start
-                currentDate = new Date(currentDate.getTime() + ((cyclesPassed + 1) * plant.water_frequency_days * 24 * 60 * 60 * 1000));
+                const daysSinceLastWater = Math.floor((startDate - currentDate) / (1000 * 60 * 60 * 24));
+                const cyclesPassed = Math.floor(daysSinceLastWater / plant.water_frequency_days);
+                currentDate = new Date(currentDate.getTime() + (cyclesPassed * plant.water_frequency_days * 24 * 60 * 60 * 1000));
             }
             
             // Collect all watering dates during vacation
             const wateringDates = [];
-            // Ensure currentDate is not before startDate (due to previous calculation it might be just before)
-            if (currentDate < startDate) {
-                 currentDate = new Date(startDate.getTime()); // Or calculate from startDate if no previous watering
-            }
-
             while (currentDate <= endDate) {
-                // Ensure the watering date is on or after the vacation start
                 if (currentDate >= startDate) {
                     wateringDates.push(new Date(currentDate));
                 }
@@ -72,7 +59,7 @@ Deno.serve(async (req) => {
             }
         }
 
-        plantsNeedingCare.sort((a, b) => a.watering_date.getTime() - b.watering_date.getTime());
+        plantsNeedingCare.sort((a, b) => a.watering_date - b.watering_date);
 
         // Create PDF
         const doc = new jsPDF();
@@ -118,7 +105,7 @@ Deno.serve(async (req) => {
         y += 10;
 
         // Group plants by date - now handling multiple dates per plant
-        const plantsByDate: { [key: string]: typeof plantsNeedingCare } = {};
+        const plantsByDate = {};
         for (const plant of plantsNeedingCare) {
             for (const date of plant.watering_dates) {
                 const dateKey = date.toLocaleDateString();
@@ -126,21 +113,14 @@ Deno.serve(async (req) => {
                     plantsByDate[dateKey] = [];
                 }
                 // Only add if not already in this date's list
-                if (!plantsByDate[dateKey].some(p => p.id === plant.id)) {
+                if (!plantsByDate[dateKey].find(p => p.id === plant.id)) {
                     plantsByDate[dateKey].push(plant);
                 }
             }
         }
 
-        // Sort the dates themselves for consistent output
-        const sortedDates = Object.keys(plantsByDate).sort((a, b) => {
-            return new Date(a).getTime() - new Date(b).getTime();
-        });
-
-
         // Process each date
-        for (const dateKey of sortedDates) {
-            const dayPlants = plantsByDate[dateKey];
+        for (const [date, dayPlants] of Object.entries(plantsByDate)) {
             if (y > 250) {
                 doc.addPage();
                 y = 20;
@@ -151,7 +131,7 @@ Deno.serve(async (req) => {
             doc.rect(20, y - 5, 170, 10, 'F');
             doc.setFontSize(12);
             doc.setTextColor(255, 255, 255);
-            doc.text(dateKey, 25, y + 2);
+            doc.text(date, 25, y + 2);
             y += 12;
 
             // Grid layout
@@ -259,14 +239,11 @@ Deno.serve(async (req) => {
                 }
             }
 
-            if (col === 1) { // If there was an odd number of plants, advance y
+            if (col === 1) {
                 y = rowStartY + rowHeight + 5;
-            } else if (col === 0 && dayPlants.length > 0) { // If there was an even number of plants, advance y (but only if there were plants)
-                y = rowStartY + rowHeight + 5;
-            } else { // No plants for this day, or reset already happened
-                y += 5; // Small buffer
             }
-            y += 5; // General buffer between dates
+
+            y += 5;
         }
 
         // Summary page
@@ -282,7 +259,7 @@ Deno.serve(async (req) => {
         doc.setTextColor(0, 0, 0);
         doc.text(`Total plants needing water: ${plantsNeedingCare.length}`, 20, y);
         y += 7;
-        doc.text(`Vacation duration: ${Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} days`, 20, y);
+        doc.text(`Vacation duration: ${Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))} days`, 20, y);
         y += 12;
 
         doc.setDrawColor(200, 200, 200);
@@ -330,17 +307,10 @@ Deno.serve(async (req) => {
             }
         }
 
-        const pdfBytes = doc.output('arraybuffer');
-
-        return new Response(pdfBytes, {
-            status: 200,
-            headers: {
-                'Content-Type': 'application/pdf',
-                'Content-Disposition': `attachment; filename=plant-care-${vacation.start_date}-to-${vacation.end_date}.pdf`
-            }
-        });
+        // Return the PDF as ArrayBuffer
+        return doc.output('arraybuffer');
     } catch (error) {
         console.error('PDF Error:', error);
-        return Response.json({ error: error.message }, { status: 500 });
+        throw error;
     }
-});
+}

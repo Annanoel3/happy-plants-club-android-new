@@ -3,13 +3,14 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Download, Loader2, Calendar, FileText, Home } from "lucide-react";
+import { ArrowLeft, Download, Loader2, Calendar, FileText, Home, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { format, parseISO, differenceInDays } from "date-fns";
+import { generateVacationPDF } from "@/functions/generateVacationPDF";
 
 export default function VacationReview() {
   const navigate = useNavigate();
@@ -162,17 +163,13 @@ export default function VacationReview() {
         plant_notes: plantNotes,
       });
 
-      const response = await fetch(`${window.location.origin}/api/functions/generateVacationPDF`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ vacation_id: vacationId }),
+      // Generate PDF using direct function import
+      const response = await generateVacationPDF({
+        vacation_id: vacationId
       });
 
-      if (!response.ok) throw new Error('Failed to generate PDF');
-
-      const blob = await response.blob();
+      // Create blob from ArrayBuffer
+      const blob = new Blob([response], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -185,7 +182,7 @@ export default function VacationReview() {
       toast.success('PDF downloaded! 📄');
     } catch (error) {
       console.error('Error generating PDF:', error);
-      toast.error('Failed to generate PDF');
+      toast.error('Failed to generate PDF: ' + (error.message || 'Unknown error'));
     } finally {
       setIsGenerating(false);
     }
@@ -226,6 +223,8 @@ export default function VacationReview() {
     );
   }
 
+  const daysUntilVacation = differenceInDays(parseISO(vacation.start_date), new Date());
+
   return (
     <div className="min-h-screen theme-bg p-6">
       <div className="max-w-4xl mx-auto">
@@ -245,7 +244,29 @@ export default function VacationReview() {
               ({differenceInDays(parseISO(vacation.end_date), parseISO(vacation.start_date))} days)
             </span>
           </div>
+          {daysUntilVacation > 0 && (
+            <p className={`text-sm mt-2 ${getSecondaryTextColor()}`}>
+              {daysUntilVacation} days until vacation
+            </p>
+          )}
         </div>
+
+        {/* Helpful Tip */}
+        <Card className={`${getThemedClasses()} mb-6 border-blue-500/50`}>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className={`text-sm font-semibold ${getTextColor()} mb-1`}>💡 Pro Tip</p>
+                <p className={`text-sm ${getSecondaryTextColor()}`}>
+                  Download your PDF closer to your vacation date for the most accurate watering schedule! 
+                  Plant watering dates are calculated based on when you last watered them, so downloading 
+                  a few days before you leave ensures your care guide reflects your latest watering data.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className={`${getThemedClasses()} mb-6`}>
           <CardHeader>
