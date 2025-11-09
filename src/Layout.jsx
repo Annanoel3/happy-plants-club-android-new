@@ -56,11 +56,84 @@ function LayoutContent({ children, currentPageName }) {
     }
   };
 
+  const getSeasonalThemes = () => {
+    const now = new Date();
+    const month = now.getMonth() + 1; // 1-12
+    const day = now.getDate();
+    
+    // Kawaii is always available
+    let themes = ['light', 'dark', 'botanical', 'kawaii']; // Start with base themes and kawaii
+
+    // January 1-2: New Years
+    if (month === 1 && day <= 2) {
+      themes.push('newyears');
+    }
+    // January 3 - February 7: Winter
+    else if ((month === 1 && day >= 3) || (month === 2 && day <= 7)) {
+      themes.push('winter');
+    }
+    // February 8-14: Valentine's
+    else if (month === 2 && day >= 8 && day <= 14) {
+      themes.push('valentines');
+    }
+    // February 15 - March 16: Winter
+    else if ((month === 2 && day >= 15) || (month === 3 && day <= 16)) {
+      themes.push('winter');
+    }
+    // March 17: St. Patrick's
+    else if (month === 3 && day === 17) {
+      themes.push('stpatricks');
+    }
+    // March 18 - June 21: Spring
+    else if ((month === 3 && day >= 18) || month === 4 || month === 5 || (month === 6 && day <= 21)) {
+      themes.push('spring');
+    }
+    // June 22 - July 3: Summer
+    else if ((month === 6 && day >= 22) || (month === 7 && day <= 3)) {
+      themes.push('summer');
+    }
+    // July 4: Fourth of July
+    else if (month === 7 && day === 4) {
+      themes.push('fourthofjuly');
+    }
+    // July 5 - August 20: Summer
+    else if ((month === 7 && day >= 5) || (month === 8 && day <= 20)) {
+      themes.push('summer');
+    }
+    // August 21 - September 30: Fall
+    else if ((month === 8 && day >= 21) || month === 9) {
+      themes.push('fall');
+    }
+    // October 1-31: Halloween
+    else if (month === 10) {
+      themes.push('halloween');
+    }
+    // November 1-30: Fall
+    else if (month === 11) {
+      themes.push('fall');
+    }
+    // December 1-25: Christmas
+    else if (month === 12 && day <= 25) {
+      themes.push('christmas');
+    }
+    // December 26-30: Winter
+    else if (month === 12 && day >= 26 && day <= 30) {
+      themes.push('winter');
+    }
+    // December 31 - January 1: New Years
+    else if (month === 12 && day === 31) {
+      themes.push('newyears');
+    }
+    
+    // Remove duplicates and return unique themes
+    return [...new Set(themes)];
+  };
+
   const cycleTheme = () => {
-    const themes = ['light', 'dark', 'botanical', 'kawaii', 'halloween', 'christmas', 'valentines', 'newyears', 'stpatricks', 'fourthofjuly', 'summer', 'spring', 'fall', 'winter'];
-    const currentIndex = themes.indexOf(theme);
-    const nextIndex = (currentIndex + 1) % themes.length;
-    setTheme(themes[nextIndex]);
+    const seasonalThemes = getSeasonalThemes();
+    const currentIndex = seasonalThemes.indexOf(theme);
+    const nextIndex = (currentIndex + 1) % seasonalThemes.length;
+    setTheme(seasonalThemes[nextIndex]);
   };
 
   const getActiveButtonClass = () => {
