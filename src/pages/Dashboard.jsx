@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Droplets, AlertCircle, Sparkles, Mic, Filter } from "lucide-react";
+import { Plus, Droplets, AlertCircle, Sparkles, Mic, Filter, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, differenceInDays, parseISO } from "date-fns";
@@ -118,6 +118,42 @@ export default function Dashboard() {
     enabled: authChecked && !!user && !!user.location,
     retry: 1,
   });
+
+  // Check for today's watering reminder
+  const { data: todayReminder, refetch: refetchTodayReminder } = useQuery({
+    queryKey: ['todayWateringReminder', user?.email],
+    queryFn: async () => {
+      if (!user?.email) return null; // Ensure user is available before fetching
+      const today = new Date().toISOString().split('T')[0];
+      const reminders = await base44.entities.DailyWateringReminder.filter({
+        user_email: user.email,
+        reminder_date: today
+      });
+      return reminders[0] || null;
+    },
+    enabled: !!user,
+    refetchInterval: 60000, // Check every minute
+    staleTime: 0, // Always consider this data stale
+  });
+
+  const dismissWateringReminder = async (status) => {
+    if (!todayReminder) return;
+    
+    await base44.entities.DailyWateringReminder.update(todayReminder.id, {
+      dismissed: true
+    });
+    
+    // Refetch to update UI
+    refetchTodayReminder(); // Use specific refetch for the reminder
+    
+    if (status === 'done') {
+      // Optional: Show a nice message
+      const event = new CustomEvent('showToast', { 
+        detail: { message: '🌱 Great job watering your plants!', type: 'success' } 
+      });
+      window.dispatchEvent(event);
+    }
+  };
 
   const plantsList = Array.isArray(plants) ? plants : [];
   
@@ -406,6 +442,17 @@ export default function Dashboard() {
     'Legendary Botanist': '👑'
   };
 
+  // Check if there are plants needing water today
+  const plantsNeedingWaterToday = plantsList.filter(plant => {
+    if (!plant?.next_watering_due) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return plant.next_watering_due.startsWith(today); // Use startsWith for full date string
+  });
+
+  const showWateringReminder = todayReminder && 
+                                !todayReminder.dismissed && 
+                                plantsNeedingWaterToday.length > 0;
+
   return (
     <>
       <DailyWeatherPopup />
@@ -416,6 +463,40 @@ export default function Dashboard() {
             <h1 className={`text-5xl font-bold mb-2 ${getTextColor()}`}>My Garden</h1>
             <p className={`text-lg ${getSecondaryTextColor()}`}>{plantsList.length} happy plants</p>
           </div>
+
+          {/* Watering Reminder Banner */}
+          {showWateringReminder && (
+            <div className="mb-6 theme-card border-2 border-blue-500 rounded-3xl p-6 shadow-xl">
+              <div className="flex items-start gap-4">
+                <Droplets className="w-8 h-8 text-blue-600 flex-shrink-0 mt-1 animate-bounce" />
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-blue-600 mb-2">💧 Daily Watering Check</h3>
+                  <p className="theme-text mb-4">
+                    Have you finished watering everyone today? 
+                    {plantsNeedingWaterToday.length === 1 
+                      ? ' 1 plant needs water!' 
+                      : ` ${plantsNeedingWaterToday.length} plants need water!`}
+                  </p>
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() => dismissWateringReminder('done')}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      I did! ✅
+                    </Button>
+                    <Button
+                      onClick={() => dismissWateringReminder('not_yet')}
+                      variant="outline"
+                      className="theme-card"
+                    >
+                      Remind me later
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {eventsList.length > 0 && (
             <div className="mb-6 theme-card border-2 border-red-500 rounded-3xl p-6 shadow-xl animate-pulse">
