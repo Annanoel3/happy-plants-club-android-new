@@ -20,6 +20,7 @@ Deno.serve(async (req) => {
         const vacation = vacations[0];
         const startDate = new Date(vacation.start_date);
         const endDate = new Date(vacation.end_date);
+        const plantNotes = vacation.plant_notes || {};
 
         // Get all plants
         const plants = await base44.entities.Plant.filter({ created_by: user.email });
@@ -35,7 +36,8 @@ Deno.serve(async (req) => {
             if (nextWatering >= startDate && nextWatering <= endDate) {
                 plantsNeedingCare.push({
                     ...plant,
-                    watering_date: nextWatering
+                    watering_date: nextWatering,
+                    custom_note: plantNotes[plant.id] || ""
                 });
             }
         }
@@ -60,9 +62,25 @@ Deno.serve(async (req) => {
         if (vacation.notes) {
             doc.setFontSize(10);
             doc.setTextColor(60, 60, 60);
-            const notesLines = doc.splitTextToSize(`Special Instructions: ${vacation.notes}`, 170);
+            doc.setFont(undefined, 'bold');
+            doc.text('Plant Care Notes:', 20, y);
+            y += 5;
+            doc.setFont(undefined, 'normal');
+            const notesLines = doc.splitTextToSize(vacation.notes, 170);
             doc.text(notesLines, 20, y);
-            y += notesLines.length * 5 + 10;
+            y += notesLines.length * 5 + 5;
+        }
+
+        if (vacation.custom_instructions) {
+            doc.setFontSize(10);
+            doc.setTextColor(60, 60, 60);
+            doc.setFont(undefined, 'bold');
+            doc.text('Other Instructions:', 20, y);
+            y += 5;
+            doc.setFont(undefined, 'normal');
+            const instructionsLines = doc.splitTextToSize(vacation.custom_instructions, 170);
+            doc.text(instructionsLines, 20, y);
+            y += instructionsLines.length * 5 + 5;
         }
 
         doc.setDrawColor(200, 200, 200);
@@ -97,11 +115,11 @@ Deno.serve(async (req) => {
             // Grid layout
             let col = 0;
             const colWidth = 85;
-            const rowHeight = 70;
+            const rowHeight = 90;
             let rowStartY = y;
 
             for (const plant of dayPlants) {
-                if (y > 240) {
+                if (y > 220) {
                     doc.addPage();
                     y = 20;
                     rowStartY = y;
@@ -116,46 +134,16 @@ Deno.serve(async (req) => {
                 doc.setLineWidth(0.5);
                 doc.roundedRect(xPos, cardY, colWidth - 5, rowHeight, 3, 3);
 
-                // Try to add image
-                if (plant.image_url) {
-                    try {
-                        const response = await fetch(plant.image_url);
-                        if (response.ok) {
-                            const blob = await response.blob();
-                            const buffer = await blob.arrayBuffer();
-                            const bytes = new Uint8Array(buffer);
-                            
-                            let binary = '';
-                            for (let i = 0; i < bytes.length; i++) {
-                                binary += String.fromCharCode(bytes[i]);
-                            }
-                            const base64 = btoa(binary);
-                            
-                            const mimeType = response.headers.get('content-type') || 'image/jpeg';
-                            const format = mimeType.includes('png') ? 'PNG' : 'JPEG';
-                            
-                            doc.addImage(`data:${mimeType};base64,${base64}`, format, xPos + 5, cardY + 5, 30, 30);
-                        } else {
-                            throw new Error('Image fetch failed');
-                        }
-                    } catch (err) {
-                        // Placeholder
-                        doc.setFillColor(240, 240, 240);
-                        doc.rect(xPos + 5, cardY + 5, 30, 30, 'F');
-                        doc.setFontSize(8);
-                        doc.setTextColor(150, 150, 150);
-                        doc.text('No', xPos + 13, cardY + 18);
-                        doc.text('Image', xPos + 10, cardY + 23);
-                    }
-                } else {
-                    // Placeholder
-                    doc.setFillColor(240, 240, 240);
-                    doc.rect(xPos + 5, cardY + 5, 30, 30, 'F');
-                    doc.setFontSize(8);
-                    doc.setTextColor(150, 150, 150);
-                    doc.text('No', xPos + 13, cardY + 18);
-                    doc.text('Image', xPos + 10, cardY + 23);
-                }
+                // Plant image placeholder (simpler approach)
+                doc.setFillColor(240, 240, 240);
+                doc.rect(xPos + 5, cardY + 5, 30, 30, 'F');
+                doc.setDrawColor(200, 200, 200);
+                doc.rect(xPos + 5, cardY + 5, 30, 30);
+                
+                doc.setFontSize(8);
+                doc.setTextColor(150, 150, 150);
+                const plantEmoji = '🌱';
+                doc.text(plantEmoji, xPos + 15, cardY + 23);
 
                 // Plant name
                 doc.setFontSize(11);
@@ -176,8 +164,24 @@ Deno.serve(async (req) => {
                     cardY += 4;
                 }
                 if (plant.location) {
-                    doc.text(`Spot: ${plant.location}`, xPos + 5, cardY);
+                    const locationText = `Spot: ${plant.location}`;
+                    const locationLines = doc.splitTextToSize(locationText, colWidth - 10);
+                    doc.text(locationLines, xPos + 5, cardY);
+                    cardY += locationLines.length * 4;
+                }
+
+                // Custom note for this plant
+                if (plant.custom_note) {
+                    cardY += 2;
+                    doc.setTextColor(0, 100, 0);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Note:', xPos + 5, cardY);
+                    doc.setFont(undefined, 'normal');
                     cardY += 4;
+                    doc.setTextColor(60, 60, 60);
+                    const noteLines = doc.splitTextToSize(plant.custom_note, colWidth - 10);
+                    doc.text(noteLines.slice(0, 2), xPos + 5, cardY);
+                    cardY += noteLines.slice(0, 2).length * 4;
                 }
 
                 cardY += 2;
@@ -190,9 +194,9 @@ Deno.serve(async (req) => {
                 
                 doc.setTextColor(60, 60, 60);
                 if (plant.care_instructions?.watering) {
-                    const waterText = plant.care_instructions.watering.substring(0, 100);
-                    const waterLines = doc.splitTextToSize(waterText, colWidth - 15);
-                    doc.text(waterLines.slice(0, 3), xPos + 5, cardY);
+                    const waterText = plant.care_instructions.watering.substring(0, 80);
+                    const waterLines = doc.splitTextToSize(waterText, colWidth - 10);
+                    doc.text(waterLines.slice(0, 2), xPos + 5, cardY);
                 } else {
                     doc.text('Water as needed', xPos + 5, cardY);
                 }

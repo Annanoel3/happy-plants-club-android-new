@@ -102,15 +102,18 @@ export default function Schedule() {
 
   const createVacationMutation = useMutation({
     mutationFn: async (data) => {
-      await base44.entities.VacationDay.create({ ...data, created_by: user.email }); // Added created_by
+      const result = await base44.entities.VacationDay.create({ ...data, created_by: user.email }); // Added created_by
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (newVacation) => {
       queryClient.invalidateQueries(['vacations']);
       setShowVacationDialog(false);
       setVacationStartDate("");
       setVacationEndDate("");
       setVacationNotes("");
-      toast.success("Vacation added!");
+      toast.success("Vacation created!");
+      // Navigate to review page
+      navigate(`/VacationReview?id=${newVacation.id}`);
     },
   });
 
@@ -580,14 +583,17 @@ export default function Schedule() {
                   'border-gray-200 bg-white/50'
                 }`}>
                   <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                    <button 
+                      onClick={() => navigate(`/VacationReview?id=${vacation.id}`)}
+                      className="flex-1 text-left hover:opacity-70"
+                    >
                       <p className={`font-semibold ${getTextColor()}`}>
                         {new Date(vacation.start_date).toLocaleDateString()} - {new Date(vacation.end_date).toLocaleDateString()}
                       </p>
                       {vacation.notes && (
                         <p className={`text-sm mt-1 ${getSecondaryTextColor()}`}>{vacation.notes}</p>
                       )}
-                    </div>
+                    </button>
                     <div className="flex gap-2">
                       <Button
                         size="sm"
