@@ -314,7 +314,7 @@ export default function Layout({ children, currentPageName }) {
 
         /* Dark Theme */
         [data-theme="dark"] {
-          --theme-bg: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+          --theme-bg: url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/051076f1c_ChatGPTImageOct10202510_44_15PM.png');
           --theme-text: #f7fafc;
           --theme-text-secondary: #cbd5e0;
           --theme-card-bg: rgba(45, 55, 72, 0.95);
