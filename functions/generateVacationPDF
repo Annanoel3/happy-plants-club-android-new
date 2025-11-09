@@ -1,3 +1,4 @@
+
 import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
 import { jsPDF } from 'npm:jspdf@2.5.1';
 
@@ -29,20 +30,49 @@ Deno.serve(async (req) => {
         const plantsNeedingCare = [];
         
         for (const plant of plants) {
-            if (!plant.next_watering_due) continue;
+            if (!plant.water_frequency_days || plant.water_frequency_days <= 0) continue;
             
-            const nextWatering = new Date(plant.next_watering_due);
+            // Start from either the plant's next watering date or the vacation start date
+            let currentDate = plant.next_watering_due 
+                ? new Date(plant.next_watering_due)
+                : (plant.last_watered ? new Date(plant.last_watered) : new Date(startDate));
             
-            if (nextWatering >= startDate && nextWatering <= endDate) {
+            // If the next watering is before vacation starts, calculate when it will need water during vacation
+            if (currentDate < startDate) {
+                // Calculate days between current date and start of vacation
+                const daysUntilVacation = Math.floor((startDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                // Calculate how many watering cycles pass until vacation start
+                const cyclesPassed = Math.floor(daysUntilVacation / plant.water_frequency_days);
+                // Advance currentDate to the first potential watering date during or after vacation start
+                currentDate = new Date(currentDate.getTime() + ((cyclesPassed + 1) * plant.water_frequency_days * 24 * 60 * 60 * 1000));
+            }
+            
+            // Collect all watering dates during vacation
+            const wateringDates = [];
+            // Ensure currentDate is not before startDate (due to previous calculation it might be just before)
+            if (currentDate < startDate) {
+                 currentDate = new Date(startDate.getTime()); // Or calculate from startDate if no previous watering
+            }
+
+            while (currentDate <= endDate) {
+                // Ensure the watering date is on or after the vacation start
+                if (currentDate >= startDate) {
+                    wateringDates.push(new Date(currentDate));
+                }
+                currentDate = new Date(currentDate.getTime() + (plant.water_frequency_days * 24 * 60 * 60 * 1000));
+            }
+            
+            if (wateringDates.length > 0) {
                 plantsNeedingCare.push({
                     ...plant,
-                    watering_date: nextWatering,
+                    watering_dates: wateringDates,
+                    watering_date: wateringDates[0], // First watering date for sorting
                     custom_note: plantNotes[plant.id] || ""
                 });
             }
         }
 
-        plantsNeedingCare.sort((a, b) => a.watering_date - b.watering_date);
+        plantsNeedingCare.sort((a, b) => a.watering_date.getTime() - b.watering_date.getTime());
 
         // Create PDF
         const doc = new jsPDF();
@@ -87,18 +117,30 @@ Deno.serve(async (req) => {
         doc.line(20, y, 190, y);
         y += 10;
 
-        // Group plants by date
-        const plantsByDate = {};
+        // Group plants by date - now handling multiple dates per plant
+        const plantsByDate: { [key: string]: typeof plantsNeedingCare } = {};
         for (const plant of plantsNeedingCare) {
-            const dateKey = plant.watering_date.toLocaleDateString();
-            if (!plantsByDate[dateKey]) {
-                plantsByDate[dateKey] = [];
+            for (const date of plant.watering_dates) {
+                const dateKey = date.toLocaleDateString();
+                if (!plantsByDate[dateKey]) {
+                    plantsByDate[dateKey] = [];
+                }
+                // Only add if not already in this date's list
+                if (!plantsByDate[dateKey].some(p => p.id === plant.id)) {
+                    plantsByDate[dateKey].push(plant);
+                }
             }
-            plantsByDate[dateKey].push(plant);
         }
 
+        // Sort the dates themselves for consistent output
+        const sortedDates = Object.keys(plantsByDate).sort((a, b) => {
+            return new Date(a).getTime() - new Date(b).getTime();
+        });
+
+
         // Process each date
-        for (const [date, dayPlants] of Object.entries(plantsByDate)) {
+        for (const dateKey of sortedDates) {
+            const dayPlants = plantsByDate[dateKey];
             if (y > 250) {
                 doc.addPage();
                 y = 20;
@@ -109,7 +151,7 @@ Deno.serve(async (req) => {
             doc.rect(20, y - 5, 170, 10, 'F');
             doc.setFontSize(12);
             doc.setTextColor(255, 255, 255);
-            doc.text(date, 25, y + 2);
+            doc.text(dateKey, 25, y + 2);
             y += 12;
 
             // Grid layout
@@ -155,6 +197,14 @@ Deno.serve(async (req) => {
                 doc.setFont(undefined, 'normal');
 
                 cardY += 15;
+
+                // Show watering frequency if multiple times
+                if (plant.watering_dates.length > 1) {
+                    doc.setFontSize(7);
+                    doc.setTextColor(100, 100, 200);
+                    doc.text(`(Waters ${plant.watering_dates.length}x during trip)`, xPos + 5, cardY);
+                    cardY += 4;
+                }
 
                 // Details
                 doc.setFontSize(8);
@@ -209,11 +259,14 @@ Deno.serve(async (req) => {
                 }
             }
 
-            if (col === 1) {
+            if (col === 1) { // If there was an odd number of plants, advance y
                 y = rowStartY + rowHeight + 5;
+            } else if (col === 0 && dayPlants.length > 0) { // If there was an even number of plants, advance y (but only if there were plants)
+                y = rowStartY + rowHeight + 5;
+            } else { // No plants for this day, or reset already happened
+                y += 5; // Small buffer
             }
-
-            y += 5;
+            y += 5; // General buffer between dates
         }
 
         // Summary page
@@ -229,7 +282,7 @@ Deno.serve(async (req) => {
         doc.setTextColor(0, 0, 0);
         doc.text(`Total plants needing water: ${plantsNeedingCare.length}`, 20, y);
         y += 7;
-        doc.text(`Vacation duration: ${Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))} days`, 20, y);
+        doc.text(`Vacation duration: ${Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} days`, 20, y);
         y += 12;
 
         doc.setDrawColor(200, 200, 200);

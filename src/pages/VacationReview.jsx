@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -60,7 +61,8 @@ export default function VacationReview() {
         const vac = result[0];
         setGeneralNotes(vac.notes || "");
         setCustomInstructions(vac.custom_instructions || "");
-        setPlantNotes(vac.plant_notes || {});
+        // Ensure plant_notes is an object, not null
+        setPlantNotes(vac.plant_notes || {}); 
         return vac;
       }
       return null;
@@ -80,15 +82,57 @@ export default function VacationReview() {
   const plantsNeedingCare = React.useMemo(() => {
     if (!vacation || !plants) return [];
     
-    const startDate = new Date(vacation.start_date);
-    const endDate = new Date(vacation.end_date);
+    const startDate = parseISO(vacation.start_date);
+    const endDate = parseISO(vacation.end_date);
     
-    return plants.filter(plant => {
-      if (!plant.next_watering_due) return false;
-      const nextWatering = new Date(plant.next_watering_due);
-      return nextWatering >= startDate && nextWatering <= endDate;
-    }).sort((a, b) => new Date(a.next_watering_due) - new Date(b.next_watering_due));
-  }, [vacation, plants]);
+    const plantsWithWateringDates = [];
+    
+    for (const plant of plants) {
+      if (!plant.water_frequency_days || plant.water_frequency_days <= 0) continue;
+      
+      // Start from either the plant's next watering date or its last watered date, or vacation start as fallback
+      let currentDate = plant.next_watering_due 
+        ? parseISO(plant.next_watering_due)
+        : plant.last_watered 
+            ? parseISO(plant.last_watered)
+            : startDate; // Fallback if no last_watered either.
+      
+      // If the next watering is before vacation starts, calculate when it will need water during vacation
+      if (currentDate < startDate) {
+        // Calculate how many watering cycles pass before vacation starts
+        const daysBetween = differenceInDays(startDate, currentDate);
+        const cyclesPassed = Math.floor(daysBetween / plant.water_frequency_days);
+        // Advance currentDate by these cycles
+        currentDate = new Date(currentDate.getTime() + (cyclesPassed * plant.water_frequency_days * 24 * 60 * 60 * 1000));
+
+        // If after advancing, it's still before startDate (e.g. if diffDays wasn't a perfect multiple),
+        // advance it one more cycle to ensure it's at or after startDate.
+        if (currentDate < startDate) {
+            currentDate = new Date(currentDate.getTime() + (plant.water_frequency_days * 24 * 60 * 60 * 1000));
+        }
+      }
+      
+      // Collect all watering dates during vacation
+      const wateringDates = [];
+      while (currentDate <= endDate) {
+        if (currentDate >= startDate) { // Only add if it's within the vacation period
+          wateringDates.push(new Date(currentDate)); // Push a copy to prevent mutation issues
+        }
+        currentDate = new Date(currentDate.getTime() + (plant.water_frequency_days * 24 * 60 * 60 * 1000));
+      }
+      
+      if (wateringDates.length > 0) {
+        plantsWithWateringDates.push({
+          ...plant,
+          watering_dates: wateringDates,
+          custom_note: plantNotes[plant.id] || ""
+        });
+      }
+    }
+    
+    // Sort by first watering date
+    return plantsWithWateringDates.sort((a, b) => a.watering_dates[0].getTime() - b.watering_dates[0].getTime());
+  }, [vacation, plants, plantNotes]); // Added plantNotes to dependencies
 
   const updateVacationMutation = useMutation({
     mutationFn: async (updates) => {
@@ -263,11 +307,22 @@ export default function VacationReview() {
                         <h3 className={`font-semibold ${getTextColor()}`}>
                           {plant.nickname || plant.name}
                         </h3>
-                        <p className={`text-sm ${getSecondaryTextColor()}`}>
-                          Water on: {format(parseISO(plant.next_watering_due), 'MMM d, yyyy')}
-                        </p>
+                        <div className={`text-sm ${getSecondaryTextColor()} mt-1`}>
+                          {plant.watering_dates.length === 1 ? (
+                            <p>Water on: {format(plant.watering_dates[0], 'MMM d, yyyy')}</p>
+                          ) : (
+                            <>
+                              <p className="font-medium">Water {plant.watering_dates.length} times:</p>
+                              <ul className="list-disc list-inside mt-1 ml-4">
+                                {plant.watering_dates.map((date, idx) => (
+                                  <li key={idx}>{format(date, 'MMM d, yyyy')}</li>
+                                ))}
+                              </ul>
+                            </>
+                          )}
+                        </div>
                         {plant.location && (
-                          <p className={`text-sm ${getSecondaryTextColor()}`}>
+                          <p className={`text-sm ${getSecondaryTextColor()} mt-1`}>
                             Location: {plant.location}
                           </p>
                         )}
