@@ -2,21 +2,20 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 
 export default function Welcome() {
   const navigate = useNavigate();
   const [location, setLocation] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState(null); // New state for user
+  const [isSaving, setIsSaving] = useState(false); // Renamed from isLoading
+  const [user, setUser] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+  const [loading, setLoading] = useState(true); // New state for initial loading
 
   useEffect(() => {
-    checkIfAlreadySet();
+    checkAuth(); // Call the new checkAuth function
   }, []);
 
   useEffect(() => {
@@ -35,43 +34,66 @@ export default function Welcome() {
     };
   }, []);
 
-  const checkIfAlreadySet = async () => {
+  const checkAuth = async () => { // Renamed from checkIfAlreadySet
     try {
       const isAuth = await base44.auth.isAuthenticated();
       
-      if (!isAuth) {
-        console.log('❌ User not authenticated, redirecting to login');
-        base44.auth.redirectToLogin(window.location.pathname);
-        return;
-      }
-
-      const currentUser = await base44.auth.me();
-      setUser(currentUser); // Set the user state
-
-      console.log('✅ User authenticated:', currentUser.email);
-      console.log('📍 User location:', currentUser.location);
-      console.log('✅ Profile setup complete:', currentUser.profile_setup_complete);
-      
-      if (currentUser?.location) {
-        if (currentUser.profile_setup_complete) {
-          navigate("/Dashboard");
-        } else {
-          navigate("/ProfileSetup");
+      if (isAuth) {
+        const currentUser = await base44.auth.me();
+        
+        // Initialize trial period if not set
+        if (!currentUser.trial_start_date) {
+          const now = new Date();
+          const trialEnd = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)); // 7 days
+          
+          await base44.auth.updateMe({
+            trial_start_date: now.toISOString(),
+            trial_end_date: trialEnd.toISOString(),
+            subscription_active: false
+          });
+          
+          // Update the currentUser object in memory for immediate use
+          currentUser.trial_start_date = now.toISOString();
+          currentUser.trial_end_date = trialEnd.toISOString();
+          currentUser.subscription_active = false;
         }
+        
+        setUser(currentUser); // Set the user state
+        console.log('✅ User authenticated:', currentUser.email);
+        console.log('📍 User location:', currentUser.location);
+        console.log('✅ Profile setup complete:', currentUser.profile_complete); // Using profile_complete as per outline
+
+        // Navigation logic based on profile and location status
+        if (currentUser.profile_complete && currentUser.location) {
+          navigate('/Dashboard');
+          return; // Stop further execution if navigating
+        } else if (currentUser.location) { // User has location but not profile_complete
+          navigate('/ProfileSetup');
+          return; // Stop further execution if navigating
+        }
+        // If neither of the above, means user needs to set location (and possibly profile_complete is false or true but location missing)
+        // So, component will render the location input form.
+        
+      } else {
+        console.log('❌ User not authenticated, redirecting to login');
+        base44.auth.redirectToLogin('/Welcome'); // Redirect to login, then back to Welcome after auth
+        return; // Stop further execution if redirecting
       }
     } catch (error) {
       console.error("❌ Error checking user:", error);
-      base44.auth.redirectToLogin(window.location.pathname);
+      base44.auth.redirectToLogin('/Welcome'); // Redirect on error
+    } finally {
+      setLoading(false); // Always set loading to false when checkAuth finishes
     }
   };
 
-  const handleSubmit = async () => {
+  const handleLocationSave = async () => { // Renamed from handleSubmit
     if (!location.trim()) {
       toast.error("Please enter your location");
       return;
     }
 
-    setIsLoading(true);
+    setIsSaving(true); // Use isSaving
     try {
       console.log('💾 Saving location:', location.trim());
       
@@ -82,14 +104,17 @@ export default function Welcome() {
       console.log('✅ Location saved successfully');
       toast.success("Welcome to Happy Plants! 🌿");
       
-      // Wait a moment for the update to propagate
+      // After saving location, the next step is typically ProfileSetup
+      // The `checkAuth` logic would have already navigated to Dashboard if profile_complete was also true.
+      // So, if we reach this point, profile_complete is likely false or not fully set up.
+      // Therefore, navigate to ProfileSetup.
       setTimeout(() => {
         navigate("/ProfileSetup");
       }, 500);
     } catch (error) {
       console.error('❌ Error saving location:', error);
       toast.error("Error saving location: " + (error.message || "Unknown error"));
-      setIsLoading(false);
+      setIsSaving(false); // Use isSaving
     }
   };
 
@@ -144,59 +169,61 @@ export default function Welcome() {
     return 'bg-green-600 hover:bg-green-700 text-white';
   };
 
-  if (!user) {
+  if (loading) { // Use the new 'loading' state for initial check
     return (
       <div className="min-h-screen flex items-center justify-center theme-bg">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="theme-text text-gray-700 dark:text-gray-300">Loading...</p>
-        </div>
+        <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="theme-text text-gray-700 dark:text-gray-300">Loading...</p>
       </div>
     );
   }
 
+  if (!user) return null; // If loading is done but no user, return null (should ideally not happen if auth check redirects)
+
   return (
     <div className="min-h-screen flex items-center justify-center theme-bg p-6">
-      <Card className={`max-w-md w-full rounded-3xl ${getThemedClasses()}`}>
-        <CardContent className="p-8">
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Sparkles className="w-10 h-10 text-white" />
-            </div>
-            <h1 className={`text-3xl font-bold mb-2 ${getTextColor()}`}>Welcome to Happy Plants!</h1>
-            <p className={getSecondaryTextColor()}>Let's personalize your plant care experience</p>
+      {/* Replaced Card with div and applied styles directly */}
+      <div className={`max-w-md w-full rounded-3xl p-8 shadow-2xl ${getThemedClasses()}`}>
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-4xl">🌱</span> {/* Changed icon */}
           </div>
-
-          <div className="space-y-6">
-            <div>
-              <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>
-                Where do your plants live?
-              </label>
-              <div className="relative">
-                <MapPin className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${getSecondaryTextColor()}`} />
-                <Input
-                  placeholder="e.g., San Francisco, CA or London, UK"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
-                  className="pl-10"
-                />
-              </div>
-              <p className={`text-xs mt-2 ${getSecondaryTextColor()}`}>
-                This helps us give you climate-specific advice for your plants
-              </p>
+          <h1 className={`text-3xl font-bold mb-2 ${getTextColor()}`}>Welcome to Happy Plants!</h1>
+          <p className={`text-sm ${getSecondaryTextColor()}`}>Start your 7-day free trial</p> {/* Updated text */}
+        </div>
+        
+        <div className="space-y-4"> {/* Updated spacing */}
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>
+              Where are you located? {/* Updated label text */}
+            </label>
+            <div className="relative">
+              <Input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleLocationSave()} // Use new function name
+                placeholder="e.g., New York, USA" // Updated placeholder
+                className="theme-input w-full"
+              />
             </div>
-
-            <Button
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className={`w-full ${getPrimaryButtonClasses()}`}
-            >
-              {isLoading ? "Saving..." : "Get Started"}
-            </Button>
+            <p className={`text-xs mt-2 ${getSecondaryTextColor()}`}>
+              We use this for weather-based plant care recommendations {/* Updated text */}
+            </p>
           </div>
-        </CardContent>
-      </Card>
+          
+          <Button
+            onClick={handleLocationSave} // Use new function name
+            disabled={!location || isSaving} // Use isSaving and check location validity
+            className={`w-full ${getPrimaryButtonClasses()}`} // Use existing button classes logic
+          >
+            {isSaving ? 'Saving...' : 'Start Free Trial →'} {/* Updated button text */}
+          </Button>
+          
+          <p className={`text-xs text-center ${getSecondaryTextColor()}`}>
+            Free for 7 days, then $5.99/month. Cancel anytime. {/* New text */}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

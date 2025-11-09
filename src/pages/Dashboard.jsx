@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, differenceInDays, parseISO } from "date-fns";
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
+import SubscriptionCheck from "@/components/SubscriptionCheck";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -454,7 +455,7 @@ export default function Dashboard() {
                                 plantsNeedingWaterToday.length > 0;
 
   return (
-    <>
+    <SubscriptionCheck>
       <DailyWeatherPopup />
       
       <div className="min-h-screen theme-bg p-6">
@@ -722,6 +723,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-    </>
+    </SubscriptionCheck>
   );
 }
