@@ -293,7 +293,7 @@ export default function Layout({ children, currentPageName }) {
       <style>{`
         /* Light Theme */
         [data-theme="light"] {
-          --theme-bg: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+          --theme-bg: url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/154c8bb49_ChatGPTImageOct10202510_34_33PM.png');
           --theme-text: #2d3748;
           --theme-text-secondary: #718096;
           --theme-card-bg: rgba(255, 255, 255, 0.95);
