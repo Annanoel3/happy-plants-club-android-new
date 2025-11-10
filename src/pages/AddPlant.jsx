@@ -210,7 +210,7 @@ export default function AddPlant() {
 
   if (mode === 'choice') {
     return (
-      <div className="min-h-screen theme-bg p-6">
+      <div className="min-h-screen theme-bg p-6 pb-24">
         <div className="max-w-md mx-auto">
           <div className={`mb-8 rounded-2xl p-6 inline-block ${getThemedClasses()}`}>
             <h1 className={`text-4xl font-bold mb-2 ${getTextColor()}`}>Add Plants</h1>
@@ -274,7 +274,7 @@ export default function AddPlant() {
 
   if (mode === 'voice') {
     return (
-      <div className="min-h-screen theme-bg p-6">
+      <div className="min-h-screen theme-bg p-6 pb-24">
         <div className="max-w-md mx-auto">
           <div className={`mb-8 rounded-2xl p-6 inline-block ${getThemedClasses()}`}>
             <h1 className={`text-4xl font-bold mb-2 ${getTextColor()}`}>Voice Input</h1>
@@ -325,7 +325,7 @@ export default function AddPlant() {
 
   if (mode === 'text') {
     return (
-      <div className="min-h-screen theme-bg p-6">
+      <div className="min-h-screen theme-bg p-6 pb-24">
         <div className="max-w-md mx-auto">
           <div className={`mb-8 rounded-2xl p-6 inline-block ${getThemedClasses()}`}>
             <h1 className={`text-4xl font-bold mb-2 ${getTextColor()}`}>Type Plant Names</h1>

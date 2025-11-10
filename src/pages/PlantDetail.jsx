@@ -647,7 +647,7 @@ export default function PlantDetail() {
   };
 
   return (
-    <div className="min-h-screen theme-bg pb-20">
+    <div className="min-h-screen theme-bg pb-24">
       <div className="max-w-4xl mx-auto p-6">
         <button onClick={() => navigate('/Dashboard')} className="mb-6 flex items-center gap-2 theme-text hover:opacity-70">
           <ArrowLeft className="w-5 h-5" />

@@ -298,7 +298,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="min-h-screen theme-bg p-6">
+    <div className="min-h-screen theme-bg p-6 pb-24">
       <div className="max-w-4xl mx-auto">
         <div className={`mb-8 rounded-2xl p-6 inline-block ${getThemedClasses()}`}>
           <h1 className={`text-4xl font-bold mb-2 ${getTextColor()}`}>Settings</h1>

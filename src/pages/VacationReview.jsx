@@ -226,7 +226,7 @@ export default function VacationReview() {
   const daysUntilVacation = differenceInDays(parseISO(vacation.start_date), new Date());
 
   return (
-    <div className="min-h-screen theme-bg p-6">
+    <div className="min-h-screen theme-bg p-6 pb-24">
       <div className="max-w-4xl mx-auto">
         <button onClick={() => navigate('/Schedule')} className={`mb-6 flex items-center gap-2 ${getTextColor()} hover:opacity-70`}>
           <ArrowLeft className="w-5 h-5" />

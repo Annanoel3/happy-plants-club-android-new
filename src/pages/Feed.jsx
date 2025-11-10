@@ -359,7 +359,7 @@ export default function Feed() {
   // Removed userLocation as filter is removed from UI
 
   return (
-    <div className="min-h-screen theme-bg relative">
+    <div className="min-h-screen theme-bg p-6 pb-24">
       {/* Easter Egg GIF Popup */}
       <AnimatePresence>
         {showEasterEgg && (

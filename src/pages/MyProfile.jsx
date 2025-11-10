@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -113,7 +114,7 @@ export default function MyProfile() {
   }
 
   return (
-    <div className="min-h-screen theme-bg p-6">
+    <div className="min-h-screen theme-bg p-6 pb-24">
       <div className="max-w-2xl mx-auto">
         <Card className={`mb-6 overflow-hidden ${getThemedClasses()}`}>
           <CardContent className="p-0">

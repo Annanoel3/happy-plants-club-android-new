@@ -458,7 +458,7 @@ export default function Dashboard() {
     <SubscriptionCheck>
       <DailyWeatherPopup />
       
-      <div className="min-h-screen theme-bg p-6">
+      <div className="min-h-screen theme-bg p-6 pb-24">
         <div className="max-w-6xl mx-auto">
           <div className={`mb-8 rounded-2xl p-6 inline-block ${getThemedClasses()}`}>
             <h1 className={`text-5xl font-bold mb-2 ${getTextColor()}`}>My Garden</h1>

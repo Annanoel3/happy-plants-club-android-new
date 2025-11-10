@@ -216,7 +216,7 @@ export default function Profile() {
   }
 
   return (
-    <div className={cn("min-h-screen p-6", getBackgroundColor())}>
+    <div className="min-h-screen theme-bg p-6 pb-24">
       <div className="max-w-2xl mx-auto">
         <button onClick={() => navigate(-1)} className="mb-6 hover:opacity-70">
           <ArrowLeft className={cn("w-6 h-6", getTextColor())} />

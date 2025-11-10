@@ -181,7 +181,7 @@ export default function PlantChat() {
   }
 
   return (
-    <div className="h-screen flex flex-col theme-bg overflow-hidden relative">
+    <div className="min-h-screen theme-bg p-6 flex flex-col pb-24">
       <AnimatePresence>
         {showEasterEgg && (
           <motion.div
