@@ -130,10 +130,10 @@ function LayoutContent({ children, currentPageName }) {
   };
 
   const cycleTheme = () => {
-    const seasonalThemes = getSeasonalThemes();
-    const currentIndex = seasonalThemes.indexOf(theme);
-    const nextIndex = (currentIndex + 1) % seasonalThemes.length;
-    setTheme(seasonalThemes[nextIndex]);
+    const themes = ['light', 'dark', 'botanical']; // Modified to only cycle these three
+    const currentIndex = themes.indexOf(theme);
+    const nextIndex = (currentIndex + 1) % themes.length;
+    setTheme(themes[nextIndex]);
   };
 
   const getActiveButtonClass = () => {
@@ -269,19 +269,17 @@ function LayoutContent({ children, currentPageName }) {
             {theme === 'light' && <><Sun className="w-5 h-5" /> Light Mode</>}
             {theme === 'dark' && <><Moon className="w-5 h-5" /> Dark Mode</>}
             {theme === 'botanical' && <><Leaf className="w-5 h-5" /> Botanical</>}
-            {theme === 'kawaii' && <span className="text-2xl">🌸</span>}
-            {theme === 'halloween' && <span className="text-2xl">🎃</span>}
-            {theme === 'christmas' && <span className="text-2xl">🎄</span>}
-            {theme === 'valentines' && <span className="text-2xl">💖</span>}
-            {theme === 'newyears' && <span className="text-2xl">🎉</span>}
-            {theme === 'stpatricks' && <span className="text-2xl">🍀</span>}
-            {theme === 'fourthofjuly' && <span className="text-2xl">🎆</span>}
-            {theme === 'summer' && <span className="text-2xl">☀️</span>}
-            {theme === 'spring' && <span className="text-2xl">🌷</span>}
-            {theme === 'fall' && <span className="text-2xl">🍂</span>}
-            {theme === 'winter' && <span className="text-2xl">❄️</span>}
-            
-            <span className="ml-2 capitalize">{theme}</span>
+            {theme === 'kawaii' && <><span className="text-2xl">🌸</span> <span className="ml-2">Kawaii</span></>}
+            {theme === 'halloween' && <><span className="text-2xl">🎃</span> <span className="ml-2">Halloween</span></>}
+            {theme === 'christmas' && <><span className="text-2xl">🎄</span> <span className="ml-2">Christmas</span></>}
+            {theme === 'valentines' && <><span className="text-2xl">💖</span> <span className="ml-2">Valentine's</span></>}
+            {theme === 'newyears' && <><span className="text-2xl">🎉</span> <span className="ml-2">New Year's</span></>}
+            {theme === 'stpatricks' && <><span className="text-2xl">🍀</span> <span className="ml-2">St. Patrick's</span></>}
+            {theme === 'fourthofjuly' && <><span className="text-2xl">🎆</span> <span className="ml-2">4th of July</span></>}
+            {theme === 'summer' && <><span className="text-2xl">☀️</span> <span className="ml-2">Summer</span></>}
+            {theme === 'spring' && <><span className="text-2xl">🌷</span> <span className="ml-2">Spring</span></>}
+            {theme === 'fall' && <><span className="text-2xl">🍂</span> <span className="ml-2">Fall</span></>}
+            {theme === 'winter' && <><span className="text-2xl">❄️</span> <span className="ml-2">Winter</span></>}
           </Button>
           {!isLoading && user && (
             <>
