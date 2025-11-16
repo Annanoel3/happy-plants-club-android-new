@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -147,24 +146,43 @@ export default function Schedule() {
 
   const handleGeneratePDF = async (vacationId) => {
     setIsGeneratingPDF(true);
+    console.log('[PDF] Starting generation for vacation:', vacationId);
+    
     try {
-      const { data } = await generateVacationPDF({
+      console.log('[PDF] Calling generateVacationPDF function...');
+      const data = await generateVacationPDF({
         vacation_id: vacationId
       });
-
+      
+      console.log('[PDF] Data received, type:', typeof data);
+      console.log('[PDF] Data is ArrayBuffer:', data instanceof ArrayBuffer);
+      
       const blob = new Blob([data], { type: 'application/pdf' });
+      console.log('[PDF] Blob created, size:', blob.size);
+      
       const url = window.URL.createObjectURL(blob);
+      console.log('[PDF] Object URL created:', url);
+      
       const a = document.createElement('a');
       a.href = url;
-      a.download = `vacation-care-guide-${vacationId}.pdf`; // Dynamic filename
+      a.download = `vacation-care-guide-${vacationId}.pdf`;
+      a.style.display = 'none';
       document.body.appendChild(a);
+      
+      console.log('[PDF] Triggering download...');
       a.click();
-      window.URL.revokeObjectURL(url);
-      a.remove();
+      
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        a.remove();
+        console.log('[PDF] Cleanup complete');
+      }, 100);
+      
       toast.success("PDF downloaded!");
     } catch (error) {
-      console.error("Failed to generate PDF:", error);
-      toast.error("Failed to generate PDF");
+      console.error("[PDF] Error:", error);
+      console.error("[PDF] Error stack:", error?.stack);
+      toast.error("Failed to generate PDF: " + (error?.message || "Unknown error"));
     } finally {
       setIsGeneratingPDF(false);
     }

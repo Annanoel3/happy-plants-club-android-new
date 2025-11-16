@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -155,34 +154,54 @@ export default function VacationReview() {
 
   const handleGeneratePDF = async () => {
     setIsGenerating(true);
+    console.log('[PDF] Starting generation for vacation:', vacationId);
+    
     try {
       // Save first
+      console.log('[PDF] Saving vacation data...');
       await updateVacationMutation.mutateAsync({
         notes: generalNotes,
         custom_instructions: customInstructions,
         plant_notes: plantNotes,
       });
+      console.log('[PDF] Vacation data saved');
 
       // Generate PDF using direct function import
+      console.log('[PDF] Calling generateVacationPDF...');
       const response = await generateVacationPDF({
         vacation_id: vacationId
       });
+      
+      console.log('[PDF] PDF generated, type:', typeof response);
+      console.log('[PDF] Is ArrayBuffer:', response instanceof ArrayBuffer);
 
       // Create blob from ArrayBuffer
       const blob = new Blob([response], { type: 'application/pdf' });
+      console.log('[PDF] Blob created, size:', blob.size);
+      
       const url = window.URL.createObjectURL(blob);
+      console.log('[PDF] Object URL created:', url);
+      
       const a = document.createElement('a');
       a.href = url;
       a.download = `plant-care-${vacation.start_date}-to-${vacation.end_date}.pdf`;
+      a.style.display = 'none';
       document.body.appendChild(a);
+      
+      console.log('[PDF] Triggering download...');
       a.click();
-      window.URL.revokeObjectURL(url);
-      a.remove();
+      
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        a.remove();
+        console.log('[PDF] Cleanup complete');
+      }, 100);
 
       toast.success('PDF downloaded! 📄');
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      toast.error('Failed to generate PDF: ' + (error.message || 'Unknown error'));
+      console.error('[PDF] Error:', error);
+      console.error('[PDF] Error stack:', error?.stack);
+      toast.error('Failed to generate PDF: ' + (error?.message || 'Unknown error'));
     } finally {
       setIsGenerating(false);
     }

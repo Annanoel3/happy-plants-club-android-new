@@ -16,7 +16,7 @@ import Search from './pages/Search';
 import FollowRequests from './pages/FollowRequests';
 import TermsAndConditions from './pages/TermsAndConditions';
 import VacationReview from './pages/VacationReview';
-import Layout from './Layout.jsx';
+import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
@@ -43,5 +43,5 @@ export const PAGES = {
 export const pagesConfig = {
     mainPage: "Dashboard",
     Pages: PAGES,
-    Layout: Layout,
+    Layout: __Layout,
 };
