@@ -1,20 +1,17 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { base44 } from '@/api/base44Client';
 import { jsPDF } from 'npm:jspdf@2.5.1';
 
-Deno.serve(async (req) => {
+export async function generateVacationPDF({ vacation_id }) {
     try {
-        const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
 
         if (!user) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+            throw new Error('User not authenticated');
         }
-
-        const { vacation_id } = await req.json();
 
         const vacations = await base44.entities.VacationDay.filter({ id: vacation_id });
         if (vacations.length === 0) {
-            return Response.json({ error: 'Vacation not found' }, { status: 404 });
+            throw new Error('Vacation not found');
         }
 
         const vacation = vacations[0];
@@ -31,7 +28,8 @@ Deno.serve(async (req) => {
         for (const plant of plants) {
             if (!plant.water_frequency_days || plant.water_frequency_days <= 0) continue;
             
-            // Start from the plant's current next_watering_due date
+            // FIXED: Start from the plant's current next_watering_due date
+            // This is the most accurate since it reflects when the plant was last watered
             let currentDate = plant.next_watering_due 
                 ? new Date(plant.next_watering_due)
                 : new Date(plant.last_watered || startDate);
@@ -52,7 +50,7 @@ Deno.serve(async (req) => {
                 plantsNeedingCare.push({
                     ...plant,
                     watering_dates: wateringDates,
-                    watering_date: wateringDates[0],
+                    watering_date: wateringDates[0], // First watering date for sorting
                     custom_note: plantNotes[plant.id] || ""
                 });
             }
@@ -103,7 +101,7 @@ Deno.serve(async (req) => {
         doc.line(20, y, 190, y);
         y += 10;
 
-        // Group plants by date
+        // Group plants by date - now handling multiple dates per plant
         const plantsByDate = {};
         for (const plant of plantsNeedingCare) {
             for (const date of plant.watering_dates) {
@@ -111,6 +109,7 @@ Deno.serve(async (req) => {
                 if (!plantsByDate[dateKey]) {
                     plantsByDate[dateKey] = [];
                 }
+                // Only add if not already in this date's list
                 if (!plantsByDate[dateKey].find(p => p.id === plant.id)) {
                     plantsByDate[dateKey].push(plant);
                 }
@@ -154,7 +153,7 @@ Deno.serve(async (req) => {
                 doc.setLineWidth(0.5);
                 doc.roundedRect(xPos, cardY, colWidth - 5, rowHeight, 3, 3);
 
-                // Plant image placeholder
+                // Plant image placeholder (simpler approach)
                 doc.setFillColor(240, 240, 240);
                 doc.rect(xPos + 5, cardY + 5, 30, 30, 'F');
                 doc.setDrawColor(200, 200, 200);
@@ -198,7 +197,7 @@ Deno.serve(async (req) => {
                     cardY += locationLines.length * 4;
                 }
 
-                // Custom note
+                // Custom note for this plant
                 if (plant.custom_note) {
                     cardY += 2;
                     doc.setTextColor(0, 100, 0);
@@ -305,18 +304,10 @@ Deno.serve(async (req) => {
             }
         }
 
-        // Return PDF as ArrayBuffer
-        const pdfBytes = doc.output('arraybuffer');
-        
-        return new Response(pdfBytes, {
-            status: 200,
-            headers: {
-                'Content-Type': 'application/pdf',
-                'Content-Disposition': `attachment; filename="vacation-care-guide-${vacation_id}.pdf"`
-            }
-        });
+        // Return the PDF as ArrayBuffer
+        return doc.output('arraybuffer');
     } catch (error) {
         console.error('PDF Error:', error);
-        return Response.json({ error: error.message }, { status: 500 });
+        throw error;
     }
-});
+}

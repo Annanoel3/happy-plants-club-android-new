@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { format, parseISO, differenceInDays } from "date-fns";
-
+import { generateVacationPDF } from "@/functions/generateVacationPDF";
 
 export default function VacationReview() {
   const navigate = useNavigate();
@@ -166,17 +166,17 @@ export default function VacationReview() {
       });
       console.log('[PDF] Vacation data saved');
 
-      // Generate PDF via backend function
-      console.log('[PDF] Calling backend function...');
-      const response = await base44.functions.invoke('generateVacationPDF', {
+      // Generate PDF using direct function import
+      console.log('[PDF] Calling generateVacationPDF...');
+      const response = await generateVacationPDF({
         vacation_id: vacationId
       });
       
-      console.log('[PDF] Response received:', response);
-      console.log('[PDF] Response data type:', typeof response.data);
+      console.log('[PDF] PDF generated, type:', typeof response);
+      console.log('[PDF] Is ArrayBuffer:', response instanceof ArrayBuffer);
 
-      // Create blob from response data
-      const blob = new Blob([response.data], { type: 'application/pdf' });
+      // Create blob from ArrayBuffer
+      const blob = new Blob([response], { type: 'application/pdf' });
       console.log('[PDF] Blob created, size:', blob.size);
       
       const url = window.URL.createObjectURL(blob);
