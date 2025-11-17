@@ -2,17 +2,25 @@ import { base44 } from '@/api/base44Client';
 import { jsPDF } from 'npm:jspdf@2.5.1';
 
 export async function generateVacationPDF({ vacation_id }) {
+    console.log('[PDF Backend] Starting generation for vacation:', vacation_id);
+    
     try {
+        console.log('[PDF Backend] Authenticating user...');
         const user = await base44.auth.me();
 
         if (!user) {
+            console.error('[PDF Backend] User not authenticated');
             throw new Error('User not authenticated');
         }
+        console.log('[PDF Backend] User authenticated:', user.email);
 
+        console.log('[PDF Backend] Fetching vacation data...');
         const vacations = await base44.entities.VacationDay.filter({ id: vacation_id });
         if (vacations.length === 0) {
+            console.error('[PDF Backend] Vacation not found');
             throw new Error('Vacation not found');
         }
+        console.log('[PDF Backend] Vacation found');
 
         const vacation = vacations[0];
         const startDate = new Date(vacation.start_date);
@@ -20,9 +28,12 @@ export async function generateVacationPDF({ vacation_id }) {
         const plantNotes = vacation.plant_notes || {};
 
         // Get all plants
+        console.log('[PDF Backend] Fetching user plants...');
         const plants = await base44.entities.Plant.filter({ created_by: user.email });
+        console.log('[PDF Backend] Found', plants.length, 'plants');
 
         // Calculate which plants need watering during vacation
+        console.log('[PDF Backend] Calculating plants needing care...');
         const plantsNeedingCare = [];
         
         for (const plant of plants) {
@@ -57,8 +68,10 @@ export async function generateVacationPDF({ vacation_id }) {
         }
 
         plantsNeedingCare.sort((a, b) => a.watering_date - b.watering_date);
+        console.log('[PDF Backend] Plants needing care:', plantsNeedingCare.length);
 
         // Create PDF
+        console.log('[PDF Backend] Creating PDF document...');
         const doc = new jsPDF();
         let y = 20;
 
@@ -305,9 +318,14 @@ export async function generateVacationPDF({ vacation_id }) {
         }
 
         // Return the PDF as ArrayBuffer
-        return doc.output('arraybuffer');
+        console.log('[PDF Backend] Generating PDF output...');
+        const pdfOutput = doc.output('arraybuffer');
+        console.log('[PDF Backend] PDF generated successfully, size:', pdfOutput.byteLength);
+        return pdfOutput;
     } catch (error) {
-        console.error('PDF Error:', error);
+        console.error('[PDF Backend] Error:', error);
+        console.error('[PDF Backend] Error message:', error?.message);
+        console.error('[PDF Backend] Error stack:', error?.stack);
         throw error;
     }
 }
