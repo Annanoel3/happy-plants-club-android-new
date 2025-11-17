@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { generateVacationPDF } from "@/functions/generateVacationPDF";
+
 
 export default function Schedule() {
   const navigate = useNavigate();
@@ -149,15 +149,15 @@ export default function Schedule() {
     console.log('[PDF] Starting generation for vacation:', vacationId);
     
     try {
-      console.log('[PDF] Calling generateVacationPDF function...');
-      const data = await generateVacationPDF({
+      console.log('[PDF] Calling backend function...');
+      const response = await base44.functions.invoke('generateVacationPDF', {
         vacation_id: vacationId
       });
       
-      console.log('[PDF] Data received, type:', typeof data);
-      console.log('[PDF] Data is ArrayBuffer:', data instanceof ArrayBuffer);
+      console.log('[PDF] Response received:', response);
+      console.log('[PDF] Response data type:', typeof response.data);
       
-      const blob = new Blob([data], { type: 'application/pdf' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
       console.log('[PDF] Blob created, size:', blob.size);
       
       const url = window.URL.createObjectURL(blob);
