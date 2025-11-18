@@ -168,11 +168,17 @@ export default function VacationReview() {
 
       // Generate PDF using direct function import
       console.log('[PDF] Calling generateVacationPDF...');
-      const response = await generateVacationPDF({
+      const result = await generateVacationPDF({
         vacation_id: vacationId
       });
       
-      console.log('[PDF] PDF generated, type:', typeof response);
+      console.log('[PDF] Result received:', result);
+      console.log('[PDF] Result type:', typeof result);
+      console.log('[PDF] Result keys:', Object.keys(result || {}));
+      
+      // Extract the actual data - it might be wrapped
+      const response = result?.data || result;
+      console.log('[PDF] Extracted response type:', typeof response);
       console.log('[PDF] Is ArrayBuffer:', response instanceof ArrayBuffer);
 
       // Create blob from ArrayBuffer

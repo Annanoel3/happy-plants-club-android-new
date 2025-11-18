@@ -150,11 +150,17 @@ export default function Schedule() {
     
     try {
       console.log('[PDF] Calling generateVacationPDF function...');
-      const data = await generateVacationPDF({
+      const response = await generateVacationPDF({
         vacation_id: vacationId
       });
       
-      console.log('[PDF] Data received, type:', typeof data);
+      console.log('[PDF] Response received:', response);
+      console.log('[PDF] Response type:', typeof response);
+      console.log('[PDF] Response keys:', Object.keys(response || {}));
+      
+      // Extract the actual data - it might be wrapped
+      const data = response?.data || response;
+      console.log('[PDF] Extracted data type:', typeof data);
       console.log('[PDF] Data is ArrayBuffer:', data instanceof ArrayBuffer);
       
       const blob = new Blob([data], { type: 'application/pdf' });
