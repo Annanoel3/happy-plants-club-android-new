@@ -177,31 +177,64 @@ export default function VacationReview() {
       console.log('[PDF] Result keys:', Object.keys(result || {}));
       
       // Extract the actual data - it might be wrapped
-      const response = result?.data || result;
+      let response = result?.data || result;
       console.log('[PDF] Extracted response type:', typeof response);
       console.log('[PDF] Is ArrayBuffer:', response instanceof ArrayBuffer);
+
+      // Convert string to ArrayBuffer if needed
+      if (typeof response === 'string') {
+        console.log('[PDF] Converting string to Uint8Array...');
+        const encoder = new TextEncoder();
+        response = encoder.encode(response).buffer;
+        console.log('[PDF] Converted to ArrayBuffer, size:', response.byteLength);
+      }
 
       // Create blob from ArrayBuffer
       const blob = new Blob([response], { type: 'application/pdf' });
       console.log('[PDF] Blob created, size:', blob.size);
       
-      const url = window.URL.createObjectURL(blob);
-      console.log('[PDF] Object URL created:', url);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `plant-care-${vacation.start_date}-to-${vacation.end_date}.pdf`;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      
-      console.log('[PDF] Triggering download...');
-      a.click();
-      
-      setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-        a.remove();
-        console.log('[PDF] Cleanup complete');
-      }, 100);
+      // Try to use native Android download if in Capacitor
+      if (window.webkit || window.Android) {
+        console.log('[PDF] Detected mobile environment, using FileReader...');
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result.split(',')[1];
+          console.log('[PDF] Base64 data length:', base64data.length);
+          
+          // Post message to native wrapper
+          if (window.parent) {
+            window.parent.postMessage({
+              type: 'download-file',
+              data: {
+                base64: base64data,
+                filename: `plant-care-${vacation.start_date}-to-${vacation.end_date}.pdf`,
+                mimeType: 'application/pdf'
+              }
+            }, '*');
+            console.log('[PDF] Posted message to native wrapper');
+          }
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        // Web browser download
+        const url = window.URL.createObjectURL(blob);
+        console.log('[PDF] Object URL created:', url);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `plant-care-${vacation.start_date}-to-${vacation.end_date}.pdf`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        
+        console.log('[PDF] Triggering download...');
+        a.click();
+        
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+          a.remove();
+          console.log('[PDF] Cleanup complete');
+        }, 100);
+      }
 
       toast.success('PDF downloaded! 📄');
     } catch (error) {

@@ -159,30 +159,63 @@ export default function Schedule() {
       console.log('[PDF] Response keys:', Object.keys(response || {}));
       
       // Extract the actual data - it might be wrapped
-      const data = response?.data || response;
+      let data = response?.data || response;
       console.log('[PDF] Extracted data type:', typeof data);
       console.log('[PDF] Data is ArrayBuffer:', data instanceof ArrayBuffer);
+      
+      // Convert string to ArrayBuffer if needed
+      if (typeof data === 'string') {
+        console.log('[PDF] Converting string to Uint8Array...');
+        const encoder = new TextEncoder();
+        data = encoder.encode(data).buffer;
+        console.log('[PDF] Converted to ArrayBuffer, size:', data.byteLength);
+      }
       
       const blob = new Blob([data], { type: 'application/pdf' });
       console.log('[PDF] Blob created, size:', blob.size);
       
-      const url = window.URL.createObjectURL(blob);
-      console.log('[PDF] Object URL created:', url);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `vacation-care-guide-${vacationId}.pdf`;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      
-      console.log('[PDF] Triggering download...');
-      a.click();
-      
-      setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-        a.remove();
-        console.log('[PDF] Cleanup complete');
-      }, 100);
+      // Try to use native Android download if in Capacitor
+      if (window.webkit || window.Android) {
+        console.log('[PDF] Detected mobile environment, using FileReader...');
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result.split(',')[1];
+          console.log('[PDF] Base64 data length:', base64data.length);
+          
+          // Post message to native wrapper
+          if (window.parent) {
+            window.parent.postMessage({
+              type: 'download-file',
+              data: {
+                base64: base64data,
+                filename: `vacation-care-guide-${vacationId}.pdf`,
+                mimeType: 'application/pdf'
+              }
+            }, '*');
+            console.log('[PDF] Posted message to native wrapper');
+          }
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        // Web browser download
+        const url = window.URL.createObjectURL(blob);
+        console.log('[PDF] Object URL created:', url);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `vacation-care-guide-${vacationId}.pdf`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        
+        console.log('[PDF] Triggering download...');
+        a.click();
+        
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+          a.remove();
+          console.log('[PDF] Cleanup complete');
+        }, 100);
+      }
       
       toast.success("PDF downloaded!");
     } catch (error) {
