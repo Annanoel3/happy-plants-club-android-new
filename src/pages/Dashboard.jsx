@@ -1,14 +1,12 @@
-
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Droplets, AlertCircle, Sparkles, Mic, Filter, CheckCircle } from "lucide-react";
+import { Plus, Droplets, AlertCircle, Sparkles, Mic, Filter, CheckCircle, Bell, BellOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { format, differenceInDays, parseISO } from "date-fns";
+import { differenceInDays, parseISO } from "date-fns";
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
-import SubscriptionCheck from "@/components/SubscriptionCheck";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -18,6 +16,7 @@ export default function Dashboard() {
     return localStorage.getItem('theme') || 'light';
   });
   const [selectedTags, setSelectedTags] = useState([]);
+  const [wateringRemindersEnabled, setWateringRemindersEnabled] = useState(true);
 
   useEffect(() => {
     checkAuthentication();
@@ -40,6 +39,18 @@ export default function Dashboard() {
     };
   }, []);
 
+  const toggleWateringRemindersMutation = useMutation({
+    mutationFn: async (enabled) => {
+      await base44.auth.updateMe({ notifications_watering: enabled });
+    },
+  });
+
+  const handleToggleWateringReminders = () => {
+    const newVal = !wateringRemindersEnabled;
+    setWateringRemindersEnabled(newVal);
+    toggleWateringRemindersMutation.mutate(newVal);
+  };
+
   const checkAuthentication = async () => {
     try {
       const isAuth = await base44.auth.isAuthenticated();
@@ -47,6 +58,7 @@ export default function Dashboard() {
       if (isAuth) {
         const currentUser = await base44.auth.me();
         setUser(currentUser);
+        setWateringRemindersEnabled(currentUser?.notifications_watering !== false);
         
         if (!currentUser?.location) {
           navigate('/Welcome');
@@ -158,7 +170,7 @@ export default function Dashboard() {
 
   const plantsList = Array.isArray(plants) ? plants : [];
   
-  const allTags = React.useMemo(() => {
+  const allTags = useMemo(() => {
     const tagSet = new Set();
     plantsList.forEach(plant => {
       if (plant.tags && Array.isArray(plant.tags)) {
@@ -168,7 +180,7 @@ export default function Dashboard() {
     return Array.from(tagSet).sort();
   }, [plantsList]);
 
-  const filteredPlants = React.useMemo(() => {
+  const filteredPlants = useMemo(() => {
     if (selectedTags.length === 0) return plantsList;
     
     return plantsList.filter(plant => {
@@ -455,18 +467,31 @@ export default function Dashboard() {
                                 plantsNeedingWaterToday.length > 0;
 
   return (
-    <SubscriptionCheck>
+    <>
       <DailyWeatherPopup />
       
       <div className="min-h-screen theme-bg p-6 pb-24">
         <div className="max-w-6xl mx-auto">
-          <div className={`mb-8 rounded-2xl p-6 inline-block ${getThemedClasses()}`}>
-            <h1 className={`text-5xl font-bold mb-2 ${getTextColor()}`}>My Garden</h1>
-            <p className={`text-lg ${getSecondaryTextColor()}`}>{plantsList.length} happy plants</p>
+          <div className={`mb-8 rounded-2xl p-6 flex flex-wrap items-start justify-between gap-4 ${getThemedClasses()}`}>
+            <div>
+              <h1 className={`text-5xl font-bold mb-2 ${getTextColor()}`}>My Garden</h1>
+              <p className={`text-lg ${getSecondaryTextColor()}`}>{plantsList.length} happy plants</p>
+            </div>
+            <button
+              onClick={handleToggleWateringReminders}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                wateringRemindersEnabled
+                  ? 'bg-blue-500/20 text-blue-400 border border-blue-400/30'
+                  : 'bg-white/10 border border-white/20 ' + getSecondaryTextColor()
+              }`}
+            >
+              {wateringRemindersEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+              {wateringRemindersEnabled ? 'Reminders On' : 'Reminders Off'}
+            </button>
           </div>
 
           {/* Watering Reminder Banner */}
-          {showWateringReminder && (
+          {showWateringReminder && wateringRemindersEnabled && (
             <div className="mb-6 theme-card border-2 border-blue-500 rounded-3xl p-6 shadow-xl">
               <div className="flex items-start gap-4">
                 <Droplets className="w-8 h-8 text-blue-600 flex-shrink-0 mt-1 animate-bounce" />
@@ -723,6 +748,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-    </SubscriptionCheck>
+    </>
   );
 }

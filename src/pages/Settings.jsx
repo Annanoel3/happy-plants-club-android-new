@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { User, MapPin, LogOut, Bell, Lock, Eye, FileText, CreditCard, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { User, MapPin, LogOut, Bell, Eye, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,31 +79,6 @@ export default function Settings() {
       setIsLoading(false);
     }
   };
-
-  // Calculate trial status
-  const getTrialStatus = () => {
-    if (!user) return null;
-    
-    if (user.subscription_active) {
-      return { status: 'subscribed', message: 'Active Subscription' };
-    }
-    
-    if (!user.trial_start_date) {
-      return { status: 'no_trial', message: 'No trial started' };
-    }
-    
-    const now = new Date();
-    const trialEnd = new Date(user.trial_end_date);
-    const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
-    
-    if (daysLeft > 0) {
-      return { status: 'trial', message: `${daysLeft} day${daysLeft === 1 ? '' : 's'} left in trial`, daysLeft };
-    } else {
-      return { status: 'expired', message: 'Trial expired' };
-    }
-  };
-
-  const trialStatus = getTrialStatus();
 
   const getThemedClasses = () => {
     // Dark container themes - adjusted opacity
@@ -304,91 +278,6 @@ export default function Settings() {
           <h1 className={`text-4xl font-bold mb-2 ${getTextColor()}`}>Settings</h1>
           <p className={getSecondaryTextColor()}>Manage your account and preferences</p>
         </div>
-
-        {/* Subscription Status Card */}
-        <Card className={`${getThemedClasses()} mb-6`}>
-          <CardHeader>
-            <CardTitle className={getTextColor()}>
-              <CreditCard className="w-5 h-5 inline mr-2" />
-              Subscription
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {trialStatus && (
-              <div className="space-y-4">
-                {trialStatus.status === 'trial' && (
-                  <div className="flex items-start gap-3">
-                    <Clock className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className={`font-semibold ${getTextColor()}`}>
-                        Free Trial Active
-                      </p>
-                      <p className={`text-sm ${getSecondaryTextColor()} mt-1`}>
-                        {trialStatus.message}
-                      </p>
-                      <p className={`text-sm ${getSecondaryTextColor()} mt-2`}>
-                        After your trial ends, subscription is $5.99/month
-                      </p>
-                    </div>
-                  </div>
-                )}
-                
-                {trialStatus.status === 'subscribed' && (
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className={`font-semibold ${getTextColor()}`}>
-                        Premium Subscription
-                      </p>
-                      <p className={`text-sm ${getSecondaryTextColor()} mt-1`}>
-                        $5.99/month
-                      </p>
-                      {user.subscription_expires_at && (
-                        <p className={`text-sm ${getSecondaryTextColor()} mt-1`}>
-                          Renews on {new Date(user.subscription_expires_at).toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {trialStatus.status === 'expired' && (
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className={`font-semibold ${getTextColor()}`}>
-                        Trial Expired
-                      </p>
-                      <p className={`text-sm ${getSecondaryTextColor()} mt-1`}>
-                        Subscribe to continue using Happy Plants
-                      </p>
-                      <Button className="mt-3 bg-green-600 hover:bg-green-700 text-white">
-                        Subscribe for $5.99/month
-                      </Button>
-                      <p className={`text-xs ${getSecondaryTextColor()} mt-2`}>
-                        Note: Play Store billing integration coming soon
-                      </p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Manage Subscription Button (for subscribed users) */}
-                {trialStatus.status === 'subscribed' && (
-                  <Button
-                    variant="outline"
-                    className={`w-full ${getThemedClasses()}`}
-                    onClick={() => {
-                      // TODO: Implement Play Store billing management
-                      alert('Subscription management through Play Store will be implemented');
-                    }}
-                  >
-                    Manage Subscription
-                  </Button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         <div className="space-y-6">
           {/* Profile Settings */}
