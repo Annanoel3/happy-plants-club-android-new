@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -41,22 +40,6 @@ export default function Welcome() {
       if (isAuth) {
         const currentUser = await base44.auth.me();
         
-        // Initialize trial period if not set
-        if (!currentUser.trial_start_date) {
-          const now = new Date();
-          const trialEnd = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)); // 7 days
-          
-          await base44.auth.updateMe({
-            trial_start_date: now.toISOString(),
-            trial_end_date: trialEnd.toISOString(),
-            subscription_active: false
-          });
-          
-          // Update the currentUser object in memory for immediate use
-          currentUser.trial_start_date = now.toISOString();
-          currentUser.trial_end_date = trialEnd.toISOString();
-          currentUser.subscription_active = false;
-        }
         
         setUser(currentUser); // Set the user state
         console.log('✅ User authenticated:', currentUser.email);
@@ -189,7 +172,7 @@ export default function Welcome() {
             <span className="text-4xl">🌱</span> {/* Changed icon */}
           </div>
           <h1 className={`text-3xl font-bold mb-2 ${getTextColor()}`}>Welcome to Happy Plants!</h1>
-          <p className={`text-sm ${getSecondaryTextColor()}`}>Start your 7-day free trial</p> {/* Updated text */}
+          <p className={`text-sm ${getSecondaryTextColor()}`}>Your free plant care companion</p>
         </div>
         
         <div className="space-y-4"> {/* Updated spacing */}
@@ -216,11 +199,11 @@ export default function Welcome() {
             disabled={!location || isSaving} // Use isSaving and check location validity
             className={`w-full ${getPrimaryButtonClasses()}`} // Use existing button classes logic
           >
-            {isSaving ? 'Saving...' : 'Start Free Trial →'} {/* Updated button text */}
+            {isSaving ? 'Saving...' : 'Get Started →'}
           </Button>
           
           <p className={`text-xs text-center ${getSecondaryTextColor()}`}>
-            Free for 7 days, then $5.99/month. Cancel anytime. {/* New text */}
+            Free forever. No subscriptions required.
           </p>
         </div>
       </div>

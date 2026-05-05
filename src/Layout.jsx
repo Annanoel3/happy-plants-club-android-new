@@ -24,7 +24,6 @@ import NotificationPopup from "@/components/NotificationPopup";
 
 import OneSignalSetup from "@/components/OneSignalSetup";
 import ThemeMode from "@/components/ThemeMode";
-import AdSpace from "@/components/AdSpace";
 
 function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
@@ -331,7 +330,6 @@ function LayoutContent({ children, currentPageName }) {
 
         <div className="flex-1 overflow-y-auto">
           {children}
-          <AdSpace />
         </div>
       </main>
     </div>
