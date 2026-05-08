@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 // Helper function to detect if running in Capacitor mobile app
 function isRunningInCapacitor() {
-    return window !== window.parent;
+    return window.Capacitor?.isNativePlatform?.() ?? false;
 }
 
 export default function OneSignalSetup({ user }) {
@@ -14,7 +14,7 @@ export default function OneSignalSetup({ user }) {
       script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
       script.defer = true;
       document.head.appendChild(script);
-      
+
       console.log('[OneSignal] Loading web SDK...');
     }
   }, []);
@@ -28,37 +28,40 @@ export default function OneSignalSetup({ user }) {
 
       const userEmail = user?.email;
 
-      // CRITICAL: Verify we have an email, not an ID
-      if (!userEmail || !userEmail.includes('@')) {
-        console.error('[OneSignal] INVALID EMAIL:', userEmail);
-        console.error('[OneSignal] User object:', user);
+      let externalId;
+      if (userEmail && userEmail.includes('@')) {
+        externalId = userEmail;
+        console.log('[OneSignal] ✅ Using real email as external ID:', externalId);
+      } else if (user?.id) {
+        externalId = `${user.id}@happyplantsclub.app`;
+        console.log('[OneSignal] ⚠️ No email found, using generated ID:', externalId);
+      } else {
+        console.error('[OneSignal] No email or user ID available, skipping');
         return;
       }
 
-      console.log('[OneSignal] ✅ Valid email confirmed:', userEmail);
-      console.log('[OneSignal] User ID (NOT being sent):', user.id);
-
       if (isRunningInCapacitor()) {
-        // Running in mobile app - send to native wrapper
+        // Running in Capacitor native app - call NotifyBridge plugin directly
         console.log('[OneSignal] Running in Capacitor mobile app');
-        
-        if (userEmail) {
-          console.log('[OneSignal] ✅ Sending EMAIL (not ID) via postMessage:', userEmail);
-          
-          window.parent.postMessage({
-            type: 'setOneSignalExternalUserId',
-            externalUserId: userEmail
-          }, '*');
+        const NotifyBridge = window.Capacitor?.Plugins?.NotifyBridge;
+
+        if (!NotifyBridge) {
+          console.warn('[OneSignal] NotifyBridge plugin not found');
+          return;
+        }
+
+        if (externalId) {
+          console.log('[OneSignal] ✅ Calling NotifyBridge.login() with:', externalId);
+          await NotifyBridge.requestPermission();
+          await NotifyBridge.login({ externalId: externalId });
         } else {
-          console.log('[OneSignal] User logged out in mobile app');
-          window.parent.postMessage({
-            type: 'oneSignalLogout'
-          }, '*');
+          console.log('[OneSignal] Calling NotifyBridge.logout()');
+          await NotifyBridge.logout();
         }
       } else {
         // Running in web browser - use web SDK
         console.log('[OneSignal] Running in web browser');
-        
+
         // Wait for OneSignal SDK to load
         const initOneSignal = () => {
           if (!window.OneSignalDeferred) {
@@ -76,12 +79,12 @@ export default function OneSignalSetup({ user }) {
                   enable: false
                 }
               });
-              
+
               console.log('[OneSignal] ✅ SDK initialized');
-              
-              if (userEmail) {
-                await OneSignal.login(userEmail);
-                console.log('[OneSignal] ✅ User logged in with EMAIL:', userEmail);
+
+              if (externalId) {
+                await OneSignal.login(externalId);
+                console.log('[OneSignal] ✅ User logged in with:', externalId);
               }
             } catch (error) {
               console.error('[OneSignal] Initialization error:', error);
