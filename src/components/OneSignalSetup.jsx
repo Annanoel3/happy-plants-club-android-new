@@ -33,7 +33,7 @@ export default function OneSignalSetup({ user }) {
         externalId = userEmail;
         console.log('[OneSignal] ✅ Using real email as external ID:', externalId);
       } else if (user?.id) {
-        externalId = `${user.id}@happyplantsclub.app`;
+        externalId = `${user.id}@happyplants.club`;
         console.log('[OneSignal] ⚠️ No email found, using generated ID:', externalId);
       } else {
         console.error('[OneSignal] No email or user ID available, skipping');

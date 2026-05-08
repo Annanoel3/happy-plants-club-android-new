@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Happy Plants Club',
   webDir: 'dist',
   server: {
-    url: 'https://happyplantsclub.app',
+    url: 'https://happyplants.club',
     cleartext: false,
     androidScheme: 'https',
     allowNavigation: [
@@ -13,7 +13,7 @@ const config: CapacitorConfig = {
       'base44.app',
       'accounts.google.com',
       '*.google.com',
-      'happyplantsclub.app',
+      'happyplants.club',
     ],
   },
   plugins: {
