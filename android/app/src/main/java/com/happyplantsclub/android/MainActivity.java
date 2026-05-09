@@ -30,6 +30,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Register NotifyBridge BEFORE super.onCreate() so Capacitor picks it up
+        registerPlugin(NotifyBridge.class);
         super.onCreate(savedInstanceState);
         setupInAppNavigation();
     }
