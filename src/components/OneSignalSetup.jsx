@@ -52,8 +52,16 @@ export default function OneSignalSetup({ user }) {
 
         if (externalId) {
           console.log('[OneSignal] ✅ Calling NotifyBridge.login() with:', externalId);
-          await NotifyBridge.requestPermission();
+          // requestPermission can throw if already granted or dialog is dismissed — that's OK, we still need to login
+          try {
+            await NotifyBridge.requestPermission();
+            console.log('[OneSignal] ✅ Permission granted/already set');
+          } catch (permErr) {
+            console.warn('[OneSignal] requestPermission threw (may already be granted):', permErr);
+          }
+          // Always call login regardless of permission result
           await NotifyBridge.login({ externalId: externalId });
+          console.log('[OneSignal] ✅ login() sent for:', externalId);
         } else {
           console.log('[OneSignal] Calling NotifyBridge.logout()');
           await NotifyBridge.logout();
