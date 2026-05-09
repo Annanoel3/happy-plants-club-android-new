@@ -25,10 +25,9 @@
 
         </activity>
 
-        <!-- TODO: Replace with the Happy Plants Club AdMob App ID from the AdMob console -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-7979856440890193~REPLACE_WITH_APP_ID"/>
+            android:value="ca-app-pub-7979856440890193~9036825914"/>
 
         <provider
             android:name="androidx.core.content.FileProvider"
