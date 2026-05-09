@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Happy Plants Club</string>
+    <string name="title_activity_main">Happy Plants Club</string>
+    <string name="package_name">com.happyplantsclub.android</string>
+    <string name="custom_url_scheme">com.happyplantsclub.android</string>
+</resources>
