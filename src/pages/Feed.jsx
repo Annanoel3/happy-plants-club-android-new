@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { motion, AnimatePresence } from 'framer-motion';
+import PullToRefresh from "@/components/PullToRefresh";
 
 export default function Feed() {
   const navigate = useNavigate();
@@ -358,7 +358,12 @@ export default function Feed() {
 
   // Removed userLocation as filter is removed from UI
 
+  const handleRefresh = async () => {
+    await refetch();
+  };
+
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="min-h-screen theme-bg p-6 pb-24">
       {/* Easter Egg GIF Popup */}
       <AnimatePresence>
@@ -626,5 +631,6 @@ export default function Feed() {
         </div>
       </div>
     </div>
+    </PullToRefresh>
   );
 }

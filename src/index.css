@@ -154,5 +154,31 @@ button:focus-visible {
   }
   body {
     @apply bg-background text-foreground;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
   }
+}
+
+/* Mobile-native feel */
+button, a, input, textarea, select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input, textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Safe area support */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Pull-to-refresh spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

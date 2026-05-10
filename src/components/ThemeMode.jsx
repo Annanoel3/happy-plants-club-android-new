@@ -13,7 +13,13 @@ import StPatricksMode from './themes/StPatricksMode';
 
 export default function ThemeMode() {
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'light';
+    const stored = localStorage.getItem('theme');
+    if (stored) return stored;
+    // Auto-detect system dark mode if no user preference
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
   });
 
   useEffect(() => {

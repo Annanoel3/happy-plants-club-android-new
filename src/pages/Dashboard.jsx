@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { differenceInDays, parseISO } from "date-fns";
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
+import PullToRefresh from "@/components/PullToRefresh";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -469,7 +470,7 @@ export default function Dashboard() {
   return (
     <>
       <DailyWeatherPopup />
-      
+      <PullToRefresh onRefresh={() => refetch()}>
       <div className="min-h-screen theme-bg p-6 pb-24">
         <div className="max-w-6xl mx-auto">
           <div className={`mb-8 rounded-2xl p-6 flex flex-wrap items-start justify-between gap-4 ${getThemedClasses()}`}>
@@ -748,6 +749,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+      </PullToRefresh>
     </>
   );
 }

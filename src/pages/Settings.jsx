@@ -2,7 +2,18 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { User, MapPin, LogOut, Bell, Eye, FileText } from "lucide-react";
+import { User, MapPin, LogOut, Bell, Eye, FileText, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -204,6 +215,7 @@ export default function Settings() {
 
   const [feedbackText, setFeedbackText] = useState("");
   const [isSendingFeedback, setIsSendingFeedback] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const handleSendFeedback = async () => {
     if (!feedbackText.trim()) {
@@ -224,6 +236,25 @@ export default function Settings() {
       toast.error('Failed to send feedback');
     } finally {
       setIsSendingFeedback(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+    try {
+      // Delete all user's plants
+      const plants = await base44.entities.Plant.filter({ created_by: user.email });
+      for (const plant of plants) {
+        await base44.entities.Plant.delete(plant.id);
+      }
+      // Logout
+      await base44.auth.logout();
+      window.location.reload();
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      toast.error("Failed to delete account. Please contact support.");
+    } finally {
+      setIsDeletingAccount(false);
     }
   };
 
@@ -540,10 +571,37 @@ export default function Settings() {
               <Button
                 onClick={handleLogout}
                 variant="destructive"
-                className="w-full"
+                className="w-full mb-3"
               >
                 Log Out
               </Button>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="w-full border-red-500 text-red-500 hover:bg-red-50">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Account
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Account?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete your account and all your plants. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteAccount}
+                      disabled={isDeletingAccount}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {isDeletingAccount ? "Deleting..." : "Yes, delete my account"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </CardContent>
           </Card>
         </div>
