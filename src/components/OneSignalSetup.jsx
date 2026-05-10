@@ -52,7 +52,11 @@ export default function OneSignalSetup({ user }) {
 
         if (externalId) {
           console.log('[OneSignal] ✅ Calling NotifyBridge.login() with:', externalId);
-          await NotifyBridge.requestPermission();
+          try {
+            await NotifyBridge.requestPermission();
+          } catch (e) {
+            console.warn('[OneSignal] requestPermission error (may already be granted):', e);
+          }
           await NotifyBridge.login({ externalId: externalId });
         } else {
           console.log('[OneSignal] Calling NotifyBridge.logout()');
