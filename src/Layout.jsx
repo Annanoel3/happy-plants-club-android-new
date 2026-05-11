@@ -301,7 +301,7 @@ function LayoutContent({ children, currentPageName }) {
         <header className={`border-b theme-border px-6 py-3 md:hidden sticky top-0 z-10 mobile-header flex-shrink-0 ${!user ? 'hidden' : ''}`} style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)', paddingBottom: '12px' }}>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0 flex-1">
-              <SidebarTrigger className="hover:bg-opacity-10 p-3 rounded-lg mobile-header-text flex-shrink-0 w-11 h-11" />
+              <SidebarTrigger className="hover:bg-opacity-10 p-4 rounded-lg mobile-header-text flex-shrink-0 w-14 h-14 [&>svg]:w-7 [&>svg]:h-7" />
               <div className="flex items-center gap-2 rounded-xl px-3 py-2 min-w-0">
                 <img 
                   src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/9fd059159_HP1.png"
