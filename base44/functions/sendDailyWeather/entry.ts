@@ -36,7 +36,17 @@ Deno.serve(async (req) => {
                     continue;
                 }
                 
-                skipped++;
+                try {
+                    await base44.asServiceRole.functions.invoke('getDailyPlantWeather', {
+                        plant_id: plant.id,
+                        user_email: user.email,
+                        location: user.location
+                    });
+                    sent++;
+                } catch (err) {
+                    console.error('Error getting weather for plant:', err);
+                    skipped++;
+                }
             } catch (err) {
                 skipped++;
             }

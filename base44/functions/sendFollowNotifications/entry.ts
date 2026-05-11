@@ -29,8 +29,15 @@ Deno.serve(async (req) => {
                     continue;
                 }
                 
-                requestsSkipped++;
+                await base44.asServiceRole.functions.invoke('sendNotification', {
+                    toUserEmail: request.target_email,
+                    title: `👤 New Follow Request`,
+                    body: `${request.requester_name || request.requester_email} wants to follow you`,
+                    screen: '/FollowRequests'
+                });
+                requestsSent++;
             } catch (err) {
+                console.error('Error sending follow request notification:', err);
                 requestsSkipped++;
             }
         }
@@ -49,8 +56,16 @@ Deno.serve(async (req) => {
                     continue;
                 }
                 
-                followersSkipped++;
+                const followerUsers = await base44.entities.User.filter({ email: follow.follower_email });
+                await base44.asServiceRole.functions.invoke('sendNotification', {
+                    toUserEmail: follow.following_email,
+                    title: `👥 New Follower`,
+                    body: `${followerUsers[0]?.full_name || follow.follower_email} started following you`,
+                    screen: '/Feed'
+                });
+                followersSent++;
             } catch (err) {
+                console.error('Error sending follow notification:', err);
                 followersSkipped++;
             }
         }
