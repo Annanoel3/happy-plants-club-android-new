@@ -416,8 +416,11 @@ export default function Dashboard() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center theme-bg">
-        <div className="text-center max-w-md px-6">
+      <div 
+        className="fixed inset-0 flex items-center justify-center theme-bg overflow-hidden"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        <div className="text-center max-w-md px-6 w-full">
           <div className={`rounded-3xl p-8 ${getThemedClasses()}`}>
             <div className="w-24 h-24 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
               <Sparkles className="w-12 h-12 text-white" />
