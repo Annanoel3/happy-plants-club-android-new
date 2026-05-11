@@ -1,6 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
-const AD_UNIT_ID = 'ca-app-pub-7979856440890193/4763224740';
+const AD_UNIT_ID = 'ca-app-pub-7979856440890193/9127484934';
 const SHOW_EVERY_N_OPENS = 3;  // Show ad every 3rd app open
 const AD_DELAY_MS = 10000;     // Wait 10 seconds before showing
 
