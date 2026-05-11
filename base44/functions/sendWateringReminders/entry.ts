@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
             const plantText = plantCount === 1 ? '1 plant needs' : `${plantCount} plants need`;
             
             try {
-                await base44.asServiceRole.integrations.Core.SendPushNotification({
+                await base44.asServiceRole.functions.invoke('oneSignalPush', {
                     user_email: userEmail,
                     title: '💧 Watering Reminder',
                     message: `Have you finished watering everyone today? ${plantText} water!`,
