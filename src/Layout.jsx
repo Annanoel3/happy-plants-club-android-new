@@ -299,7 +299,7 @@ function LayoutContent({ children, currentPageName }) {
       </Sidebar>
 
       <main className="flex-1 flex flex-col overflow-x-hidden">
-        <header className="border-b theme-border px-6 py-3 md:hidden sticky top-0 z-10 mobile-header flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)', paddingBottom: '12px' }}>
+        <header className={`border-b theme-border px-6 py-3 md:hidden sticky top-0 z-10 mobile-header flex-shrink-0 ${!user ? 'hidden' : ''}`} style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)', paddingBottom: '12px' }}>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0 flex-1">
               <SidebarTrigger className="hover:bg-opacity-10 p-2 rounded-lg mobile-header-text flex-shrink-0" />
@@ -332,7 +332,7 @@ function LayoutContent({ children, currentPageName }) {
         <div className="flex-1 overflow-y-auto pb-16 md:pb-0">
           {children}
         </div>
-        <BottomNav />
+        {user && <BottomNav />}
       </main>
     </div>
   );
