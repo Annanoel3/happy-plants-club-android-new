@@ -13,7 +13,8 @@ Deno.serve(async (req) => {
         }
 
         const body = await req.json();
-        const { userEmail, title, message, data } = body;
+        const { user_email, userEmail, title, message, data, send_after_seconds } = body;
+        const targetEmail = user_email || userEmail;
 
         const appId = Deno.env.get("ONESIGNAL_APP_ID");
         const rest = Deno.env.get("ONESIGNAL_REST_API_KEY");
@@ -26,11 +27,11 @@ Deno.serve(async (req) => {
         }
 
         // Get target user's player IDs
-        const targetUsers = await base44.asServiceRole.entities.User.filter({ email: userEmail });
+        const targetUsers = await base44.asServiceRole.entities.User.filter({ email: targetEmail });
         const targetUser = targetUsers[0];
         
         if (!targetUser || !targetUser.onesignal_player_ids || targetUser.onesignal_player_ids.length === 0) {
-            console.log('No player IDs found for user:', userEmail);
+            console.log('No player IDs found for user:', targetEmail);
             return Response.json({
                 success: false,
                 error: 'User has no registered devices'
@@ -46,7 +47,12 @@ Deno.serve(async (req) => {
             data: data || {}
         };
 
-        console.log('Sending push to:', targetUser.onesignal_player_ids);
+        // Add scheduled send time if provided
+        if (send_after_seconds && send_after_seconds > 0) {
+            payload.send_after = Math.floor(Date.now() / 1000) + send_after_seconds;
+        }
+
+        console.log('Sending push to:', targetUser.onesignal_player_ids, send_after_seconds ? `scheduled for ${send_after_seconds}s` : 'immediate');
 
         const response = await fetch("https://onesignal.com/api/v1/notifications", {
             method: "POST",
@@ -70,6 +76,7 @@ Deno.serve(async (req) => {
         return Response.json({ 
             success: true,
             recipients: result.recipients || 0,
+            notification_id: result.body?.id || null,
             data: result
         });
 

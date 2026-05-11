@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
                 const owner = users[0];
 
                 const result = await base44.asServiceRole.functions.invoke('sendNotification', {
-                    toUserEmail: owner.email,  // FIXED: Send email, not user.id
+                    toUserEmail: owner.email,
                     title: `⏰ Reminder: ${reminder.title}`,
                     body: reminder.description || `Don't forget about ${reminder.plant_name}`,
                     screen: '/Schedule'
@@ -44,6 +44,24 @@ Deno.serve(async (req) => {
 
                 if (result?.data?.success) {
                     sent++;
+                }
+
+                // If recurring, extend to next occurrence
+                if (reminder.is_recurring && reminder.recurrence_type) {
+                    const nextDate = new Date(reminder.due_date);
+                    if (reminder.recurrence_type === 'daily') {
+                        nextDate.setDate(nextDate.getDate() + 1);
+                    } else if (reminder.recurrence_type === 'weekly') {
+                        nextDate.setDate(nextDate.getDate() + 7);
+                    } else if (reminder.recurrence_type === 'biweekly') {
+                        nextDate.setDate(nextDate.getDate() + 14);
+                    } else if (reminder.recurrence_type === 'monthly') {
+                        nextDate.setMonth(nextDate.getMonth() + 1);
+                    }
+                    
+                    await base44.asServiceRole.entities.Reminder.update(reminder.id, {
+                        due_date: nextDate.toISOString().split('T')[0]
+                    });
                 }
             } catch (err) {
                 console.error('Error sending custom reminder:', err);

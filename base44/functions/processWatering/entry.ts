@@ -124,6 +124,43 @@ export async function processWatering({ plant_id, notes, watering_date }) {
             }
         }
 
+        // Cancel scheduled watering notifications for this plant
+        const today = new Date().toISOString().split('T')[0];
+        const dailyReminders = await base44.entities.DailyWateringReminder.filter({
+            user_email: user.email,
+            reminder_date: today
+        });
+        
+        if (dailyReminders.length > 0) {
+            const reminder = dailyReminders[0];
+            
+            // Cancel all scheduled OneSignal notifications
+            if (reminder.scheduled_notification_ids && reminder.scheduled_notification_ids.length > 0) {
+                const onesignalApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
+                const onesignalAppId = Deno.env.get('ONESIGNAL_APP_ID');
+                
+                for (const notifId of reminder.scheduled_notification_ids) {
+                    try {
+                        await fetch(`https://onesignal.com/api/v1/notifications/${notifId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Basic ${onesignalApiKey}`,
+                                'Content-Type': 'application/json; charset=utf-8'
+                            }
+                        });
+                    } catch (error) {
+                        console.error(`Failed to cancel notification ${notifId}:`, error);
+                    }
+                }
+                
+                // Clear scheduled notification IDs from reminder
+                await base44.entities.DailyWateringReminder.update(reminder.id, {
+                    scheduled_notification_ids: [],
+                    plants_needing_water: reminder.plants_needing_water.filter(id => id !== plant_id)
+                });
+            }
+        }
+
         console.log('🎉 Watering complete!');
         
         return {

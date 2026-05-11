@@ -1,0 +1,43 @@
+{
+  "name": "DailyWateringReminder",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "User's email"
+    },
+    "reminder_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of this reminder"
+    },
+    "last_notification_sent": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the last notification was sent"
+    },
+    "dismissed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether user dismissed the reminder for today"
+    },
+    "plants_needing_water": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs of plants that need watering"
+    },
+    "scheduled_notification_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "OneSignal notification IDs scheduled for today"
+    }
+  },
+  "required": [
+    "user_email",
+    "reminder_date"
+  ]
+}

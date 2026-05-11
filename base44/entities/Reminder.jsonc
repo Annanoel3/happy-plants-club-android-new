@@ -1,0 +1,52 @@
+{
+  "name": "Reminder",
+  "type": "object",
+  "rls": {
+    "read": true,
+    "write": {
+      "created_by": "{{user.email}}"
+    }
+  },
+  "properties": {
+    "plant_id": {
+      "type": "string"
+    },
+    "plant_name": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "completed": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_recurring": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this reminder repeats"
+    },
+    "recurrence_type": {
+      "type": "string",
+      "enum": [
+        "daily",
+        "weekly",
+        "biweekly",
+        "monthly"
+      ],
+      "description": "How often the reminder repeats"
+    }
+  },
+  "required": [
+    "plant_id",
+    "title",
+    "due_date"
+  ]
+}
