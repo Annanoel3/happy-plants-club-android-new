@@ -1,6 +1,5 @@
 import React from "react";
 import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button"; // This import is no longer strictly needed for the back button, but might be used elsewhere, so I'll keep it for now as the prompt didn't say to remove it.
 import { Card, CardContent } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 
@@ -8,11 +7,11 @@ export default function PrivacyPolicy() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen theme-bg p-6">
+    <div className="min-h-screen theme-bg p-6 pb-24">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-4 mb-8">
           <button 
-            onClick={() => navigate('/Settings')}
+            onClick={() => navigate(-1)}
             className="p-2 rounded-full hover:bg-gray-100 transition-colors"
           >
             <ArrowLeft className="w-5 h-5 theme-text" />
@@ -86,6 +85,18 @@ export default function PrivacyPolicy() {
               </a>
               .
             </p>
+
+            <hr className="my-8 border-gray-300" />
+
+            <div className="text-center">
+              <p className="theme-text-secondary text-sm mb-3">Also see our</p>
+              <button
+                onClick={() => navigate('/TermsAndConditions')}
+                className="text-green-600 underline font-medium hover:opacity-80"
+              >
+                Terms & Conditions →
+              </button>
+            </div>
           </CardContent>
         </Card>
       </div>
