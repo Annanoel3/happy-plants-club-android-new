@@ -26,7 +26,19 @@ Deno.serve(async (req) => {
             if (!plant.next_watering_due) continue;
             
             if (plant.next_watering_due < threeDaysAgoStr && plant.status !== 'wilted') {
+                await base44.asServiceRole.entities.Plant.update(plant.id, { status: 'wilted' });
                 wiltedCount++;
+                
+                try {
+                    await base44.asServiceRole.functions.invoke('sendNotification', {
+                        toUserEmail: plant.created_by,
+                        title: `⚠️ Plant Alert: ${plant.name}`,
+                        body: `${plant.name} hasn't been watered in 3+ days and may be wilting`,
+                        screen: '/PlantDetail'
+                    });
+                } catch (err) {
+                    console.error('Error notifying about wilted plant:', err);
+                }
             }
         }
 
