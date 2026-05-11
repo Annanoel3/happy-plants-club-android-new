@@ -695,7 +695,7 @@ export default function Dashboard() {
                           </div>
                         )}
                         
-                        {needsWaterToday && (
+                        {needsWaterToday && wateringRemindersEnabled && (
                           <div className="absolute inset-0 bg-blue-500/20 backdrop-blur-[2px] flex items-center justify-center">
                             <div className="text-center">
                               <Droplets className="w-16 h-16 text-blue-600 mx-auto mb-2 animate-bounce" />

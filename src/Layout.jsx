@@ -24,7 +24,6 @@ import NotificationPopup from "@/components/NotificationPopup";
 
 import OneSignalSetup from "@/components/OneSignalSetup";
 import ThemeMode from "@/components/ThemeMode";
-import BottomNav from "@/components/BottomNav";
 
 function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
@@ -329,10 +328,9 @@ function LayoutContent({ children, currentPageName }) {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto pb-16 md:pb-0">
+        <div className="flex-1 overflow-y-auto pb-0">
           {children}
         </div>
-        {user && <BottomNav />}
       </main>
     </div>
   );
