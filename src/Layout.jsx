@@ -13,10 +13,10 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarProvider,
-  SidebarTrigger,
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -301,7 +301,12 @@ function LayoutContent({ children, currentPageName }) {
         <header className={`border-b theme-border px-6 py-3 md:hidden sticky top-0 z-10 mobile-header flex-shrink-0 ${!user ? 'hidden' : ''}`} style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)', paddingBottom: '12px' }}>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0 flex-1">
-              <SidebarTrigger className="hover:bg-opacity-10 p-4 rounded-lg mobile-header-text flex-shrink-0 w-14 h-14 [&>svg]:w-7 [&>svg]:h-7" />
+              <button 
+                onClick={() => setOpen(true)} 
+                className="p-0 rounded-lg mobile-header-text flex-shrink-0 hover:opacity-80 transition-opacity"
+              >
+                <PanelLeft className="w-8 h-8" />
+              </button>
               <div className="flex items-center gap-2 rounded-xl px-3 py-2 min-w-0">
                 <img 
                   src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/9fd059159_HP1.png"
