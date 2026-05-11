@@ -1,4 +1,3 @@
-
 import React from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button"; // This import is no longer strictly needed for the back button, but might be used elsewhere, so I'll keep it for now as the prompt didn't say to remove it.
@@ -51,6 +50,41 @@ export default function PrivacyPolicy() {
             <h3 className="text-lg font-semibold theme-text mb-3">Data Security</h3>
             <p className="mb-4 theme-text">
               All data is stored securely with encryption and access controls.
+            </p>
+
+            <hr className="my-8 border-gray-300" />
+
+            <h3 className="text-lg font-semibold theme-text mb-4">Questions?</h3>
+            <p className="mb-6 theme-text">
+              If you have questions about this policy, contact us at{' '}
+              <a href="mailto:mediocreatbestdev@outlook.com" className="underline hover:opacity-80">
+                mediocreatbestdev@outlook.com
+              </a>
+            </p>
+
+            <h2 className="text-xl font-bold theme-text mb-4">© Copyright & Intellectual Property</h2>
+            <p className="font-semibold theme-text mb-4">© 2026 Happy Plants. All rights reserved.</p>
+            
+            <p className="mb-6 theme-text">
+              The Happy Plants application, including its design, code, branding, and user interface, is the intellectual property of Happy Plants and is protected by applicable copyright, trademark, and intellectual property laws.
+            </p>
+
+            <h3 className="text-lg font-semibold theme-text mb-3">Your Content</h3>
+            <p className="mb-6 theme-text">
+              You retain full ownership of all content you upload to Happy Plants, including photos and plant information. By using the app, you grant Happy Plants a limited, non-exclusive license to store, display, and process your content solely for the purpose of providing the service to you.
+            </p>
+
+            <h3 className="text-lg font-semibold theme-text mb-3">Restrictions</h3>
+            <p className="mb-6 theme-text">
+              You may not copy, reproduce, distribute, modify, or create derivative works from any part of the Happy Plants application without prior written consent. Unauthorized use of Happy Plants' proprietary materials may violate copyright, trademark, and other applicable laws.
+            </p>
+
+            <p className="theme-text">
+              For licensing inquiries, contact{' '}
+              <a href="mailto:mediocreatbestdev@outlook.com" className="underline hover:opacity-80">
+                mediocreatbestdev@outlook.com
+              </a>
+              .
             </p>
           </CardContent>
         </Card>
