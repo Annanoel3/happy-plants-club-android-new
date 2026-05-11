@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -236,7 +235,7 @@ export default function ProfileSetup() {
   );
 
   return (
-    <div className={`min-h-screen flex items-center justify-center p-6 ${getBackgroundColor()}`}>
+    <div className={`min-h-screen flex items-center justify-center p-6 ${getBackgroundColor()}`} style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 24px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
       <Card className={`max-w-lg w-full ${getThemedClasses()}`}>
         <CardContent className="p-8">
           <div className="text-center mb-8">

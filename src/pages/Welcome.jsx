@@ -164,7 +164,7 @@ export default function Welcome() {
   if (!user) return null; // If loading is done but no user, return null (should ideally not happen if auth check redirects)
 
   return (
-    <div className="min-h-screen flex items-center justify-center theme-bg p-6">
+    <div className="min-h-screen flex items-center justify-center theme-bg p-6" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 24px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
       {/* Replaced Card with div and applied styles directly */}
       <div className={`max-w-md w-full rounded-3xl p-8 shadow-2xl ${getThemedClasses()}`}>
         <div className="text-center mb-8">
