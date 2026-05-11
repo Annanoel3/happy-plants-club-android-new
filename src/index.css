@@ -178,6 +178,8 @@ input, textarea {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+
+
 /* Pull-to-refresh spinner */
 @keyframes spin {
   to { transform: rotate(360deg); }

@@ -209,7 +209,7 @@ function LayoutContent({ children, currentPageName }) {
       )}
       
       <Sidebar className="sidebar-container">
-        <SidebarHeader className="sidebar-header pt-8 pb-2">
+        <SidebarHeader className="sidebar-header pb-2" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 24px)' }}>
           <div className="flex items-center gap-3">
             <img 
               src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/9fd059159_HP1.png"
@@ -299,7 +299,7 @@ function LayoutContent({ children, currentPageName }) {
       </Sidebar>
 
       <main className="flex-1 flex flex-col overflow-x-hidden">
-        <header className="border-b theme-border px-6 py-3 pt-6 md:hidden sticky top-0 z-10 mobile-header flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}>
+        <header className="border-b theme-border px-6 py-3 md:hidden sticky top-0 z-10 mobile-header flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)', paddingBottom: '12px' }}>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0 flex-1">
               <SidebarTrigger className="hover:bg-opacity-10 p-2 rounded-lg mobile-header-text flex-shrink-0" />
