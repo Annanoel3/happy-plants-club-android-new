@@ -260,7 +260,10 @@ function LayoutContent({ children, currentPageName }) {
         <SidebarFooter className="p-3 pb-8 sidebar-footer">
           <Button
             variant="outline"
-            onClick={cycleTheme}
+            onClick={() => {
+              cycleTheme();
+              setOpen(false);
+            }}
             className="w-full justify-start gap-3 mb-3 h-12 sidebar-button rounded-2xl font-semibold"
           >
             {theme === 'light' && <><Sun className="w-5 h-5" /> Light Mode</>}
