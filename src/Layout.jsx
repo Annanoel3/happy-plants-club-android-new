@@ -28,7 +28,7 @@ import ThemeMode from "@/components/ThemeMode";
 function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { setOpen } = useSidebar();
+  const { toggleSidebar } = useSidebar();
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [theme, setTheme] = useState(() => {
@@ -191,10 +191,7 @@ function LayoutContent({ children, currentPageName }) {
   ];
 
   const handleNavClick = (url) => {
-    setOpen(false); // Close sidebar first
-    setTimeout(() => {
-      navigate(url);
-    }, 100); // Small delay to ensure sidebar closes smoothly
+    navigate(url);
   };
 
   return (
@@ -283,10 +280,8 @@ function LayoutContent({ children, currentPageName }) {
           {!isLoading && user && (
             <>
               <button
-                onClick={() => {
-                  navigate('/MyProfile');
-                  setOpen(false);
-                }}
+                type="button"
+                onClick={() => navigate('/MyProfile')}
                 className="w-full px-3 py-3 text-sm sidebar-user-info rounded-2xl hover:opacity-80 transition-opacity text-left mb-2"
               >
                 <p className="font-semibold sidebar-text truncate">{user.full_name}</p>
@@ -302,11 +297,11 @@ function LayoutContent({ children, currentPageName }) {
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0 flex-1">
               <button 
-                onClick={() => setOpen(true)} 
-                className="p-2 -ml-2 rounded-xl mobile-header-text flex-shrink-0 hover:opacity-80 transition-opacity active:scale-95"
-                style={{ minWidth: '48px', minHeight: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                type="button"
+                onClick={toggleSidebar}
+                className="p-3 rounded-lg mobile-header-text flex-shrink-0 hover:opacity-70 transition-opacity"
               >
-                <PanelLeft className="w-7 h-7" />
+                <PanelLeft className="w-6 h-6" />
               </button>
               <div className="flex items-center gap-2 rounded-xl px-3 py-2 min-w-0">
                 <img 
@@ -319,10 +314,8 @@ function LayoutContent({ children, currentPageName }) {
             </div>
             {user && (
               <button 
-                onClick={() => {
-                  navigate('/MyProfile');
-                  setOpen(false);
-                }} 
+                type="button"
+                onClick={() => navigate('/MyProfile')}
                 className="flex-shrink-0"
               >
                 <Avatar className="w-9 h-9 ring-2 ring-white/20">
