@@ -282,7 +282,10 @@ function LayoutContent({ children, currentPageName }) {
             <>
               <button
                 type="button"
-                onClick={() => navigate('/MyProfile')}
+                onClick={() => {
+                  navigate('/MyProfile');
+                  setOpen(false);
+                }}
                 className="w-full px-3 py-3 text-sm sidebar-user-info rounded-2xl hover:opacity-80 transition-opacity text-left mb-2"
               >
                 <p className="font-semibold sidebar-text truncate">{user.full_name}</p>
