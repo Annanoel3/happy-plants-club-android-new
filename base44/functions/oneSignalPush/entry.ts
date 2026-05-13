@@ -1,44 +1,33 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-        
-        if (!user) {
-            return Response.json({ 
-                success: false, 
-                error: 'Unauthorized' 
-            }, { status: 401 });
-        }
 
         const body = await req.json();
         const { user_email, userEmail, title, message, data, send_after_seconds } = body;
         const targetEmail = user_email || userEmail;
 
+        if (!targetEmail || !title || !message) {
+            return Response.json({ success: false, error: 'Missing required fields: user_email, title, message' }, { status: 400 });
+        }
+
         const appId = Deno.env.get("ONESIGNAL_APP_ID");
         const rest = Deno.env.get("ONESIGNAL_REST_API_KEY");
 
         if (!appId || !rest) {
-            return Response.json({ 
-                success: false, 
-                error: "Missing OneSignal credentials"
-            }, { status: 500 });
+            return Response.json({ success: false, error: "Missing OneSignal credentials" }, { status: 500 });
         }
 
-        // Get target user's player IDs
+        // Get target user's player IDs using service role (no user auth needed)
         const targetUsers = await base44.asServiceRole.entities.User.filter({ email: targetEmail });
         const targetUser = targetUsers[0];
         
         if (!targetUser || !targetUser.onesignal_player_ids || targetUser.onesignal_player_ids.length === 0) {
             console.log('No player IDs found for user:', targetEmail);
-            return Response.json({
-                success: false,
-                error: 'User has no registered devices'
-            });
+            return Response.json({ success: false, error: 'User has no registered devices' });
         }
 
-        // Send to specific player IDs
         const payload = {
             app_id: appId.trim(),
             include_player_ids: targetUser.onesignal_player_ids,
@@ -47,9 +36,10 @@ Deno.serve(async (req) => {
             data: data || {}
         };
 
-        // Add scheduled send time if provided
+        // OneSignal expects send_after as a UTC datetime string: "2015-09-24 14:00:00 GMT-0700"
         if (send_after_seconds && send_after_seconds > 0) {
-            payload.send_after = Math.floor(Date.now() / 1000) + send_after_seconds;
+            const sendAt = new Date(Date.now() + send_after_seconds * 1000);
+            payload.send_after = sendAt.toUTCString();
         }
 
         console.log('Sending push to:', targetUser.onesignal_player_ids, send_after_seconds ? `scheduled for ${send_after_seconds}s` : 'immediate');
@@ -64,6 +54,7 @@ Deno.serve(async (req) => {
         });
 
         const result = await response.json();
+        console.log('OneSignal response:', JSON.stringify(result));
 
         if (!response.ok || result.errors) {
             return Response.json({
@@ -76,15 +67,12 @@ Deno.serve(async (req) => {
         return Response.json({ 
             success: true,
             recipients: result.recipients || 0,
-            notification_id: result.body?.id || null,
+            notification_id: result.id || null,
             data: result
         });
 
     } catch (error) {
         console.error('[OneSignal] Send error:', error);
-        return Response.json({ 
-            success: false, 
-            error: error.message
-        }, { status: 500 });
+        return Response.json({ success: false, error: error.message }, { status: 500 });
     }
 });

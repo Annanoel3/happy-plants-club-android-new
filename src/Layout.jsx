@@ -303,9 +303,10 @@ function LayoutContent({ children, currentPageName }) {
             <div className="flex items-center gap-4 min-w-0 flex-1">
               <button 
                 onClick={() => setOpen(true)} 
-                className="p-0 rounded-lg mobile-header-text flex-shrink-0 hover:opacity-80 transition-opacity"
+                className="p-2 -ml-2 rounded-xl mobile-header-text flex-shrink-0 hover:opacity-80 transition-opacity active:scale-95"
+                style={{ minWidth: '48px', minHeight: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                <PanelLeft className="w-8 h-8" />
+                <PanelLeft className="w-7 h-7" />
               </button>
               <div className="flex items-center gap-2 rounded-xl px-3 py-2 min-w-0">
                 <img 
