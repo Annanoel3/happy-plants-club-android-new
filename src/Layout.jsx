@@ -28,7 +28,7 @@ import ThemeMode from "@/components/ThemeMode";
 function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, setOpen } = useSidebar();
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [theme, setTheme] = useState(() => {
@@ -192,6 +192,7 @@ function LayoutContent({ children, currentPageName }) {
 
   const handleNavClick = (url) => {
     navigate(url);
+    setOpen(false);
   };
 
   return (
