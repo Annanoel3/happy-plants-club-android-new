@@ -299,7 +299,7 @@ function LayoutContent({ children, currentPageName }) {
               <button 
                 type="button"
                 onClick={toggleSidebar}
-                className="p-3 rounded-lg mobile-header-text flex-shrink-0 hover:opacity-70 transition-opacity"
+                className="flex items-center justify-center w-12 h-12 rounded-lg mobile-header-text flex-shrink-0 hover:opacity-70 transition-opacity"
               >
                 <PanelLeft className="w-6 h-6" />
               </button>
