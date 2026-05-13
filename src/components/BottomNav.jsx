@@ -17,7 +17,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t pointer-events-auto"
       style={{
         background: "var(--sidebar-bg, rgba(255,255,255,0.98))",
         borderColor: "var(--theme-card-border, rgba(0,0,0,0.1))",
@@ -30,14 +30,15 @@ export default function BottomNav() {
         return (
           <button
             key={item.title}
+            type="button"
             onClick={() => navigate(item.url)}
             className={cn(
-              "flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-w-0 flex-1 transition-all",
+              "flex flex-col items-center justify-center gap-1 flex-1 py-3 px-2 transition-all pointer-events-auto min-h-16",
               isActive ? "opacity-100" : "opacity-50"
             )}
             style={{ color: isActive ? "var(--sidebar-text, #2d3748)" : "var(--sidebar-text-secondary, #718096)" }}
           >
-            <item.icon className={cn("w-5 h-5", isActive && "scale-110")} />
+            <item.icon className="w-6 h-6 flex-shrink-0" />
             <span className="text-[10px] font-medium truncate">{item.title}</span>
           </button>
         );
