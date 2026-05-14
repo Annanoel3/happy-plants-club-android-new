@@ -1,8 +1,8 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 const AD_UNIT_ID = 'ca-app-pub-7979856440890193/9127484934';
-const SHOW_EVERY_N_OPENS = 3;  // Show ad every 3rd app open
-const AD_DELAY_MS = 10000;     // Wait 10 seconds before showing
+const SHOW_EVERY_N_OPENS = 4;  // Show ad every 4th app open
+const AD_DELAY_MS = 15000;     // Wait 15 seconds before showing
 
 let AdMob = null;
 
@@ -18,8 +18,25 @@ export async function initAdMob() {
   }
 }
 
+function isInputFocused() {
+  const active = document.activeElement;
+  return active && (
+    active.tagName === 'INPUT' ||
+    active.tagName === 'TEXTAREA' ||
+    active.contentEditable === 'true'
+  );
+}
+
 export async function showInterstitialAd() {
   if (!AdMob) return false;
+  
+  // Wait until no input is focused
+  let waitAttempts = 0;
+  while (isInputFocused() && waitAttempts < 30) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    waitAttempts++;
+  }
+  
   try {
     await AdMob.prepareInterstitial({ adId: AD_UNIT_ID, isTesting: false });
     await AdMob.showInterstitial();
