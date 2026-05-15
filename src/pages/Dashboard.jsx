@@ -486,41 +486,43 @@ export default function Dashboard() {
         <div className="max-w-6xl mx-auto px-4 pt-6">
 
           {/* Header */}
-          <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <p className={`text-sm font-semibold uppercase tracking-widest mb-1 ${getSecondaryTextColor()}`}>
+              <p className={`text-xs font-medium uppercase tracking-widest mb-1 ${getSecondaryTextColor()}`}>
                 {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </p>
-              <h1 className={`text-4xl font-extrabold tracking-tight leading-none ${getTextColor()}`}>
-                My Garden
+              <h1 className={`text-3xl font-bold tracking-tight ${getTextColor()}`}>
+                My Garden 🌿
               </h1>
-              <p className={`text-sm mt-1 ${getSecondaryTextColor()}`}>
-                {plantsList.length} {plantsList.length === 1 ? 'plant' : 'plants'} growing
-              </p>
             </div>
-            <button
-              onClick={handleToggleWateringReminders}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all mt-1 ${
-                wateringRemindersEnabled
-                  ? 'bg-blue-500/20 text-blue-400 border border-blue-400/30'
-                  : `border ${getSecondaryTextColor()} border-white/20 bg-white/5`
-              }`}
-            >
-              {wateringRemindersEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-            </button>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getThemedClasses()} ${getTextColor()}`}>
+                {plantsList.length} plants
+              </span>
+              <button
+                onClick={handleToggleWateringReminders}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                  wateringRemindersEnabled
+                    ? 'bg-blue-500/20 text-blue-400 border border-blue-400/30'
+                    : `${getThemedClasses()} ${getSecondaryTextColor()}`
+                }`}
+              >
+                {wateringRemindersEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           {/* Action Buttons */}
           <div className="flex gap-3 mb-6">
             <button 
               onClick={() => navigate('/AddPlant')} 
-              className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-bold shadow-md transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+              className="flex-1 h-13 py-3.5 rounded-2xl flex items-center justify-center text-sm font-bold shadow-lg transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
             >
               <Plus className="w-4 h-4" /> Add Plant
             </button>
             <button 
               onClick={() => navigate('/VoiceLog')} 
-              className={`flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-bold shadow-md transition-all active:scale-95 gap-2 ${getThemedClasses()} ${getTextColor()}`}
+              className={`flex-1 h-13 py-3.5 rounded-2xl flex items-center justify-center text-sm font-bold shadow-md transition-all active:scale-95 gap-2 ${getThemedClasses()} ${getTextColor()}`}
             >
               <Mic className="w-4 h-4" /> Voice Log
             </button>
@@ -578,14 +580,13 @@ export default function Dashboard() {
           {allTags.length > 0 && (
             <div className="mb-5">
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                <Filter className={`w-4 h-4 flex-shrink-0 ${getSecondaryTextColor()}`} />
                 {allTags.map((tag) => (
                   <button
                     key={tag}
                     onClick={() => toggleTag(tag)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
                       selectedTags.includes(tag)
-                        ? 'bg-emerald-600 text-white shadow-md'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
                         : `${getThemedClasses()} ${getTextColor()}`
                     }`}
                   >
@@ -597,15 +598,10 @@ export default function Dashboard() {
                     onClick={() => setSelectedTags([])}
                     className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${getSecondaryTextColor()}`}
                   >
-                    Clear
+                    ✕ Clear
                   </button>
                 )}
               </div>
-              {selectedTags.length > 0 && (
-                <p className={`text-xs mt-2 ${getSecondaryTextColor()}`}>
-                  {filteredPlants.length} of {plantsList.length} plants
-                </p>
-              )}
             </div>
           )}
 
@@ -639,76 +635,66 @@ export default function Dashboard() {
                 if (!plant || !plant.id) return null;
                 
                 const wateringStatus = getWateringStatus(plant);
-                const StatusIcon = wateringStatus.icon;
                 const needsWaterToday = wateringStatus.status === 'today' || wateringStatus.status === 'overdue' || plant.status === 'wilted';
-                
-                let displayName = plant.nickname || plant.name || 'Unknown Plant';
+                const displayName = plant.nickname || plant.name || 'Unknown Plant';
                 
                 return (
                   <button key={plant.id} onClick={() => navigate(`/PlantDetail?id=${plant.id}`)} className="group text-left">
-                    <div className={`rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 active:scale-95 ${
-                      plant.status === 'wilted'
-                        ? 'ring-2 ring-red-500 animate-pulse'
-                        : 'ring-1 ring-white/10 hover:ring-emerald-400/40'
-                    } ${getThemedClasses()}`}>
-                      {/* Image */}
-                      <div className="relative h-40 overflow-hidden bg-emerald-900/20">
-                        {plant.image_url ? (
-                          <img 
-                            src={plant.image_url} 
-                            alt={displayName}
-                            className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${
-                              plant.status === 'wilted' ? 'grayscale' : ''
-                            }`}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <span className="text-5xl">🪴</span>
-                          </div>
-                        )}
+                    {/* Full-bleed photo card — name lives on the image */}
+                    <div className={`relative rounded-3xl overflow-hidden shadow-lg active:scale-95 transition-all duration-200 ${
+                      plant.status === 'wilted' ? 'ring-2 ring-red-500' : ''
+                    }`} style={{ aspectRatio: '3/4' }}>
 
-                        {/* Gradient overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                      {/* Photo / placeholder */}
+                      {plant.image_url ? (
+                        <img
+                          src={plant.image_url}
+                          alt={displayName}
+                          className={`absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${plant.status === 'wilted' ? 'grayscale' : ''}`}
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-emerald-900/30 flex items-center justify-center">
+                          <span className="text-6xl">🪴</span>
+                        </div>
+                      )}
 
-                        {/* Status badge top-right */}
-                        {!needsWaterToday && (
-                          <span className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusBadgeStyle(wateringStatus.status)}`}>
-                            {wateringStatus.text}
-                          </span>
-                        )}
+                      {/* Strong bottom gradient for text legibility */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-                        {/* Growth stage bottom-left */}
-                        {plant.growth_stage && (
-                          <span className="absolute bottom-2 left-2 text-lg">
-                            {growthEmojis[plant.growth_stage]}
-                          </span>
-                        )}
+                      {/* Top-right: watering status pill */}
+                      {!needsWaterToday && wateringStatus.status !== 'unknown' && (
+                        <span className={`absolute top-2.5 right-2.5 text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm ${getStatusBadgeStyle(wateringStatus.status)}`}>
+                          {wateringStatus.text}
+                        </span>
+                      )}
 
-                        {/* Thirsty overlay */}
-                        {needsWaterToday && wateringRemindersEnabled && (
-                          <div className="absolute inset-0 bg-blue-600/30 backdrop-blur-[1px] flex flex-col items-center justify-center gap-1">
-                            <Droplets className="w-8 h-8 text-white drop-shadow-lg animate-bounce" />
-                            <span className="text-white text-xs font-bold drop-shadow-lg">Thirsty!</span>
-                          </div>
-                        )}
-                      </div>
+                      {/* Top-left: growth stage */}
+                      {plant.growth_stage && (
+                        <span className="absolute top-2.5 left-2.5 text-base drop-shadow-md">
+                          {growthEmojis[plant.growth_stage]}
+                        </span>
+                      )}
 
-                      {/* Info */}
-                      <div className="p-3">
-                        <h3 className={`font-bold text-sm leading-snug line-clamp-1 ${getPlantCardTextColor()}`}>
+                      {/* Thirsty overlay */}
+                      {needsWaterToday && wateringRemindersEnabled && (
+                        <div className="absolute inset-0 bg-blue-900/40 backdrop-blur-[1px] flex flex-col items-center justify-center gap-1">
+                          <Droplets className="w-9 h-9 text-white drop-shadow-lg animate-bounce" />
+                          <span className="text-white text-xs font-bold tracking-wide drop-shadow-lg">Thirsty!</span>
+                        </div>
+                      )}
+
+                      {/* Bottom text overlay */}
+                      <div className="absolute bottom-0 left-0 right-0 p-3">
+                        <h3 className="text-white font-bold text-sm leading-tight line-clamp-1 drop-shadow-md">
                           {displayName}
                         </h3>
                         {plant.environment && (
-                          <p className={`text-[11px] mt-0.5 ${getPlantCardSecondaryTextColor()}`}>{plant.environment}</p>
+                          <p className="text-white/70 text-[10px] mt-0.5 leading-tight">{plant.environment}</p>
                         )}
                         {plant.tags && plant.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
+                          <div className="flex gap-1 mt-1.5 flex-wrap">
                             {plant.tags.slice(0, 2).map(tag => (
-                              <span key={tag} className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                                theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'fall'
-                                  ? 'bg-white/15 text-white'
-                                  : 'bg-black/8 text-gray-600'
-                              }`}>
+                              <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/20 text-white font-medium backdrop-blur-sm">
                                 {tag}
                               </span>
                             ))}
