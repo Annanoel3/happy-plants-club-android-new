@@ -77,17 +77,21 @@ Deno.serve(async (req) => {
             }
         }
 
-        // Handle reminders
-        const reminders = result.reminders || [];
+        // Handle reminders - only create if title and due_date are present
+        const reminders = (result.reminders || []).filter(r => r.title && r.due_date);
         for (const reminder of reminders) {
-            await base44.asServiceRole.entities.Reminder.create({
-                plant_id: reminder.plant_id || null,
-                plant_name: reminder.plant_name || 'General',
-                title: reminder.title,
-                description: reminder.description || '',
-                due_date: reminder.due_date,
-                completed: false
-            });
+            try {
+                await base44.asServiceRole.entities.Reminder.create({
+                    plant_id: reminder.plant_id || null,
+                    plant_name: reminder.plant_name || 'General',
+                    title: reminder.title,
+                    description: reminder.description || '',
+                    due_date: reminder.due_date,
+                    completed: false
+                });
+            } catch (err) {
+                console.error('Failed to create reminder:', err);
+            }
         }
 
         let summary = result.notes || '';
