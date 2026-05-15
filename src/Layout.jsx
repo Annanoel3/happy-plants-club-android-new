@@ -416,7 +416,7 @@ export default function Layout({ children, currentPageName }) {
 
         /* Botanical Theme */
         [data-theme="botanical"] {
-          --theme-bg: linear-gradient(rgba(0,0,0,0.88), rgba(0,0,0,0.88)), url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/50723a169_ChatGPTImageOct10202510_52_39PM.png');
+          --theme-bg: linear-gradient(rgba(0,0,0,0.78), rgba(0,0,0,0.78)), url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/50723a169_ChatGPTImageOct10202510_52_39PM.png');
           --theme-text: #e8f5e9;
           --theme-text-secondary: #c8e6c9;
           --theme-card-bg: rgba(13, 33, 13, 0.85);
