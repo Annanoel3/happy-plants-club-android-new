@@ -474,29 +474,27 @@ export default function Dashboard() {
       <div className="min-h-screen theme-bg pb-28">
         <div className="max-w-6xl mx-auto px-4 pt-6">
 
-          {/* Header: date + title + action buttons in one row */}
-          <div className="mb-4">
+          {/* Header: date + title */}
+          <div className="mb-3">
             <p className={`text-xs font-medium uppercase tracking-widest mb-1 ${getSecondaryTextColor()}`}>
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
-            <div className="flex items-center gap-3">
-              <h1 className={`text-3xl font-bold tracking-tight ${getTextColor()} flex-shrink-0`}>
-                My Garden
-              </h1>
-              <div className="flex gap-2 flex-1 justify-end">
-                <button
-                  onClick={() => navigate('/AddPlant')}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold shadow-lg transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  <Plus className="w-4 h-4" /> Add Plant
-                </button>
-                <button
-                  onClick={() => navigate('/VoiceLog')}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold shadow-md transition-all active:scale-95 ${getThemedClasses()} ${getTextColor()}`}
-                >
-                  <Mic className="w-4 h-4" /> Voice Log
-                </button>
-              </div>
+            <h1 className={`text-3xl font-bold tracking-tight ${getTextColor()}`}>
+              My Garden
+            </h1>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => navigate('/AddPlant')}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <Plus className="w-3 h-3" /> Add
+              </button>
+              <button
+                onClick={() => navigate('/VoiceLog')}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 ${getThemedClasses()} ${getTextColor()}`}
+              >
+                <Mic className="w-3 h-3" /> Voice
+              </button>
             </div>
           </div>
 
