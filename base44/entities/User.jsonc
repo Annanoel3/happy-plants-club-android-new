@@ -11,6 +11,11 @@
       "default": "America/Chicago",
       "description": "User's timezone for scheduling notifications"
     },
+    "last_app_open": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of last app open for inactivity tracking"
+    },
     "profile_complete": {
       "type": "boolean",
       "default": false

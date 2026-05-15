@@ -49,13 +49,22 @@ Deno.serve(async (req) => {
             const userTimezone = targetUser.timezone || 'America/Chicago';
             const today = getTodayInTimezone(userTimezone);
             
+            // Fetch plants needing water
             const userPlants = allPlants.filter(p => 
                 p.created_by === userEmail && 
                 p.next_watering_due && 
                 p.next_watering_due <= today
             );
             
-            if (userPlants.length === 0) continue;
+            // Fetch all custom reminders due today
+            const userReminders = await base44.asServiceRole.entities.Reminder.filter({
+                created_by: userEmail,
+                due_date: today,
+                completed: false
+            });
+            
+            const totalTasks = userPlants.length + userReminders.length;
+            if (totalTasks === 0) continue;
             
             const existingReminders = await base44.asServiceRole.entities.DailyWateringReminder.filter({
                 user_email: userEmail,
@@ -73,8 +82,17 @@ Deno.serve(async (req) => {
             }
             
             const plantCount = userPlants.length;
+            const reminderCount = userReminders.length;
             const plantIds = userPlants.map(p => p.id);
-            const plantText = plantCount === 1 ? '1 plant needs' : `${plantCount} plants need`;
+            
+            let notificationText;
+            if (plantCount > 0 && reminderCount > 0) {
+                notificationText = `${plantCount} plant${plantCount === 1 ? '' : 's'} + ${reminderCount} reminder${reminderCount === 1 ? '' : 's'}`;
+            } else if (plantCount > 0) {
+                notificationText = `${plantCount} plant${plantCount === 1 ? ' needs' : 's need'} water`;
+            } else {
+                notificationText = `${reminderCount} reminder${reminderCount === 1 ? ' awaits' : 's await'}`;
+            }
             
             const notificationIds = [];
             const scheduleHours = [8, 10, 12, 14, 16, 18, 20];
@@ -89,9 +107,9 @@ Deno.serve(async (req) => {
                 const osPayload = {
                     app_id: appId.trim(),
                     include_player_ids: targetUser.onesignal_player_ids,
-                    headings: { en: '💧 Watering Reminder' },
-                    contents: { en: `${plantText} water today! 🌱` },
-                    data: { type: 'watering_reminder', plant_count: plantCount, date: today },
+                    headings: { en: '💧 Plant Care Reminder' },
+                    contents: { en: `${notificationText} today! 🌱` },
+                    data: { type: 'care_reminder', plant_count: plantCount, reminder_count: reminderCount, date: today },
                     send_after: sendTimeUTC.toUTCString()
                 };
                 
