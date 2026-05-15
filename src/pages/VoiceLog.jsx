@@ -53,26 +53,7 @@ export default function VoiceLog() {
 
   const startRecording = async () => {
     try {
-      // Check if running on HTTPS or localhost
-      if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-        toast.error('Microphone requires secure connection (HTTPS)');
-        return;
-      }
-
-      // Check permissions first
-      const permission = await navigator.permissions.query({ name: 'microphone' });
-      if (permission.state === 'denied') {
-        toast.error('Microphone permission denied. Please enable in settings.');
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       const chunks = [];
 
@@ -92,13 +73,7 @@ export default function VoiceLog() {
       setAudioChunks(chunks);
     } catch (error) {
       console.error('Error starting recording:', error);
-      if (error.name === 'NotAllowedError') {
-        toast.error('Microphone permission denied. Check your device settings.');
-      } else if (error.name === 'NotFoundError') {
-        toast.error('No microphone found on this device.');
-      } else {
-        toast.error(`Microphone error: ${error.message || 'Unknown error'}`);
-      }
+      toast.error('Could not access microphone');
     }
   };
 
