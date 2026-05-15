@@ -99,8 +99,9 @@ export default function AddPlant() {
       const results = await Promise.allSettled(
         files.map(async (file) => {
           const { file_url } = await base44.integrations.Core.UploadFile({ file });
-          const data = await identifyPlantWithExpert({ image_url: file_url });
-          if (!data.success) throw new Error('Could not identify plant');
+          const res = await identifyPlantWithExpert({ image_url: file_url });
+          const data = res?.data ?? res;
+          if (!data?.success) throw new Error(data?.error || 'Could not identify plant');
           const plantData = data.plantData;
           const nextWatering = new Date();
           nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
