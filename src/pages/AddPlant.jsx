@@ -20,10 +20,30 @@ export default function AddPlant() {
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const fileInputRef = useRef(null);
+  const [loadingIndex, setLoadingIndex] = useState(0);
+
+  const loadingMessages = [
+    "Identifying your plant...",
+    "Counting leaves...",
+    "Checking soil type...",
+    "Consulting botanist database...",
+    "Analyzing leaf patterns...",
+    "Measuring sunlight needs...",
+    "Calculating watering schedule...",
+    "Almost there...",
+  ];
 
   useEffect(() => {
     loadUser();
   }, []);
+
+  useEffect(() => {
+    if (!isProcessing) { setLoadingIndex(0); return; }
+    const interval = setInterval(() => {
+      setLoadingIndex(prev => (prev + 1) % loadingMessages.length);
+    }, 1800);
+    return () => clearInterval(interval);
+  }, [isProcessing]);
 
   useEffect(() => {
     const handleThemeChange = () => {
@@ -205,9 +225,19 @@ export default function AddPlant() {
     return (
       <div className="min-h-screen flex items-center justify-center theme-bg">
         <Card className={getThemedClasses()}>
-          <CardContent className="p-12 text-center">
-            <Loader2 className={`w-16 h-16 animate-spin mx-auto mb-4 ${getTextColor()}`} />
-            <p className={`text-xl font-semibold ${getTextColor()}`}>Identifying your plant...</p>
+          <CardContent className="p-12 text-center min-w-[260px]">
+            <Loader2 className={`w-16 h-16 animate-spin mx-auto mb-6 ${getTextColor()}`} />
+            <p className={`text-lg font-semibold transition-all duration-500 ${getTextColor()}`}>
+              {loadingMessages[loadingIndex]}
+            </p>
+            <div className="flex justify-center gap-1.5 mt-5">
+              {loadingMessages.map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${i === loadingIndex ? 'bg-green-500 scale-125' : 'bg-gray-300'}`}
+                />
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>
