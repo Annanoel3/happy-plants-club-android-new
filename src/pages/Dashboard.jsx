@@ -2,11 +2,13 @@ import React, { useEffect, useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X, Trash2, CheckSquare } from "lucide-react";
+import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X, CheckSquare } from "lucide-react";
 
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
 import PullToRefresh from "@/components/PullToRefresh";
 import PlantTypeStack from "@/components/PlantTypeStack";
+import BulkActionBar from "@/components/BulkActionBar";
+import { AnimatePresence } from "framer-motion";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -20,7 +22,6 @@ export default function Dashboard() {
   const [wateringRemindersEnabled, setWateringRemindersEnabled] = useState(true);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     checkAuthentication();
@@ -52,11 +53,7 @@ export default function Dashboard() {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
-  const handleBulkDelete = async () => {
-    if (selectedIds.length === 0) return;
-    setDeleting(true);
-    await Promise.all(selectedIds.map(id => base44.entities.Plant.delete(id)));
-    setDeleting(false);
+  const handleBulkDone = () => {
     setSelectedIds([]);
     setSelectMode(false);
     queryClient.invalidateQueries({ queryKey: ['plants'] });
@@ -193,7 +190,7 @@ export default function Dashboard() {
 
   const plantsList = Array.isArray(plants) ? plants : [];
 
-  // Group by plant type, filtered by search
+  // Group by plant type, filtered by search, pinned first
   const groupedPlants = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const filtered = q
@@ -204,8 +201,15 @@ export default function Dashboard() {
         )
       : plantsList;
 
+    // Sort: pinned first, then by name
+    const sorted = [...filtered].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return (a.nickname || a.name || '').localeCompare(b.nickname || b.name || '');
+    });
+
     const groups = {};
-    filtered.forEach(plant => {
+    sorted.forEach(plant => {
       const type = plant.plant_type || 'Other';
       if (!groups[type]) groups[type] = [];
       groups[type].push(plant);
@@ -446,16 +450,23 @@ export default function Dashboard() {
                   <CheckSquare className="w-4 h-4" />
                 </button>
               )}
-              <button
-                onClick={handleToggleWateringReminders}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                  wateringRemindersEnabled
-                    ? 'bg-blue-500/20 text-blue-400 border border-blue-400/30'
-                    : `${getThemedClasses()} ${getSecondaryTextColor()}`
-                }`}
-              >
-                {wateringRemindersEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-              </button>
+              <div className="relative group">
+                <button
+                  onClick={handleToggleWateringReminders}
+                  title={wateringRemindersEnabled ? 'Watering reminders ON — tap to turn off' : 'Watering reminders OFF — tap to turn on'}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                    wateringRemindersEnabled
+                      ? 'bg-blue-500/20 text-blue-400 border border-blue-400/30'
+                      : `${getThemedClasses()} ${getSecondaryTextColor()}`
+                  }`}
+                >
+                  {wateringRemindersEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                </button>
+                <div className="absolute right-0 top-11 w-44 bg-gray-900/95 text-white text-xs font-semibold rounded-xl px-3 py-2 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20 text-center">
+                  {wateringRemindersEnabled ? '💧 Reminders ON' : '🔕 Reminders OFF'}<br/>
+                  <span className="text-white/50 font-normal">Tap to toggle</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -594,28 +605,16 @@ export default function Dashboard() {
       </div>
       </PullToRefresh>
 
-      {/* Bulk delete bar */}
-      {selectMode && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl bg-gray-900/95 backdrop-blur-md border border-white/10">
-          <span className="text-white text-sm font-semibold">
-            {selectedIds.length} selected
-          </span>
-          <button
-            onClick={handleBulkDelete}
-            disabled={selectedIds.length === 0 || deleting}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all"
-          >
-            <Trash2 className="w-4 h-4" />
-            {deleting ? 'Deleting...' : 'Delete'}
-          </button>
-          <button
-            onClick={toggleSelectMode}
-            className="text-white/60 text-sm font-semibold hover:text-white transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
+      <AnimatePresence>
+        {selectMode && (
+          <BulkActionBar
+            selectedIds={selectedIds}
+            allPlants={plantsList}
+            onDone={handleBulkDone}
+            onCancel={toggleSelectMode}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

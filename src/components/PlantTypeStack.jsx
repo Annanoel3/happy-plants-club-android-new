@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Droplets, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle } from "lucide-react";
+import { Droplets, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle, Pin } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -129,6 +129,9 @@ function PlantCard({ plant, wateringRemindersEnabled, index, total, isExpanded, 
             {displayName}
           </p>
 
+          {!selectMode && plant.pinned && (
+            <Pin className="w-3.5 h-3.5 text-pink-300 drop-shadow flex-shrink-0" />
+          )}
           {watering && !selectMode && (
             <span className={`flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-sm flex items-center gap-1 shadow-md ${watering.color}`}>
               {(watering.status === 'today' || watering.status === 'overdue') && <Droplets className="w-3 h-3" />}

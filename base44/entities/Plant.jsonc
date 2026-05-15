@@ -187,6 +187,11 @@
       },
       "description": "Custom tags for filtering"
     },
+    "pinned": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pinned plants appear first in the garden"
+    },
     "vacation_mode_enabled": {
       "type": "boolean",
       "default": false
