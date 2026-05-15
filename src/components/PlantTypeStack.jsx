@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Droplets, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Droplets, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
 
 const PEEK_HEIGHT = 64; // px visible per stacked card
@@ -18,13 +18,23 @@ function getWateringStatus(plant, wateringRemindersEnabled) {
   } catch { return null; }
 }
 
-function PlantCard({ plant, wateringRemindersEnabled, index, total, isExpanded, onClick }) {
+function PlantCard({ plant, wateringRemindersEnabled, index, total, isExpanded, onClick, selectMode, isSelected, onToggleSelect }) {
   const navigate = useNavigate();
   const watering = getWateringStatus(plant, wateringRemindersEnabled);
   const displayName = plant.nickname || plant.name || 'Unknown Plant';
   const needsWater = watering && (watering.status === 'today' || watering.status === 'overdue' || watering.status === 'wilted');
 
   const stackOffset = isExpanded ? index * (PEEK_HEIGHT + 8) : index * PEEK_HEIGHT;
+
+  const handleClick = () => {
+    if (selectMode) {
+      onToggleSelect(plant.id);
+    } else if (isExpanded) {
+      navigate(`/PlantDetail?id=${plant.id}`);
+    } else {
+      onClick();
+    }
+  };
 
   return (
     <div
@@ -33,16 +43,18 @@ function PlantCard({ plant, wateringRemindersEnabled, index, total, isExpanded, 
     >
       {/* Card shell */}
       <div
-        className={`rounded-3xl overflow-hidden shadow-xl border ${needsWater ? 'border-blue-400/60' : 'border-white/20'} transition-all duration-200 active:scale-[0.98] cursor-pointer`}
+        className={`rounded-3xl overflow-hidden shadow-xl border ${
+          isSelected ? 'border-red-400/80' : needsWater ? 'border-blue-400/60' : 'border-white/20'
+        } transition-all duration-200 active:scale-[0.98] cursor-pointer`}
         style={{ height: isExpanded ? 220 : PEEK_HEIGHT }}
-        onClick={() => isExpanded ? navigate(`/PlantDetail?id=${plant.id}`) : onClick()}
+        onClick={handleClick}
       >
         {/* Background image */}
         {plant.image_url ? (
           <img
             src={plant.image_url}
             alt={displayName}
-            className={`absolute inset-0 w-full h-full object-cover ${plant.status === 'wilted' ? 'grayscale' : ''}`}
+            className={`absolute inset-0 w-full h-full object-cover ${plant.status === 'wilted' || isSelected ? 'grayscale' : ''}`}
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-800 to-emerald-950 flex items-center justify-center">
@@ -50,23 +62,33 @@ function PlantCard({ plant, wateringRemindersEnabled, index, total, isExpanded, 
           </div>
         )}
 
-        {/* Dark overlay — stronger at top for text legibility */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/20 to-black/50" />
+        {/* Dark overlay */}
+        <div className={`absolute inset-0 bg-gradient-to-b from-black/70 via-black/20 to-black/50 ${isSelected ? 'bg-red-900/40' : ''}`} />
 
         {/* Thirsty shimmer */}
-        {needsWater && wateringRemindersEnabled && (
+        {needsWater && wateringRemindersEnabled && !selectMode && (
           <div className="absolute inset-0 bg-blue-900/30" />
         )}
 
         {/* Top bar — always visible */}
         <div className="absolute top-0 left-0 right-0 h-16 flex items-center px-4 gap-3">
+          {/* Select checkbox */}
+          {selectMode && (
+            <div className="flex-shrink-0">
+              {isSelected
+                ? <CheckCircle2 className="w-5 h-5 text-red-400 drop-shadow" />
+                : <Circle className="w-5 h-5 text-white/60 drop-shadow" />
+              }
+            </div>
+          )}
+
           {/* Name */}
           <p className="flex-1 font-bold text-white text-sm leading-tight line-clamp-1 drop-shadow-md">
             {displayName}
           </p>
 
-          {/* Watering badge */}
-          {watering && (
+          {/* Watering badge (hidden in select mode) */}
+          {watering && !selectMode && (
             <span className={`flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 ${watering.color}`}>
               {(watering.status === 'today' || watering.status === 'overdue') && <Droplets className="w-3 h-3" />}
               {watering.status === 'wilted' && <AlertCircle className="w-3 h-3" />}
@@ -79,10 +101,11 @@ function PlantCard({ plant, wateringRemindersEnabled, index, total, isExpanded, 
   );
 }
 
-export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor }) {
+export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect }) {
   const [expanded, setExpanded] = useState(false);
 
-  const totalHeight = expanded
+  const isOpen = expanded || selectMode;
+  const totalHeight = isOpen
     ? plants.length * (64 + 8) + 220 - 8
     : plants.length > 1
       ? (plants.length - 1) * 64 + 64
@@ -119,8 +142,11 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
             wateringRemindersEnabled={wateringRemindersEnabled}
             index={index}
             total={plants.length}
-            isExpanded={expanded}
+            isExpanded={expanded || selectMode}
             onClick={() => setExpanded(true)}
+            selectMode={selectMode}
+            isSelected={selectedIds?.includes(plant.id)}
+            onToggleSelect={onToggleSelect}
           />
         ))}
       </div>

@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X } from "lucide-react";
+import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X, Trash2, CheckSquare } from "lucide-react";
 
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
 import PullToRefresh from "@/components/PullToRefresh";
@@ -10,6 +10,7 @@ import PlantTypeStack from "@/components/PlantTypeStack";
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [theme, setTheme] = useState(() => {
@@ -17,6 +18,9 @@ export default function Dashboard() {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [wateringRemindersEnabled, setWateringRemindersEnabled] = useState(true);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     checkAuthentication();
@@ -38,6 +42,25 @@ export default function Dashboard() {
       clearInterval(interval);
     };
   }, []);
+
+  const toggleSelectMode = () => {
+    setSelectMode(s => !s);
+    setSelectedIds([]);
+  };
+
+  const togglePlantSelection = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setDeleting(true);
+    await Promise.all(selectedIds.map(id => base44.entities.Plant.delete(id)));
+    setDeleting(false);
+    setSelectedIds([]);
+    setSelectMode(false);
+    queryClient.invalidateQueries({ queryKey: ['plants'] });
+  };
 
   const toggleWateringRemindersMutation = useMutation({
     mutationFn: async (enabled) => {
@@ -411,6 +434,18 @@ export default function Dashboard() {
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getThemedClasses()} ${getTextColor()}`}>
                 {plantsList.length} plants
               </span>
+              {plantsList.length > 0 && (
+                <button
+                  onClick={toggleSelectMode}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all border ${
+                    selectMode
+                      ? 'bg-red-500/20 text-red-400 border-red-400/40'
+                      : `${getThemedClasses()} ${getSecondaryTextColor()}`
+                  }`}
+                >
+                  <CheckSquare className="w-4 h-4" />
+                </button>
+              )}
               <button
                 onClick={handleToggleWateringReminders}
                 className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
@@ -539,6 +574,9 @@ export default function Dashboard() {
                 themedClasses={getThemedClasses()}
                 textColor={getTextColor()}
                 secondaryTextColor={getSecondaryTextColor()}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                onToggleSelect={togglePlantSelection}
               />
             ))
           )}
@@ -554,6 +592,29 @@ export default function Dashboard() {
         </div>
       </div>
       </PullToRefresh>
+
+      {/* Bulk delete bar */}
+      {selectMode && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl bg-gray-900/95 backdrop-blur-md border border-white/10">
+          <span className="text-white text-sm font-semibold">
+            {selectedIds.length} selected
+          </span>
+          <button
+            onClick={handleBulkDelete}
+            disabled={selectedIds.length === 0 || deleting}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all"
+          >
+            <Trash2 className="w-4 h-4" />
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+          <button
+            onClick={toggleSelectMode}
+            className="text-white/60 text-sm font-semibold hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </>
   );
 }
