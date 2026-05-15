@@ -205,7 +205,7 @@ function LayoutContent({ children, currentPageName }) {
         <div className="fixed inset-0 bg-black/75 -z-20 pointer-events-none"></div>
       )}
       {theme === 'botanical' && (
-        <div className="fixed inset-0 bg-black/92 -z-20 pointer-events-none"></div>
+        <div className="fixed inset-0 bg-black/97 -z-20 pointer-events-none"></div>
       )}
       
       {(theme === 'spring' || theme === 'summer' || theme === 'kawaii' || theme === 'winter' || theme === 'stpatricks' || theme === 'valentines' || theme === 'light') && (
