@@ -5,7 +5,7 @@ import { differenceInDays, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 
 const CARD_HEIGHT = 220;
-const PEEK_HEIGHT = 68;
+const PEEK_HEIGHT = 110;
 const GAP = 10;
 
 // Gradient palettes for cards without images
