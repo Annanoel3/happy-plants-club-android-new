@@ -466,81 +466,81 @@ export default function Dashboard() {
       <div className="min-h-screen theme-bg pb-28">
         <div className="max-w-6xl mx-auto px-4 pt-6">
 
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <p className={`text-xs font-medium uppercase tracking-widest mb-1 ${getSecondaryTextColor()}`}>
-                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-              </p>
-              <h1 className={`text-3xl font-bold tracking-tight ${getTextColor()}`}>
-                My Garden 🌿
+          {/* Header: date + title + action buttons in one row */}
+          <div className="mb-4">
+            <p className={`text-xs font-medium uppercase tracking-widest mb-1 ${getSecondaryTextColor()}`}>
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
+            <div className="flex items-center gap-3">
+              <h1 className={`text-3xl font-bold tracking-tight ${getTextColor()} flex-shrink-0`}>
+                My Garden
               </h1>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* Plant count badge */}
-              <div className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold ${getThemedClasses()} ${getTextColor()}`}>
-                🌿 <span>{plantsList.length}</span>
-              </div>
-              {/* Sort */}
-              {plantsList.length > 0 && (
-                <SortFilterBar
-                  sortBy={sortBy}
-                  onSortChange={setSortBy}
-                  textColor={getTextColor()}
-                  secondaryTextColor={getSecondaryTextColor()}
-                  themedClasses={getThemedClasses()}
-                />
-              )}
-              {/* Select mode */}
-              {plantsList.length > 0 && (
+              <div className="flex gap-2 flex-1 justify-end">
                 <button
-                  onClick={toggleSelectMode}
-                  title={selectMode ? 'Cancel selection' : 'Select plants'}
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                    selectMode
-                      ? 'bg-red-500/20 text-red-400'
-                      : `${getThemedClasses()} ${getSecondaryTextColor()}`
-                  }`}
+                  onClick={() => navigate('/AddPlant')}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold shadow-lg transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
-                  <CheckSquare className="w-4 h-4" />
+                  <Plus className="w-4 h-4" /> Add Plant
                 </button>
-              )}
-              {/* View mode toggle */}
-              <button
-                onClick={() => setViewMode(v => v === 'stack' ? 'tile' : 'stack')}
-                title={viewMode === 'stack' ? 'Switch to tile view' : 'Switch to stack view'}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${getThemedClasses()} ${getSecondaryTextColor()}`}
-              >
-                {viewMode === 'stack' ? <LayoutGrid className="w-4 h-4" /> : <Layers className="w-4 h-4" />}
-              </button>
-              {/* Watering reminders toggle */}
-              <button
-                onClick={handleToggleWateringReminders}
-                title={wateringRemindersEnabled ? 'Reminders on' : 'Reminders off'}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                  wateringRemindersEnabled
-                    ? 'bg-blue-500/20 text-blue-400'
-                    : `${getThemedClasses()} ${getSecondaryTextColor()} opacity-50`
-                }`}
-              >
-                {wateringRemindersEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-              </button>
+                <button
+                  onClick={() => navigate('/VoiceLog')}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold shadow-md transition-all active:scale-95 ${getThemedClasses()} ${getTextColor()}`}
+                >
+                  <Mic className="w-4 h-4" /> Voice Log
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 mb-6">
-            <button 
-              onClick={() => navigate('/AddPlant')} 
-              className="flex-1 h-13 py-3.5 rounded-2xl flex items-center justify-center text-sm font-bold shadow-lg transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+          {/* Toolbar: count, sort, select, view, reminders */}
+          <div className="flex items-center gap-2 mb-5 flex-wrap">
+            {/* Plant count badge */}
+            <div className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold ${getThemedClasses()} ${getTextColor()}`}>
+              🌿 <span>{plantsList.length}</span>
+            </div>
+            {/* Sort */}
+            {plantsList.length > 0 && (
+              <SortFilterBar
+                sortBy={sortBy}
+                onSortChange={setSortBy}
+                textColor={getTextColor()}
+                secondaryTextColor={getSecondaryTextColor()}
+                themedClasses={getThemedClasses()}
+              />
+            )}
+            {/* Select mode */}
+            {plantsList.length > 0 && (
+              <button
+                onClick={toggleSelectMode}
+                title={selectMode ? 'Cancel selection' : 'Select plants'}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                  selectMode
+                    ? 'bg-red-500/20 text-red-400'
+                    : `${getThemedClasses()} ${getSecondaryTextColor()}`
+                }`}
+              >
+                <CheckSquare className="w-4 h-4" />
+              </button>
+            )}
+            {/* View mode toggle */}
+            <button
+              onClick={() => setViewMode(v => v === 'stack' ? 'tile' : 'stack')}
+              title={viewMode === 'stack' ? 'Switch to tile view' : 'Switch to stack view'}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${getThemedClasses()} ${getSecondaryTextColor()}`}
             >
-              <Plus className="w-4 h-4" /> Add Plant
+              {viewMode === 'stack' ? <LayoutGrid className="w-4 h-4" /> : <Layers className="w-4 h-4" />}
             </button>
-            <button 
-              onClick={() => navigate('/VoiceLog')} 
-              className={`flex-1 h-13 py-3.5 rounded-2xl flex items-center justify-center text-sm font-bold shadow-md transition-all active:scale-95 gap-2 ${getThemedClasses()} ${getTextColor()}`}
+            {/* Watering reminders toggle */}
+            <button
+              onClick={handleToggleWateringReminders}
+              title={wateringRemindersEnabled ? 'Reminders on' : 'Reminders off'}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                wateringRemindersEnabled
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : `${getThemedClasses()} ${getSecondaryTextColor()} opacity-50`
+              }`}
             >
-              <Mic className="w-4 h-4" /> Voice Log
+              {wateringRemindersEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
             </button>
           </div>
 
