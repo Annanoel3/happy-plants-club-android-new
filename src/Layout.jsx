@@ -204,9 +204,7 @@ function LayoutContent({ children, currentPageName }) {
       {(theme === 'dark' || theme === 'christmas' || theme === 'newyears' || theme === 'fall' || theme === 'fourthofjuly' || theme === 'halloween') && (
         <div className="fixed inset-0 bg-black/75 -z-20 pointer-events-none"></div>
       )}
-      {theme === 'botanical' && (
-        <div className="fixed inset-0 bg-black/97 -z-20 pointer-events-none"></div>
-      )}
+
       
       {(theme === 'spring' || theme === 'summer' || theme === 'kawaii' || theme === 'winter' || theme === 'stpatricks' || theme === 'valentines' || theme === 'light') && (
         <div className="fixed inset-0 bg-white/60 -z-20 pointer-events-none"></div>
@@ -418,7 +416,7 @@ export default function Layout({ children, currentPageName }) {
 
         /* Botanical Theme */
         [data-theme="botanical"] {
-          --theme-bg: url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/50723a169_ChatGPTImageOct10202510_52_39PM.png');
+          --theme-bg: linear-gradient(rgba(0,0,0,0.88), rgba(0,0,0,0.88)), url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/50723a169_ChatGPTImageOct10202510_52_39PM.png');
           --theme-text: #e8f5e9;
           --theme-text-secondary: #c8e6c9;
           --theme-card-bg: rgba(13, 33, 13, 0.85);
@@ -675,6 +673,8 @@ export default function Layout({ children, currentPageName }) {
           background-size: cover;
           background-attachment: fixed;
         }
+
+
 
         .theme-text {
           color: var(--theme-text);
