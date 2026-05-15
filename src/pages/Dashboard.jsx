@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X, CheckSquare } from "lucide-react";
+import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X, CheckSquare, LayoutGrid, Layers } from "lucide-react";
 
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
 import PullToRefresh from "@/components/PullToRefresh";
@@ -22,6 +22,7 @@ export default function Dashboard() {
   const [wateringRemindersEnabled, setWateringRemindersEnabled] = useState(true);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [viewMode, setViewMode] = useState('stack'); // 'stack' | 'tile'
 
   useEffect(() => {
     checkAuthentication();
@@ -453,6 +454,14 @@ export default function Dashboard() {
                   <CheckSquare className="w-4 h-4" />
                 </button>
               )}
+              {/* View mode toggle */}
+              <button
+                onClick={() => setViewMode(v => v === 'stack' ? 'tile' : 'stack')}
+                title={viewMode === 'stack' ? 'Switch to tile view' : 'Switch to stack view'}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${getThemedClasses()} ${getSecondaryTextColor()}`}
+              >
+                {viewMode === 'stack' ? <LayoutGrid className="w-4 h-4" /> : <Layers className="w-4 h-4" />}
+              </button>
               {/* Watering reminders toggle */}
               <button
                 onClick={handleToggleWateringReminders}
@@ -587,6 +596,7 @@ export default function Dashboard() {
                 selectedIds={selectedIds}
                 onToggleSelect={togglePlantSelection}
                 stackIndex={i}
+                viewMode={viewMode}
               />
             ))
           )}

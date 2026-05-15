@@ -4,6 +4,64 @@ import { Droplets, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle, Pi
 import { differenceInDays, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 
+// Tile card — compact 2-per-row grid
+function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex }) {
+  const navigate = useNavigate();
+  const watering = getWateringStatus(plant, wateringRemindersEnabled);
+  const displayName = plant.nickname || plant.name || 'Unknown Plant';
+  const needsWater = watering && (watering.status === 'today' || watering.status === 'overdue' || watering.status === 'wilted');
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0 }}
+      whileTap={{ scale: 0.96 }}
+      onClick={() => navigate(`/PlantDetail?id=${plant.id}`)}
+      className={`relative rounded-2xl overflow-hidden cursor-pointer select-none aspect-square ${needsWater && wateringRemindersEnabled ? 'ring-1 ring-blue-400/60' : ''}`}
+      style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.28)' }}
+    >
+      {/* Background */}
+      {plant.image_url ? (
+        <img src={plant.image_url} alt={displayName} className="absolute inset-0 w-full h-full object-cover brightness-90" />
+      ) : (
+        <div className={`absolute inset-0 bg-gradient-to-br ${getGradient(gradientIndex)}`} />
+      )}
+
+      {/* Overlays */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/60 pointer-events-none" />
+
+      {/* Watering badge */}
+      {watering && (
+        <div className="absolute top-2 right-2">
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 ${watering.color}`}>
+            {(watering.status === 'today' || watering.status === 'overdue') && <Droplets className="w-2.5 h-2.5" />}
+            {watering.status === 'wilted' && <AlertCircle className="w-2.5 h-2.5" />}
+            {watering.text}
+          </span>
+        </div>
+      )}
+
+      {plant.pinned && (
+        <div className="absolute top-2 left-2">
+          <Pin className="w-3 h-3 text-pink-300 drop-shadow" />
+        </div>
+      )}
+
+      {/* Name at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2.5 pt-4">
+        <p className="font-bold text-white text-xs leading-tight line-clamp-2 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+          {displayName}
+        </p>
+        {plant.scientific_name && (
+          <p className="text-white/55 text-[9px] italic truncate mt-0.5">{plant.scientific_name}</p>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 const CARD_HEIGHT = 220;
 const COLLAPSED_PEEK = 36; // how much of each card peeks below the one above (collapsed)
 const EXPANDED_GAP = 12;  // gap between fully expanded cards
@@ -233,7 +291,7 @@ function ScrollReveal({ children, index }) {
   );
 }
 
-export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect, stackIndex = 0 }) {
+export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect, stackIndex = 0, viewMode = 'stack' }) {
   const [expanded, setExpanded] = useState(false);
 
   const isOpen = expanded || selectMode;
@@ -249,7 +307,7 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
       {/* Section header */}
       <button
         className="w-full flex items-center justify-between mb-4 px-1"
-        onClick={() => !selectMode && setExpanded(e => !e)}
+        onClick={() => !selectMode && viewMode === 'stack' && setExpanded(e => !e)}
       >
         <div className="flex items-center gap-2">
           <span className={`font-extrabold text-base tracking-tight ${textColor}`}>{displayType}</span>
@@ -257,7 +315,7 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
             {plants.length}
           </span>
         </div>
-        {!selectMode && (
+        {!selectMode && viewMode === 'stack' && (
           isOpen
             ? <ChevronUp className={`w-4 h-4 ${secondaryTextColor}`} />
             : <ChevronDown className={`w-4 h-4 ${secondaryTextColor}`} />
@@ -278,8 +336,20 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
             />
           ))}
         </div>
+      ) : viewMode === 'tile' ? (
+        /* Tile mode: 2-per-row grid */
+        <div className="grid grid-cols-2 gap-3">
+          {plants.map((plant, index) => (
+            <PlantTileCard
+              key={plant.id}
+              plant={plant}
+              wateringRemindersEnabled={wateringRemindersEnabled}
+              gradientIndex={index}
+            />
+          ))}
+        </div>
       ) : (
-        /* Normal mode: wallet card stack */
+        /* Stack mode: wallet card stack */
         <motion.div
           className="relative"
           animate={{ height: stackHeight }}
