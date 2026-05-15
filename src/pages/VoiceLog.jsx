@@ -24,16 +24,6 @@ export default function VoiceLog() {
 
   useEffect(() => {
     checkAuth();
-    // Request microphone permission on first load
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => {
-          stream.getTracks().forEach(track => track.stop());
-        })
-        .catch(error => {
-          console.log('Microphone permission request:', error.name);
-        });
-    }
   }, []);
 
   useEffect(() => {
@@ -84,7 +74,9 @@ export default function VoiceLog() {
     } catch (error) {
       console.error('Error starting recording:', error);
       if (error.name === 'NotAllowedError') {
-        toast.error('Microphone permission denied. Check Android Settings > Apps > Happy Plants > Permissions');
+        toast.error('Microphone permission denied. Please allow access in your browser settings and try again.');
+      } else if (error.name === 'NotFoundError') {
+        toast.error('No microphone found on this device');
       } else {
         toast.error('Could not access microphone');
       }
