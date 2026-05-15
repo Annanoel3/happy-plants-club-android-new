@@ -5,8 +5,8 @@ import { differenceInDays, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 
 const CARD_HEIGHT = 220;
-const PEEK_HEIGHT = 110;
-const GAP = 10;
+const COLLAPSED_PEEK = 36; // how much of each card peeks below the one above (collapsed)
+const EXPANDED_GAP = 12;  // gap between fully expanded cards
 
 // Gradient palettes for cards without images
 const CARD_GRADIENTS = [
@@ -42,8 +42,10 @@ function PlantCard({ plant, wateringRemindersEnabled, index, total, isExpanded, 
   const scientificName = plant.scientific_name;
   const needsWater = watering && (watering.status === 'today' || watering.status === 'overdue' || watering.status === 'wilted');
 
-  const stackOffset = isExpanded ? index * (PEEK_HEIGHT + GAP) : index * PEEK_HEIGHT;
-  const cardHeight = isExpanded ? CARD_HEIGHT : PEEK_HEIGHT;
+  const stackOffset = isExpanded
+    ? index * (CARD_HEIGHT + EXPANDED_GAP)
+    : index * COLLAPSED_PEEK;
+  const cardHeight = CARD_HEIGHT; // always full card height
 
   const handleClick = () => {
     if (selectMode) {
@@ -212,10 +214,8 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
 
   const isOpen = expanded || selectMode;
   const totalHeight = isOpen
-    ? plants.length * (PEEK_HEIGHT + GAP) + (CARD_HEIGHT - PEEK_HEIGHT - GAP)
-    : plants.length > 1
-      ? (plants.length - 1) * PEEK_HEIGHT + CARD_HEIGHT
-      : CARD_HEIGHT;
+    ? plants.length * (CARD_HEIGHT + EXPANDED_GAP) - EXPANDED_GAP
+    : (plants.length - 1) * COLLAPSED_PEEK + CARD_HEIGHT;
 
   return (
     <ScrollReveal index={stackIndex}>
