@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X, CheckSquare, LayoutGrid, Layers, Wand2 } from "lucide-react";
 import { categorizePlants } from "@/functions/categorizePlants";
+import SortFilterBar from "@/components/SortFilterBar";
 
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
 import PullToRefresh from "@/components/PullToRefresh";
@@ -25,6 +26,7 @@ export default function Dashboard() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [viewMode, setViewMode] = useState('stack'); // 'stack' | 'tile'
   const [categorizing, setCategorizing] = useState(false);
+  const [sortBy, setSortBy] = useState(null);
 
   useEffect(() => {
     checkAuthentication();
@@ -204,7 +206,7 @@ export default function Dashboard() {
   const plantsList = Array.isArray(plants) ? plants : [];
   const hasUncategorized = plantsList.some(p => !p.plant_type || p.plant_type === 'Other');
 
-  // Group by plant type, filtered by search, pinned first
+  // Group by plant type, filtered by search, with sort support
   const groupedPlants = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const filtered = q
@@ -215,21 +217,47 @@ export default function Dashboard() {
         )
       : plantsList;
 
-    // Sort: pinned first, then by name
-    const sorted = [...filtered].sort((a, b) => {
+    // Within-group sort: pinned first, then by name
+    const withinGroupSort = (a, b) => {
       if (a.pinned && !b.pinned) return -1;
       if (!a.pinned && b.pinned) return 1;
       return (a.nickname || a.name || '').localeCompare(b.nickname || b.name || '');
-    });
+    };
 
+    // For water_soon and location sorts — flatten, sort, then skip grouping
+    if (sortBy === 'water_soon') {
+      const sorted = [...filtered].sort((a, b) => {
+        const daysA = a.next_watering_due ? Math.ceil((new Date(a.next_watering_due) - new Date()) / 86400000) : 9999;
+        const daysB = b.next_watering_due ? Math.ceil((new Date(b.next_watering_due) - new Date()) / 86400000) : 9999;
+        return daysA - daysB;
+      });
+      return [["By Watering Schedule", sorted]];
+    }
+
+    if (sortBy === 'location') {
+      const groups = {};
+      [...filtered].forEach(p => {
+        const loc = p.location || 'No Location';
+        if (!groups[loc]) groups[loc] = [];
+        groups[loc].push(p);
+      });
+      return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+    }
+
+    if (sortBy === 'date_added') {
+      const sorted = [...filtered].sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+      return [["Recently Added", sorted]];
+    }
+
+    // Default: group by type A–Z
     const groups = {};
-    sorted.forEach(plant => {
+    [...filtered].sort(withinGroupSort).forEach(plant => {
       const type = plant.plant_type || 'Other';
       if (!groups[type]) groups[type] = [];
       groups[type].push(plant);
     });
     return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
-  }, [plantsList, searchQuery]);
+  }, [plantsList, searchQuery, sortBy]);
 
 
 
@@ -453,6 +481,16 @@ export default function Dashboard() {
               <div className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold ${getThemedClasses()} ${getTextColor()}`}>
                 🌿 <span>{plantsList.length}</span>
               </div>
+              {/* Sort */}
+              {plantsList.length > 0 && (
+                <SortFilterBar
+                  sortBy={sortBy}
+                  onSortChange={setSortBy}
+                  textColor={getTextColor()}
+                  secondaryTextColor={getSecondaryTextColor()}
+                  themedClasses={getThemedClasses()}
+                />
+              )}
               {/* Select mode */}
               {plantsList.length > 0 && (
                 <button
@@ -637,6 +675,7 @@ export default function Dashboard() {
                 onToggleSelect={togglePlantSelection}
                 stackIndex={i}
                 viewMode={viewMode}
+                showHeader={!(sortBy === 'water_soon' || sortBy === 'date_added')}
               />
             ))
           )}

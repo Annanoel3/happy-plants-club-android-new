@@ -291,7 +291,7 @@ function ScrollReveal({ children, index }) {
   );
 }
 
-export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect, stackIndex = 0, viewMode = 'stack' }) {
+export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect, stackIndex = 0, viewMode = 'stack', showHeader = true }) {
   const [expanded, setExpanded] = useState(false);
 
   const isOpen = expanded || selectMode;
@@ -304,23 +304,23 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
   return (
     <ScrollReveal index={stackIndex}>
     <div className="mb-8">
-      {/* Section header */}
+      {/* Section header — compact pill style */}
+      {showHeader && (
       <button
-        className="w-full flex items-center justify-between mb-4 px-1"
+        className="flex items-center gap-2 mb-3 px-1"
         onClick={() => !selectMode && viewMode === 'stack' && setExpanded(e => !e)}
       >
-        <div className="flex items-center gap-2">
-          <span className={`font-extrabold text-base tracking-tight ${textColor}`}>{displayType}</span>
-          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${themedClasses} ${secondaryTextColor}`}>
-            {plants.length}
-          </span>
-        </div>
+        <span className={`text-xs font-bold uppercase tracking-widest ${secondaryTextColor} opacity-70`}>{displayType}</span>
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${themedClasses} ${secondaryTextColor}`}>
+          {plants.length}
+        </span>
         {!selectMode && viewMode === 'stack' && (
           isOpen
-            ? <ChevronUp className={`w-4 h-4 ${secondaryTextColor}`} />
-            : <ChevronDown className={`w-4 h-4 ${secondaryTextColor}`} />
+            ? <ChevronUp className={`w-3 h-3 ${secondaryTextColor} opacity-60`} />
+            : <ChevronDown className={`w-3 h-3 ${secondaryTextColor} opacity-60`} />
         )}
       </button>
+      )}
 
       {/* Select mode: compact list */}
       {selectMode ? (
