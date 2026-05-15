@@ -24,13 +24,21 @@ export default function Dashboard() {
   const [wateringRemindersEnabled, setWateringRemindersEnabled] = useState(true);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [viewMode, setViewMode] = useState('stack'); // 'stack' | 'tile'
   const [categorizing, setCategorizing] = useState(false);
-  const [sortBy, setSortBy] = useState(null);
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem('garden_sortBy') || null);
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('garden_viewMode') || 'stack');
 
   useEffect(() => {
     checkAuthentication();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('garden_sortBy', sortBy || '');
+  }, [sortBy]);
+
+  useEffect(() => {
+    localStorage.setItem('garden_viewMode', viewMode);
+  }, [viewMode]);
 
   useEffect(() => {
     const handleThemeChange = () => {
