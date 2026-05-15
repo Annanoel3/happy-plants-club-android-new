@@ -312,15 +312,27 @@ export default function Settings() {
 
         <div className="space-y-6">
           {/* Profile Settings */}
-          <Card className={getThemedClasses()}>
-            <CardContent className="p-6">
-              <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>Profile Settings</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>
-                    Location
-                  </label>
+           <Card className={getThemedClasses()}>
+             <CardContent className="p-6">
+               <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>Profile Settings</h2>
+
+               <div className="space-y-4">
+                 <div>
+                   <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>
+                     Email
+                   </label>
+                   <div className={`px-4 py-3 rounded-lg ${getInputClasses()} opacity-60 cursor-not-allowed`}>
+                     {user.email}
+                   </div>
+                   <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>
+                     Your email cannot be changed
+                   </p>
+                 </div>
+
+                 <div>
+                   <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>
+                     Location
+                   </label>
                   <Input
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
