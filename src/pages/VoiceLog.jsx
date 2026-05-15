@@ -126,19 +126,24 @@ export default function VoiceLog() {
 
   const processTranscript = async (text) => {
     try {
-      const { data } = await processVoiceWatering({
+      console.log('Processing transcript:', text);
+      const response = await processVoiceWatering({
         transcript: text
       });
+      
+      console.log('Response:', response);
+      const data = response?.data || response;
 
-      if (data.success) {
+      if (data && data.success) {
         setResult(data);
         toast.success(data.notes || 'Logged successfully!');
       } else {
+        console.warn('Unexpected response format:', data);
         toast.error('Could not process the log');
       }
     } catch (error) {
       console.error('Processing error:', error);
-      toast.error('Failed to process watering log');
+      toast.error(`Error: ${error.message || 'Failed to process'}`);
     } finally {
       setIsProcessing(false);
     }
@@ -152,7 +157,13 @@ export default function VoiceLog() {
 
     setTranscript(typedText);
     setIsProcessing(true);
-    await processTranscript(typedText);
+    try {
+      await processTranscript(typedText);
+    } catch (error) {
+      console.error('Submit error:', error);
+      toast.error('Failed to process text. Try again.');
+      setIsProcessing(false);
+    }
   };
 
   const handleReset = () => {
