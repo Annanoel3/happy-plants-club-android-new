@@ -1,11 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const TIMEZONE = 'America/Chicago';
-
-function getTodayInCentral() {
+function getTodayInTimezone(timezone) {
     const now = new Date();
     const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone: TIMEZONE,
+        timeZone: timezone,
         year: 'numeric', month: '2-digit', day: '2-digit'
     }).formatToParts(now);
     const y = parts.find(p => p.type === 'year').value;
@@ -14,24 +12,13 @@ function getTodayInCentral() {
     return `${y}-${m}-${d}`;
 }
 
-function getScheduledSendTime(hour, today) {
-    // Build a date string like "2026-05-13T08:00:00" and interpret as Central time
-    const dateStr = `${today}T${String(hour).padStart(2, '0')}:00:00`;
-    // Use a trick: create date as if UTC, then adjust for Central offset
-    const utcDate = new Date(dateStr + 'Z');
-    // Get the Central offset at that moment
-    const centralFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: TIMEZONE,
-        timeZoneName: 'shortOffset'
-    });
-    // Simpler: just get UTC ms for "noon Central" by formatting and reparsing
-    // We'll use the offset approach
+function getScheduledSendTime(hour, today, timezone) {
     const now = new Date();
-    const centralNow = new Date(now.toLocaleString('en-US', { timeZone: TIMEZONE }));
-    const offsetMs = now - centralNow; // UTC offset in ms
+    const tzNow = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+    const offsetMs = now - tzNow;
     
-    const centralTarget = new Date(`${today}T${String(hour).padStart(2, '0')}:00:00`);
-    const utcTarget = new Date(centralTarget.getTime() + offsetMs);
+    const tzTarget = new Date(`${today}T${String(hour).padStart(2, '0')}:00:00`);
+    const utcTarget = new Date(tzTarget.getTime() + offsetMs);
     return utcTarget;
 }
 
@@ -40,7 +27,6 @@ Deno.serve(async (req) => {
         const base44 = createClientFromRequest(req);
         
         const now = new Date();
-        const today = getTodayInCentral();
         
         const appId = Deno.env.get("ONESIGNAL_APP_ID");
         const rest = Deno.env.get("ONESIGNAL_REST_API_KEY");
@@ -55,6 +41,14 @@ Deno.serve(async (req) => {
         let scheduledCount = 0;
         
         for (const userEmail of userEmails) {
+            const targetUsers = await base44.asServiceRole.entities.User.filter({ email: userEmail });
+            const targetUser = targetUsers[0];
+            
+            if (!targetUser) continue;
+            
+            const userTimezone = targetUser.timezone || 'America/Chicago';
+            const today = getTodayInTimezone(userTimezone);
+            
             const userPlants = allPlants.filter(p => 
                 p.created_by === userEmail && 
                 p.next_watering_due && 
@@ -73,10 +67,6 @@ Deno.serve(async (req) => {
             if (reminder?.dismissed) continue;
             if (reminder?.scheduled_notification_ids?.length > 0) continue;
             
-            // Get user's registered devices
-            const targetUsers = await base44.asServiceRole.entities.User.filter({ email: userEmail });
-            const targetUser = targetUsers[0];
-            
             if (!targetUser?.onesignal_player_ids?.length) {
                 console.log('No player IDs for user:', userEmail);
                 continue;
@@ -90,7 +80,7 @@ Deno.serve(async (req) => {
             const scheduleHours = [8, 10, 12, 14, 16, 18, 20];
             
             for (const hour of scheduleHours) {
-                const sendTimeUTC = getScheduledSendTime(hour, today);
+                const sendTimeUTC = getScheduledSendTime(hour, today, userTimezone);
                 const diffSeconds = Math.floor((sendTimeUTC - now) / 1000);
                 
                 // Only schedule future notifications (at least 2 min from now)
@@ -143,7 +133,6 @@ Deno.serve(async (req) => {
         return Response.json({ 
             success: true, 
             users_with_scheduled_reminders: scheduledCount,
-            today,
             time: now.toISOString()
         });
         

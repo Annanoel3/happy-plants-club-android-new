@@ -5,24 +5,22 @@ Deno.serve(async (req) => {
         const base44 = createClientFromRequest(req);
         
         const plants = await base44.asServiceRole.entities.Plant.list();
+        const userMap = {};
+        
+        // Pre-fetch all users to avoid repeated queries
+        const allUsers = await base44.asServiceRole.entities.User.list();
+        allUsers.forEach(u => {
+            userMap[u.email] = u;
+        });
         
         let sent = 0;
         let skipped = 0;
 
         for (const plant of plants) {
             try {
-                const users = await base44.asServiceRole.entities.User.filter({ 
-                    email: plant.created_by 
-                });
+                const user = userMap[plant.created_by];
                 
-                if (users.length === 0) {
-                    skipped++;
-                    continue;
-                }
-                
-                const user = users[0];
-                
-                if (!user.location || user.notifications_weather === false) {
+                if (!user || !user.location || user.daily_weather_notifications === false) {
                     skipped++;
                     continue;
                 }

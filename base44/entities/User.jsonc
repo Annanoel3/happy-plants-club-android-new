@@ -1,0 +1,95 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "location": {
+      "type": "string",
+      "description": "User's location for weather data"
+    },
+    "timezone": {
+      "type": "string",
+      "default": "America/Chicago",
+      "description": "User's timezone for scheduling notifications"
+    },
+    "profile_complete": {
+      "type": "boolean",
+      "default": false
+    },
+    "profile_picture": {
+      "type": "string",
+      "description": "URL to profile picture"
+    },
+    "handle": {
+      "type": "string",
+      "description": "Unique username handle"
+    },
+    "bio": {
+      "type": "string"
+    },
+    "profile_private": {
+      "type": "boolean",
+      "default": false
+    },
+    "lifetime_waterings": {
+      "type": "number",
+      "default": 0
+    },
+    "current_tier": {
+      "type": "string",
+      "default": "New Sprout"
+    },
+    "total_plant_growths": {
+      "type": "number",
+      "default": 0
+    },
+    "daily_weather_notifications": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to receive daily weather notifications"
+    },
+    "notifications_watering": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to receive watering reminders"
+    },
+    "trial_start_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the user's trial started (set on first login)"
+    },
+    "trial_end_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the user's trial ends (7 days after start)"
+    },
+    "subscription_active": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether user has active paid subscription"
+    },
+    "subscription_platform": {
+      "type": "string",
+      "description": "Platform of subscription: 'google_play', 'apple', 'stripe', etc."
+    },
+    "subscription_id": {
+      "type": "string",
+      "description": "External subscription ID from payment platform"
+    },
+    "subscription_expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the current subscription period ends"
+    }
+  },
+  "required": [
+    "location",
+    "profile_picture",
+    "handle",
+    "bio",
+    "trial_start_date",
+    "trial_end_date",
+    "subscription_platform",
+    "subscription_id",
+    "subscription_expires_at"
+  ]
+}
