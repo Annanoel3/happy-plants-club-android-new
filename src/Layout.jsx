@@ -201,8 +201,11 @@ function LayoutContent({ children, currentPageName }) {
 
   return (
     <div className="min-h-screen flex w-full theme-bg relative">
-      {(theme === 'dark' || theme === 'botanical' || theme === 'christmas' || theme === 'newyears' || theme === 'fall' || theme === 'fourthofjuly' || theme === 'halloween') && (
+      {(theme === 'dark' || theme === 'christmas' || theme === 'newyears' || theme === 'fall' || theme === 'fourthofjuly' || theme === 'halloween') && (
         <div className="fixed inset-0 bg-black/75 -z-20 pointer-events-none"></div>
+      )}
+      {theme === 'botanical' && (
+        <div className="fixed inset-0 bg-black/92 -z-20 pointer-events-none"></div>
       )}
       
       {(theme === 'spring' || theme === 'summer' || theme === 'kawaii' || theme === 'winter' || theme === 'stpatricks' || theme === 'valentines' || theme === 'light') && (
