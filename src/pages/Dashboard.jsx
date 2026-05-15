@@ -435,31 +435,35 @@ export default function Dashboard() {
               </h1>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getThemedClasses()} ${getTextColor()}`}>
-                🌿 {plantsList.length} happy plants
-              </span>
+              {/* Plant count badge */}
+              <div className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold ${getThemedClasses()} ${getTextColor()}`}>
+                🌿 <span>{plantsList.length}</span>
+              </div>
+              {/* Select mode */}
               {plantsList.length > 0 && (
                 <button
                   onClick={toggleSelectMode}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all border ${
+                  title={selectMode ? 'Cancel selection' : 'Select plants'}
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
                     selectMode
-                      ? 'bg-red-500/20 text-red-400 border-red-400/40'
+                      ? 'bg-red-500/20 text-red-400'
                       : `${getThemedClasses()} ${getSecondaryTextColor()}`
                   }`}
                 >
                   <CheckSquare className="w-4 h-4" />
                 </button>
               )}
+              {/* Watering reminders toggle */}
               <button
                 onClick={handleToggleWateringReminders}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                title={wateringRemindersEnabled ? 'Reminders on' : 'Reminders off'}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
                   wateringRemindersEnabled
-                    ? 'bg-blue-500/20 text-blue-400 border border-blue-400/30'
-                    : `${getThemedClasses()} ${getSecondaryTextColor()} opacity-60`
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : `${getThemedClasses()} ${getSecondaryTextColor()} opacity-50`
                 }`}
               >
-                {wateringRemindersEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
-                💧 Reminders
+                {wateringRemindersEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
               </button>
             </div>
           </div>
