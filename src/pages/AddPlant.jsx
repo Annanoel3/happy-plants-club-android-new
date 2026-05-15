@@ -136,23 +136,29 @@ export default function AddPlant() {
   const processVoiceRecording = async (audioBlob) => {
     setIsProcessing(true);
     try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob);
+      // Upload audio file first, then send URL to transcribeVoice
+      const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: audioFile });
 
-      const { data: transcriptData } = await transcribeVoice(formData);
-      
+      const { data: transcriptData } = await transcribeVoice({ file_url });
+
+      if (!transcriptData?.transcript) {
+        toast.error('Could not transcribe audio');
+        return;
+      }
+
       const { data } = await processBulkPlants({
-        plant_names: transcriptData.transcript.split(',').map(n => n.trim())
+        plant_names: [transcriptData.transcript]
       });
 
       if (data.success) {
         toast.success(`Added ${data.count} plant${data.count > 1 ? 's' : ''}! 🌿`);
         navigate('/Dashboard');
       } else {
-        toast.error('Could not add plants');
+        toast.error('Could not add plants: ' + (data.error || 'Unknown error'));
       }
     } catch (error) {
-      toast.error('Error processing voice');
+      toast.error('Error processing voice: ' + (error?.message || 'Unknown error'));
     } finally {
       setIsProcessing(false);
     }
@@ -166,19 +172,19 @@ export default function AddPlant() {
 
     setIsProcessing(true);
     try {
-      const names = plantNames.split(',').map(n => n.trim()).filter(n => n);
+      // Pass the raw text — processBulkPlants will extract plant names via AI
       const { data } = await processBulkPlants({
-        plant_names: names
+        plant_names: [plantNames.trim()]
       });
 
       if (data.success) {
         toast.success(`Added ${data.count} plant${data.count > 1 ? 's' : ''}! 🌿`);
         navigate('/Dashboard');
       } else {
-        toast.error('Could not add plants');
+        toast.error('Could not add plants: ' + (data.error || 'Unknown error'));
       }
     } catch (error) {
-      toast.error('Error adding plants');
+      toast.error('Error adding plants: ' + (error?.message || 'Unknown error'));
     } finally {
       setIsProcessing(false);
     }
