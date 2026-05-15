@@ -1,30 +1,49 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Droplets, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
+import { motion, AnimatePresence } from "framer-motion";
 
-const PEEK_HEIGHT = 64; // px visible per stacked card
+const CARD_HEIGHT = 220;
+const PEEK_HEIGHT = 68;
+const GAP = 10;
+
+// Gradient palettes for cards without images
+const CARD_GRADIENTS = [
+  "from-emerald-600 via-teal-500 to-cyan-600",
+  "from-violet-600 via-purple-500 to-pink-500",
+  "from-amber-500 via-orange-500 to-rose-500",
+  "from-sky-500 via-blue-500 to-indigo-600",
+  "from-lime-500 via-green-500 to-emerald-600",
+  "from-fuchsia-500 via-pink-500 to-rose-400",
+];
+
+function getGradient(index) {
+  return CARD_GRADIENTS[index % CARD_GRADIENTS.length];
+}
 
 function getWateringStatus(plant, wateringRemindersEnabled) {
-  if (plant?.status === 'wilted') return { status: 'wilted', text: 'HELP!', color: 'bg-red-500 text-white' };
+  if (plant?.status === 'wilted') return { status: 'wilted', text: 'HELP!', color: 'bg-red-500/90 text-white' };
   if (!wateringRemindersEnabled) return null;
   if (!plant?.next_watering_due) return null;
   try {
     const daysUntil = differenceInDays(parseISO(plant.next_watering_due), new Date());
-    if (daysUntil < 0) return { status: 'overdue', text: `${Math.abs(daysUntil)}d overdue`, color: 'bg-red-500 text-white' };
-    if (daysUntil === 0) return { status: 'today', text: 'Water today', color: 'bg-orange-500 text-white' };
-    if (daysUntil <= 2) return { status: 'soon', text: `${daysUntil}d left`, color: 'bg-amber-400 text-amber-900' };
-    return { status: 'good', text: `${daysUntil}d left`, color: 'bg-emerald-500 text-white' };
+    if (daysUntil < 0) return { status: 'overdue', text: `${Math.abs(daysUntil)}d overdue`, color: 'bg-red-500/90 text-white' };
+    if (daysUntil === 0) return { status: 'today', text: 'Water today', color: 'bg-orange-500/90 text-white' };
+    if (daysUntil <= 2) return { status: 'soon', text: `${daysUntil}d`, color: 'bg-amber-400/90 text-amber-900' };
+    return { status: 'good', text: `${daysUntil}d`, color: 'bg-emerald-500/90 text-white' };
   } catch { return null; }
 }
 
-function PlantCard({ plant, wateringRemindersEnabled, index, total, isExpanded, onClick, selectMode, isSelected, onToggleSelect }) {
+function PlantCard({ plant, wateringRemindersEnabled, index, total, isExpanded, onClick, selectMode, isSelected, onToggleSelect, gradientIndex }) {
   const navigate = useNavigate();
   const watering = getWateringStatus(plant, wateringRemindersEnabled);
   const displayName = plant.nickname || plant.name || 'Unknown Plant';
+  const scientificName = plant.scientific_name;
   const needsWater = watering && (watering.status === 'today' || watering.status === 'overdue' || watering.status === 'wilted');
 
-  const stackOffset = isExpanded ? index * (PEEK_HEIGHT + 8) : index * PEEK_HEIGHT;
+  const stackOffset = isExpanded ? index * (PEEK_HEIGHT + GAP) : index * PEEK_HEIGHT;
+  const cardHeight = isExpanded ? CARD_HEIGHT : PEEK_HEIGHT;
 
   const handleClick = () => {
     if (selectMode) {
@@ -37,103 +56,190 @@ function PlantCard({ plant, wateringRemindersEnabled, index, total, isExpanded, 
   };
 
   return (
-    <div
-      className="absolute left-0 right-0 transition-all duration-500 ease-in-out"
-      style={{ top: stackOffset, zIndex: index + 1 }}
+    <motion.div
+      className="absolute left-0 right-0"
+      animate={{ top: stackOffset }}
+      transition={{ type: "spring", stiffness: 300, damping: 32, mass: 0.8 }}
+      style={{ zIndex: index + 1 }}
     >
-      {/* Card shell */}
-      <div
-        className={`rounded-3xl overflow-hidden shadow-xl border ${
-          isSelected ? 'border-red-400/80' : needsWater ? 'border-blue-400/60' : 'border-white/20'
-        } transition-all duration-200 active:scale-[0.98] cursor-pointer`}
-        style={{ height: isExpanded ? 220 : PEEK_HEIGHT }}
+      <motion.div
+        animate={{ height: cardHeight }}
+        transition={{ type: "spring", stiffness: 280, damping: 30 }}
         onClick={handleClick}
+        className={`relative rounded-[28px] overflow-hidden cursor-pointer select-none
+          ${isSelected ? 'ring-2 ring-red-400 ring-offset-2 ring-offset-transparent' : ''}
+          ${needsWater && !selectMode ? 'ring-1 ring-blue-400/50' : ''}
+        `}
+        style={{
+          boxShadow: isSelected
+            ? '0 8px 32px rgba(248,113,113,0.4), 0 2px 8px rgba(0,0,0,0.3)'
+            : '0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.25)',
+        }}
+        whileTap={{ scale: 0.975 }}
       >
-        {/* Background image */}
+        {/* Background */}
         {plant.image_url ? (
           <img
             src={plant.image_url}
             alt={displayName}
-            className={`absolute inset-0 w-full h-full object-cover ${plant.status === 'wilted' || isSelected ? 'grayscale' : ''}`}
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-300
+              ${plant.status === 'wilted' || isSelected ? 'grayscale brightness-75' : 'brightness-90'}`}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-800 to-emerald-950 flex items-center justify-center">
-            <span className="text-5xl">🪴</span>
-          </div>
+          <div className={`absolute inset-0 bg-gradient-to-br ${getGradient(gradientIndex)}`} />
         )}
 
-        {/* Dark overlay */}
-        <div className={`absolute inset-0 bg-gradient-to-b from-black/70 via-black/20 to-black/50 ${isSelected ? 'bg-red-900/40' : ''}`} />
+        {/* Glassy sheen overlay — the key to the "shiny" effect */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/25 via-white/5 to-transparent pointer-events-none" />
+        {/* Side sheen */}
+        <div className="absolute inset-0 bg-gradient-to-r from-white/10 via-transparent to-black/10 pointer-events-none" />
 
-        {/* Thirsty shimmer */}
+        {/* Bottom scrim for text legibility when expanded */}
+        <motion.div
+          className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none"
+          animate={{ opacity: isExpanded ? 1 : 0 }}
+          transition={{ duration: 0.3 }}
+          style={{ height: '60%' }}
+        />
+
+        {/* Top scrim always */}
+        <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/55 to-transparent pointer-events-none" style={{ height: '50%' }} />
+
+        {/* Water urgency glow */}
         {needsWater && wateringRemindersEnabled && !selectMode && (
-          <div className="absolute inset-0 bg-blue-900/30" />
+          <div className="absolute inset-0 bg-blue-500/15 pointer-events-none" />
         )}
 
-        {/* Top bar — always visible */}
-        <div className="absolute top-0 left-0 right-0 h-16 flex items-center px-4 gap-3">
-          {/* Select checkbox */}
+        {/* ── TOP ROW (always visible) ── */}
+        <div className="absolute top-0 left-0 right-0 flex items-center px-4 pt-3 pb-2 gap-2">
           {selectMode && (
-            <div className="flex-shrink-0">
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="flex-shrink-0"
+            >
               {isSelected
                 ? <CheckCircle2 className="w-5 h-5 text-red-400 drop-shadow" />
-                : <Circle className="w-5 h-5 text-white/60 drop-shadow" />
+                : <Circle className="w-5 h-5 text-white/70 drop-shadow" />
               }
-            </div>
+            </motion.div>
           )}
 
-          {/* Name */}
-          <p className="flex-1 font-bold text-white text-sm leading-tight line-clamp-1 drop-shadow-md">
+          <p className="flex-1 font-bold text-white text-[15px] leading-tight line-clamp-1 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
             {displayName}
           </p>
 
-          {/* Watering badge (hidden in select mode) */}
           {watering && !selectMode && (
-            <span className={`flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 ${watering.color}`}>
+            <span className={`flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-sm flex items-center gap-1 shadow-md ${watering.color}`}>
               {(watering.status === 'today' || watering.status === 'overdue') && <Droplets className="w-3 h-3" />}
               {watering.status === 'wilted' && <AlertCircle className="w-3 h-3" />}
               {watering.text}
             </span>
           )}
         </div>
-      </div>
-    </div>
+
+        {/* ── BOTTOM INFO (visible when expanded) ── */}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.25, delay: 0.05 }}
+              className="absolute bottom-0 left-0 right-0 px-4 pb-4"
+            >
+              {scientificName && (
+                <p className="text-white/60 text-[11px] italic mb-1 drop-shadow">
+                  {scientificName}
+                </p>
+              )}
+              <div className="flex items-center justify-between">
+                <div className="flex gap-1.5 flex-wrap">
+                  {plant.location && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm text-white">
+                      📍 {plant.location}
+                    </span>
+                  )}
+                  {plant.environment && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm text-white">
+                      {plant.environment}
+                    </span>
+                  )}
+                </div>
+                <span className="text-white/50 text-[10px] font-semibold">Tap to open →</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
   );
 }
 
-export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect }) {
+// Scroll-in animation wrapper
+function ScrollReveal({ children, index }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
+      { threshold: 0.1, rootMargin: '0px 0px -20px 0px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 28, scale: 0.97 }}
+      animate={visible ? { opacity: 1, y: 0, scale: 1 } : {}}
+      transition={{ type: "spring", stiffness: 260, damping: 28, delay: index * 0.06 }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect, stackIndex = 0 }) {
   const [expanded, setExpanded] = useState(false);
 
   const isOpen = expanded || selectMode;
   const totalHeight = isOpen
-    ? plants.length * (64 + 8) + 220 - 8
+    ? plants.length * (PEEK_HEIGHT + GAP) + (CARD_HEIGHT - PEEK_HEIGHT - GAP)
     : plants.length > 1
-      ? (plants.length - 1) * 64 + 64
-      : 64;
+      ? (plants.length - 1) * PEEK_HEIGHT + CARD_HEIGHT
+      : CARD_HEIGHT;
 
   return (
-    <div className="mb-6">
+    <ScrollReveal index={stackIndex}>
+    <div className="mb-8">
       {/* Section header */}
       <button
-        className="w-full flex items-center justify-between mb-3 px-1"
-        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center justify-between mb-4 px-1"
+        onClick={() => !selectMode && setExpanded(e => !e)}
       >
         <div className="flex items-center gap-2">
-          <span className={`font-bold text-base ${textColor}`}>{plantType || 'Other'}</span>
-          <span className={`text-xs px-2 py-0.5 rounded-full ${themedClasses} ${secondaryTextColor}`}>
+          <span className={`font-extrabold text-base tracking-tight ${textColor}`}>{plantType || 'Other'}</span>
+          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${themedClasses} ${secondaryTextColor}`}>
             {plants.length}
           </span>
         </div>
-        {expanded
-          ? <ChevronUp className={`w-4 h-4 ${secondaryTextColor}`} />
-          : <ChevronDown className={`w-4 h-4 ${secondaryTextColor}`} />
-        }
+        {!selectMode && (
+          isOpen
+            ? <ChevronUp className={`w-4 h-4 ${secondaryTextColor}`} />
+            : <ChevronDown className={`w-4 h-4 ${secondaryTextColor}`} />
+        )}
       </button>
 
       {/* Stack container */}
-      <div
-        className="relative transition-all duration-500"
-        style={{ height: totalHeight }}
+      <motion.div
+        className="relative"
+        animate={{ height: totalHeight }}
+        transition={{ type: "spring", stiffness: 260, damping: 32 }}
       >
         {plants.map((plant, index) => (
           <PlantCard
@@ -142,14 +248,16 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
             wateringRemindersEnabled={wateringRemindersEnabled}
             index={index}
             total={plants.length}
-            isExpanded={expanded || selectMode}
+            isExpanded={isOpen}
             onClick={() => setExpanded(true)}
             selectMode={selectMode}
             isSelected={selectedIds?.includes(plant.id)}
             onToggleSelect={onToggleSelect}
+            gradientIndex={index}
           />
         ))}
-      </div>
+      </motion.div>
     </div>
+    </ScrollReveal>
   );
 }

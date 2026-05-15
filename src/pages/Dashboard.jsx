@@ -565,7 +565,7 @@ export default function Dashboard() {
               <button onClick={() => setSearchQuery('')} className="mt-2 text-emerald-500 text-sm font-bold">Clear</button>
             </div>
           ) : (
-            groupedPlants.map(([type, typePlants]) => (
+            groupedPlants.map(([type, typePlants], i) => (
               <PlantTypeStack
                 key={type}
                 plantType={type}
@@ -577,6 +577,7 @@ export default function Dashboard() {
                 selectMode={selectMode}
                 selectedIds={selectedIds}
                 onToggleSelect={togglePlantSelection}
+                stackIndex={i}
               />
             ))
           )}
