@@ -20,60 +20,37 @@ Deno.serve(async (req) => {
         const plants = Array.isArray(plantsResult) ? plantsResult : [];
         const plantsListStr = plants.map(p => `${p.name} (ID: ${p.id})`).join(', ');
 
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
-                {
-                    role: "system",
-                    content: `Parse watering logs and reminders from the transcript.
-                    Available plants: ${plantsListStr}
-                    Current time: ${new Date().toISOString()}
-                    
-                    Watering examples:
-                    - "I watered everything except the Monstera" -> water all but Monstera
-                    - "I watered the Snake Plant and Pothos" -> water only those two
-                    - "Watered all plants" -> water all
-                    - "Just watered my ferns" -> water matching plants
-                    
-                    Reminder examples (parse natural language):
-                    - "Remind me to trim the bonsai tomorrow at 2pm" -> tomorrow at 14:00
-                    - "Remind me to fertilize in an hour" -> current time + 1 hour
-                    - "Bring plants inside at 5pm" -> today at 17:00
-                    - "Water the cactus next week" -> 7 days from today
-                    - "Check on the monstera on Friday" -> next Friday date
-                    
-                    IMPORTANT for reminders:
-                    - Always parse the exact time (if mentioned) or set a reasonable default time (9am)
-                    - Use America/Chicago timezone (UTC-5 or UTC-6 depending on DST)
-                    - Return due_date as "YYYY-MM-DD" and due_time as "HH:MM" in 24-hour format
-                    - If plant mentioned in reminder, match against available plants
-                    - Otherwise set plant_id to null and plant_name to "General"
-                    
-                    Return JSON:
+        let result;
+        try {
+            const response = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [
                     {
-                        "watered_plant_ids": ["id1", "id2"],
-                        "reminders": [
-                            {
-                                "plant_id": "id or null",
-                                "plant_name": "exact plant name or 'General'",
-                                "title": "brief action title",
-                                "description": "full reminder details",
-                                "due_date": "YYYY-MM-DD",
-                                "due_time": "HH:MM"
-                            }
-                        ],
-                        "notes": "summary message"
-                    }`
-                },
-                {
-                    role: "user",
-                    content: transcript
-                }
-            ],
-            response_format: { type: "json_object" }
-        });
+                        role: "system",
+                        content: `Parse watering logs and reminders from the transcript.
+                        Available plants: ${plantsListStr}
+                        Current time: ${new Date().toISOString()}
+                        
+                        Return JSON:
+                        {
+                            "watered_plant_ids": ["id1", "id2"],
+                            "reminders": [],
+                            "notes": "summary message"
+                        }`
+                    },
+                    {
+                        role: "user",
+                        content: transcript
+                    }
+                ],
+                response_format: { type: "json_object" }
+            });
 
-        const result = JSON.parse(response.choices[0].message.content);
+            result = JSON.parse(response.choices[0].message.content);
+        } catch (apiError) {
+            console.error('OpenAI API error:', apiError);
+            return Response.json({ error: `API Error: ${apiError.message}` }, { status: 500 });
+        }
         const today = new Date().toISOString().split('T')[0];
         
         const wateredIds = Array.isArray(result.watered_plant_ids) ? result.watered_plant_ids : [];
