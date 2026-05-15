@@ -1,0 +1,206 @@
+{
+  "name": "Plant",
+  "type": "object",
+  "rls": {
+    "read": {
+      "created_by": "{{user.email}}"
+    },
+    "write": {
+      "created_by": "{{user.email}}"
+    }
+  },
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "scientific_name": {
+      "type": "string"
+    },
+    "hybrid_name": {
+      "type": "string"
+    },
+    "image_url": {
+      "type": "string"
+    },
+    "plant_type": {
+      "type": "string",
+      "enum": [
+        "Orchid",
+        "Succulent",
+        "Cactus",
+        "Tropical",
+        "Tree",
+        "Shrub",
+        "Herb",
+        "Vegetable",
+        "Fruit",
+        "Fern",
+        "Vine",
+        "Grass",
+        "Aquatic",
+        "Bulb",
+        "Other"
+      ],
+      "description": "General plant type / category"
+    },
+    "care_instructions": {
+      "type": "object",
+      "properties": {
+        "watering": {
+          "type": "string"
+        },
+        "sunlight": {
+          "type": "string"
+        },
+        "soil": {
+          "type": "string"
+        },
+        "humidity": {
+          "type": "string"
+        },
+        "temperature": {
+          "type": "string"
+        },
+        "fertilizing": {
+          "type": "string"
+        },
+        "tips": {
+          "type": "string"
+        },
+        "growth_optimization": {
+          "type": "string"
+        }
+      }
+    },
+    "water_frequency_days": {
+      "type": "number"
+    },
+    "last_watered": {
+      "type": "string",
+      "format": "date"
+    },
+    "next_watering_due": {
+      "type": "string",
+      "format": "date"
+    },
+    "location": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "Indoor",
+        "Outdoor",
+        "Balcony",
+        "Patio",
+        "Greenhouse",
+        "Window Sill",
+        "Office"
+      ]
+    },
+    "sun_exposure": {
+      "type": "string",
+      "enum": [
+        "Full Sun (6+ hours)",
+        "Partial Sun (3-6 hours)",
+        "Partial Shade (2-4 hours)",
+        "Full Shade (<2 hours)",
+        "Artificial Light"
+      ]
+    },
+    "pot_type": {
+      "type": "string",
+      "enum": [
+        "Plastic",
+        "Terracotta/Clay",
+        "Ceramic (glazed)",
+        "Ceramic (unglazed)",
+        "Self-watering",
+        "Fabric/Grow bag"
+      ]
+    },
+    "pot_size": {
+      "type": "string",
+      "enum": [
+        "Much smaller than plant",
+        "Slightly smaller",
+        "Perfect fit",
+        "Room to grow",
+        "Too large"
+      ]
+    },
+    "substrate_type": {
+      "type": "string",
+      "enum": [
+        "Standard potting mix",
+        "Cactus/succulent mix",
+        "Orchid bark mix",
+        "Peat-based mix",
+        "Coco coir",
+        "Custom mix"
+      ]
+    },
+    "plant_size": {
+      "type": "string",
+      "enum": [
+        "Seedling",
+        "Small",
+        "Medium",
+        "Large",
+        "Mature"
+      ]
+    },
+    "nickname": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "growth_stage": {
+      "type": "string",
+      "enum": [
+        "seedling",
+        "small",
+        "medium",
+        "large",
+        "mature"
+      ],
+      "default": "seedling"
+    },
+    "total_waterings": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "healthy",
+        "wilted",
+        "recovering"
+      ],
+      "default": "healthy"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Custom tags for filtering"
+    },
+    "vacation_mode_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "vacation_start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "vacation_end_date": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

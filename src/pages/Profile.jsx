@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, User, UserPlus, UserMinus, Lock, MapPin, Sparkles } from "lucide-react";
+import { ArrowLeft, User, UserPlus, UserMinus, Lock, MapPin, Sparkles, ShieldX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -18,7 +17,8 @@ export default function Profile() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [hasRequestedFollow, setHasRequestedFollow] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [theme, setTheme] = useState('light'); // Added theme state
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [theme, setTheme] = useState('light');
 
   const urlParams = new URLSearchParams(window.location.search);
   const profileEmail = urlParams.get('email');
@@ -101,6 +101,12 @@ export default function Profile() {
         status: 'pending'
       });
       setHasRequestedFollow(requests.length > 0);
+
+      const blocks = await base44.entities.Block.filter({
+        blocker_email: user.email,
+        blocked_email: profileEmail
+      });
+      setIsBlocked(blocks.length > 0);
     } catch (error) {
       console.error('Error loading profile:', error);
       toast.error('Failed to load profile');
@@ -157,6 +163,34 @@ export default function Profile() {
       return follows.length;
     },
     enabled: !!profileUser,
+  });
+
+  const blockMutation = useMutation({
+    mutationFn: async () => {
+      if (isBlocked) {
+        const blocks = await base44.entities.Block.filter({
+          blocker_email: currentUser.email,
+          blocked_email: profileEmail
+        });
+        if (blocks.length > 0) await base44.entities.Block.delete(blocks[0].id);
+        setIsBlocked(false);
+        toast.success('User unblocked');
+      } else {
+        await base44.entities.Block.create({
+          blocker_email: currentUser.email,
+          blocked_email: profileEmail
+        });
+        // Also unfollow if following
+        const follows = await base44.entities.Follow.filter({
+          follower_email: currentUser.email,
+          following_email: profileEmail
+        });
+        if (follows.length > 0) await base44.entities.Follow.delete(follows[0].id);
+        setIsBlocked(true);
+        setIsFollowing(false);
+        toast.success('User blocked');
+      }
+    },
   });
 
   const followMutation = useMutation({
@@ -279,29 +313,41 @@ export default function Profile() {
                 </div>
               )}
 
-              {/* Follow Button */}
+              {/* Follow + Block Buttons */}
               {!isOwnProfile && (
-                <Button
-                  onClick={() => followMutation.mutate()}
-                  disabled={followMutation.isPending || hasRequestedFollow}
-                  className={cn(
-                    "w-full max-w-xs",
-                    isFollowing 
-                      ? "bg-gray-500 hover:bg-gray-600" 
-                      : "bg-green-600 hover:bg-green-700"
-                  )}
-                  size="lg"
-                >
-                  {isFollowing ? (
-                    <><UserMinus className="w-4 h-4 mr-2" /> Unfollow</>
-                  ) : hasRequestedFollow ? (
-                    'Request Pending'
-                  ) : profileUser.profile_private ? (
-                    <><UserPlus className="w-4 h-4 mr-2" /> Request to Follow</>
-                  ) : (
-                    <><UserPlus className="w-4 h-4 mr-2" /> Follow</>
-                  )}
-                </Button>
+                <div className="flex gap-2 w-full max-w-xs">
+                  <Button
+                    onClick={() => followMutation.mutate()}
+                    disabled={followMutation.isPending || hasRequestedFollow || isBlocked}
+                    className={cn(
+                      "flex-1",
+                      isFollowing
+                        ? "bg-gray-500 hover:bg-gray-600"
+                        : "bg-green-600 hover:bg-green-700"
+                    )}
+                    size="lg"
+                  >
+                    {isFollowing ? (
+                      <><UserMinus className="w-4 h-4 mr-2" /> Unfollow</>
+                    ) : hasRequestedFollow ? (
+                      'Request Pending'
+                    ) : profileUser.profile_private ? (
+                      <><UserPlus className="w-4 h-4 mr-2" /> Request to Follow</>
+                    ) : (
+                      <><UserPlus className="w-4 h-4 mr-2" /> Follow</>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => blockMutation.mutate()}
+                    disabled={blockMutation.isPending}
+                    variant="outline"
+                    size="lg"
+                    className={cn(isBlocked ? "border-green-500 text-green-600" : "border-red-400 text-red-500")}
+                    title={isBlocked ? "Unblock user" : "Block user"}
+                  >
+                    <ShieldX className="w-4 h-4" />
+                  </Button>
+                </div>
               )}
             </div>
           </CardContent>

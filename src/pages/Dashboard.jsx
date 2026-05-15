@@ -17,6 +17,7 @@ export default function Dashboard() {
     return localStorage.getItem('theme') || 'light';
   });
   const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedType, setSelectedType] = useState(null);
   const [wateringRemindersEnabled, setWateringRemindersEnabled] = useState(true);
 
   useEffect(() => {
@@ -181,14 +182,19 @@ export default function Dashboard() {
     return Array.from(tagSet).sort();
   }, [plantsList]);
 
+  const allPlantTypes = useMemo(() => {
+    const typeSet = new Set();
+    plantsList.forEach(plant => { if (plant.plant_type) typeSet.add(plant.plant_type); });
+    return Array.from(typeSet).sort();
+  }, [plantsList]);
+
   const filteredPlants = useMemo(() => {
-    if (selectedTags.length === 0) return plantsList;
-    
     return plantsList.filter(plant => {
-      if (!plant.tags || !Array.isArray(plant.tags)) return false;
-      return selectedTags.some(selectedTag => plant.tags.includes(selectedTag));
+      const tagMatch = selectedTags.length === 0 || (plant.tags && selectedTags.some(t => plant.tags.includes(t)));
+      const typeMatch = !selectedType || plant.plant_type === selectedType;
+      return tagMatch && typeMatch;
     });
-  }, [plantsList, selectedTags]);
+  }, [plantsList, selectedTags, selectedType]);
 
   const toggleTag = (tag) => {
     setSelectedTags(prev => 
@@ -572,6 +578,27 @@ export default function Dashboard() {
                     <p key={event.id} className={`text-xs ${getSecondaryTextColor()}`}>{event.message}</p>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Plant Type Filter */}
+          {allPlantTypes.length > 0 && (
+            <div className="mb-3">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                {allPlantTypes.map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setSelectedType(selectedType === type ? null : type)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                      selectedType === type
+                        ? 'bg-teal-600 text-white border-teal-600 shadow-md'
+                        : `${getThemedClasses()} ${getTextColor()}`
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
               </div>
             </div>
           )}
