@@ -2,7 +2,8 @@ import React, { useEffect, useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X, CheckSquare, LayoutGrid, Layers } from "lucide-react";
+import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X, CheckSquare, LayoutGrid, Layers, Wand2 } from "lucide-react";
+import { categorizePlants } from "@/functions/categorizePlants";
 
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
 import PullToRefresh from "@/components/PullToRefresh";
@@ -23,6 +24,7 @@ export default function Dashboard() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [viewMode, setViewMode] = useState('stack'); // 'stack' | 'tile'
+  const [categorizing, setCategorizing] = useState(false);
 
   useEffect(() => {
     checkAuthentication();
@@ -58,6 +60,16 @@ export default function Dashboard() {
     setSelectedIds([]);
     setSelectMode(false);
     queryClient.invalidateQueries({ queryKey: ['plants'] });
+  };
+
+  const handleAutoCategorize = async () => {
+    setCategorizing(true);
+    try {
+      await categorizePlants({});
+      queryClient.invalidateQueries({ queryKey: ['plants'] });
+    } finally {
+      setCategorizing(false);
+    }
   };
 
   const toggleWateringRemindersMutation = useMutation({
@@ -190,6 +202,7 @@ export default function Dashboard() {
   };
 
   const plantsList = Array.isArray(plants) ? plants : [];
+  const hasUncategorized = plantsList.some(p => !p.plant_type || p.plant_type === 'Other');
 
   // Group by plant type, filtered by search, pinned first
   const groupedPlants = useMemo(() => {
@@ -557,6 +570,33 @@ export default function Dashboard() {
                   <X className={`w-4 h-4 ${getSecondaryTextColor()}`} />
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Auto-categorize nudge */}
+          {hasUncategorized && !categorizing && (
+            <div className={`mb-5 rounded-2xl overflow-hidden border border-violet-400/30 bg-gradient-to-r from-violet-500/20 to-purple-500/10 backdrop-blur-md`}>
+              <div className="flex items-center gap-3 p-4">
+                <div className="w-9 h-9 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+                  <Wand2 className="w-4 h-4 text-violet-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`font-bold text-sm ${getTextColor()}`}>Some plants aren't categorized</p>
+                  <p className={`text-xs ${getSecondaryTextColor()}`}>Let AI sort them into the right types</p>
+                </div>
+                <button
+                  onClick={handleAutoCategorize}
+                  className="px-3 py-1.5 rounded-xl bg-violet-500 text-white text-xs font-bold flex-shrink-0"
+                >
+                  Auto-fix
+                </button>
+              </div>
+            </div>
+          )}
+          {categorizing && (
+            <div className={`mb-5 rounded-2xl p-4 flex items-center gap-3 border border-violet-400/30 bg-violet-500/10 backdrop-blur-md`}>
+              <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              <p className={`text-sm font-semibold ${getTextColor()}`}>Categorizing your plants…</p>
             </div>
           )}
 
