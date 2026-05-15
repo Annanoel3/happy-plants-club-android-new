@@ -436,7 +436,7 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-2">
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getThemedClasses()} ${getTextColor()}`}>
-                {plantsList.length} plants
+                🌿 {plantsList.length} happy plants
               </span>
               {plantsList.length > 0 && (
                 <button
@@ -450,23 +450,17 @@ export default function Dashboard() {
                   <CheckSquare className="w-4 h-4" />
                 </button>
               )}
-              <div className="relative group">
-                <button
-                  onClick={handleToggleWateringReminders}
-                  title={wateringRemindersEnabled ? 'Watering reminders ON — tap to turn off' : 'Watering reminders OFF — tap to turn on'}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                    wateringRemindersEnabled
-                      ? 'bg-blue-500/20 text-blue-400 border border-blue-400/30'
-                      : `${getThemedClasses()} ${getSecondaryTextColor()}`
-                  }`}
-                >
-                  {wateringRemindersEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-                </button>
-                <div className="absolute right-0 top-11 w-44 bg-gray-900/95 text-white text-xs font-semibold rounded-xl px-3 py-2 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20 text-center">
-                  {wateringRemindersEnabled ? '💧 Reminders ON' : '🔕 Reminders OFF'}<br/>
-                  <span className="text-white/50 font-normal">Tap to toggle</span>
-                </div>
-              </div>
+              <button
+                onClick={handleToggleWateringReminders}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                  wateringRemindersEnabled
+                    ? 'bg-blue-500/20 text-blue-400 border border-blue-400/30'
+                    : `${getThemedClasses()} ${getSecondaryTextColor()} opacity-60`
+                }`}
+              >
+                {wateringRemindersEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+                💧 Reminders
+              </button>
             </div>
           </div>
 
