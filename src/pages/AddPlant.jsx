@@ -23,13 +23,13 @@ export default function AddPlant() {
   const [loadingIndex, setLoadingIndex] = useState(0);
 
   const loadingMessages = [
-    "Identifying your plant...",
+    "Identifying your plants...",
     "Counting leaves...",
-    "Checking soil type...",
+    "Checking soil types...",
     "Consulting botanist database...",
     "Analyzing leaf patterns...",
     "Measuring sunlight needs...",
-    "Calculating watering schedule...",
+    "Calculating watering schedules...",
     "Almost there...",
   ];
 
@@ -89,37 +89,43 @@ export default function AddPlant() {
   };
 
   const handleImageCapture = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
     setIsProcessing(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      
-      const data = await identifyPlantWithExpert({
-        image_url: file_url
-      });
+      const today = new Date().toISOString().split('T')[0];
 
-      if (data.success) {
-        const plantData = data.plantData;
-        const today = new Date().toISOString().split('T')[0];
-        const nextWatering = new Date();
-        nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
+      const results = await Promise.allSettled(
+        files.map(async (file) => {
+          const { file_url } = await base44.integrations.Core.UploadFile({ file });
+          const data = await identifyPlantWithExpert({ image_url: file_url });
+          if (!data.success) throw new Error('Could not identify plant');
+          const plantData = data.plantData;
+          const nextWatering = new Date();
+          nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
+          await base44.entities.Plant.create({
+            ...plantData,
+            image_url: file_url,
+            last_watered: today,
+            next_watering_due: nextWatering.toISOString().split('T')[0]
+          });
+          return plantData.name;
+        })
+      );
 
-        await base44.entities.Plant.create({
-          ...plantData,
-          image_url: file_url,
-          last_watered: today,
-          next_watering_due: nextWatering.toISOString().split('T')[0]
-        });
+      const succeeded = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+      const failed = results.filter(r => r.status === 'rejected').length;
 
-        toast.success(`${plantData.name} added! 🌿`);
-        navigate('/Dashboard');
-      } else {
-        toast.error('Could not identify plant');
+      if (succeeded.length > 0) {
+        toast.success(`Added ${succeeded.length} plant${succeeded.length > 1 ? 's' : ''}! 🌿`);
       }
+      if (failed > 0) {
+        toast.error(`${failed} photo${failed > 1 ? 's' : ''} could not be identified`);
+      }
+      navigate('/Dashboard');
     } catch (error) {
-      toast.error('Error processing image: ' + (error?.message || 'Unknown error'));
+      toast.error('Error processing images: ' + (error?.message || 'Unknown error'));
     } finally {
       setIsProcessing(false);
     }
@@ -258,7 +264,7 @@ export default function AddPlant() {
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
+              multiple
               onChange={handleImageCapture}
               className="hidden"
             />
@@ -270,7 +276,7 @@ export default function AddPlant() {
                   </div>
                   <div className="text-left">
                     <h3 className={`text-xl font-bold ${getTextColor()}`}>Take a Photo</h3>
-                    <p className={`text-sm ${getSecondaryTextColor()}`}>Snap a pic and we'll identify it</p>
+                    <p className={`text-sm ${getSecondaryTextColor()}`}>Select one or more photos to identify</p>
                   </div>
                 </CardContent>
               </Card>
