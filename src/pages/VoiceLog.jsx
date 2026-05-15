@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { transcribeVoice } from "@/functions/transcribeVoice";
 import { processVoiceWatering } from "@/functions/processVoiceWatering";
+import { Capacitor } from "@capacitor/core";
 
 export default function VoiceLog() {
   const navigate = useNavigate();
@@ -24,6 +25,17 @@ export default function VoiceLog() {
 
   useEffect(() => {
     checkAuth();
+    // Request microphone permission on Android
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { Permissions } = Capacitor.Plugins;
+        Permissions.requestPermissions({
+          permissions: ['microphone']
+        });
+      } catch (error) {
+        console.log('Permission request error:', error);
+      }
+    }
   }, []);
 
   useEffect(() => {
