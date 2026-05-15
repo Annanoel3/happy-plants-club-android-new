@@ -24,6 +24,16 @@ export default function VoiceLog() {
 
   useEffect(() => {
     checkAuth();
+    // Request microphone permission on first load
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          stream.getTracks().forEach(track => track.stop());
+        })
+        .catch(error => {
+          console.log('Microphone permission request:', error.name);
+        });
+    }
   }, []);
 
   useEffect(() => {
