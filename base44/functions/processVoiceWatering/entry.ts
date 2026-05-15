@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import OpenAI from 'npm:openai@4.20.1';
 
 const openai = new OpenAI({
@@ -25,22 +25,29 @@ Deno.serve(async (req) => {
             messages: [
                 {
                     role: "system",
-                    content: `Parse the watering log and any reminders from the transcript.
+                    content: `Parse watering logs and reminders from the transcript.
                     Available plants: ${plantsListStr}
                     Current time: ${new Date().toISOString()}
                     
-                    Examples:
+                    Watering examples:
                     - "I watered everything except the Monstera" -> water all but Monstera
                     - "I watered the Snake Plant and Pothos" -> water only those two
                     - "Watered all plants" -> water all
-                    - "Bring all outside plants in at 2pm" -> create reminder for 2pm today
-                    - "Remind me to fertilize the Monstera in an hour" -> create reminder 1 hour from now
-                    - "I watered everything and need to bring the plants inside at 5pm" -> water all + reminder
+                    - "Just watered my ferns" -> water matching plants
                     
-                    For reminders:
-                    - Parse natural time like "in an hour", "at 2pm", "tomorrow at 10am"
-                    - Convert to ISO date string
-                    - If no specific plant mentioned, leave plant_id as null
+                    Reminder examples (parse natural language):
+                    - "Remind me to trim the bonsai tomorrow at 2pm" -> tomorrow at 14:00
+                    - "Remind me to fertilize in an hour" -> current time + 1 hour
+                    - "Bring plants inside at 5pm" -> today at 17:00
+                    - "Water the cactus next week" -> 7 days from today
+                    - "Check on the monstera on Friday" -> next Friday date
+                    
+                    IMPORTANT for reminders:
+                    - Always parse the exact time (if mentioned) or set a reasonable default time (9am)
+                    - Use America/Chicago timezone (UTC-5 or UTC-6 depending on DST)
+                    - Return due_date as "YYYY-MM-DD" and due_time as "HH:MM" in 24-hour format
+                    - If plant mentioned in reminder, match against available plants
+                    - Otherwise set plant_id to null and plant_name to "General"
                     
                     Return JSON:
                     {
@@ -48,14 +55,14 @@ Deno.serve(async (req) => {
                         "reminders": [
                             {
                                 "plant_id": "id or null",
-                                "plant_name": "name or 'General'",
-                                "title": "brief title",
-                                "description": "full details",
+                                "plant_name": "exact plant name or 'General'",
+                                "title": "brief action title",
+                                "description": "full reminder details",
                                 "due_date": "YYYY-MM-DD",
-                                "due_time": "HH:MM" (optional)
+                                "due_time": "HH:MM"
                             }
                         ],
-                        "notes": "summary"
+                        "notes": "summary message"
                     }`
                 },
                 {

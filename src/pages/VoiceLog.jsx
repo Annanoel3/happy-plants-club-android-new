@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -268,31 +267,40 @@ export default function VoiceLog() {
                 )}
 
                 {result && (
-                  <div className="space-y-4">
-                    {result.watered_count > 0 && (
-                      <div className={`p-4 rounded-xl border ${getThemedClasses()}`}>
-                        <p className={`font-semibold ${getTextColor()}`}>
-                          💧 Logged watering for {result.watered_count} plant{result.watered_count > 1 ? 's' : ''}
-                        </p>
-                      </div>
-                    )}
+                   <div className="space-y-4">
+                     {result.watered_count > 0 && (
+                       <div className={`p-4 rounded-xl border ${getThemedClasses()}`}>
+                         <p className={`font-semibold ${getTextColor()}`}>
+                           💧 Logged watering for {result.watered_count} plant{result.watered_count > 1 ? 's' : ''}
+                         </p>
+                       </div>
+                     )}
 
-                    {result.reminder_count > 0 && (
-                      <div className={`p-4 rounded-xl border ${getThemedClasses()}`}>
-                        <p className={`font-semibold ${getTextColor()}`}>
-                          ⏰ Created {result.reminder_count} reminder{result.reminder_count > 1 ? 's' : ''}
-                        </p>
-                      </div>
-                    )}
+                     {result.reminder_count > 0 && (
+                       <div className={`p-4 rounded-xl border ${getThemedClasses()}`}>
+                         <p className={`font-semibold ${getTextColor()}`}>
+                           ⏰ Created {result.reminder_count} reminder{result.reminder_count > 1 ? 's' : ''}
+                         </p>
+                       </div>
+                     )}
 
-                    <Button
-                      onClick={handleReset}
-                      className="w-full bg-green-600 hover:bg-green-700"
-                    >
-                      Log Another
-                    </Button>
-                  </div>
-                )}
+                     <div className="flex gap-3">
+                       <Button
+                         onClick={handleReset}
+                         variant="outline"
+                         className="flex-1"
+                       >
+                         Log Another
+                       </Button>
+                       <Button
+                         onClick={() => navigate('/Dashboard')}
+                         className="flex-1 bg-green-600 hover:bg-green-700"
+                       >
+                         Back to Garden
+                       </Button>
+                     </div>
+                   </div>
+                 )}
               </>
             ) : (
               <>
@@ -329,33 +337,42 @@ export default function VoiceLog() {
                     )}
                   </Button>
                 ) : (
-                  <>
-                    <div className="space-y-4 mb-4">
-                      {result.watered_count > 0 && (
-                        <div className={`p-4 rounded-xl border ${getThemedClasses()}`}>
-                          <p className={`font-semibold ${getTextColor()}`}>
-                            💧 Logged watering for {result.watered_count} plant{result.watered_count > 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      )}
+                   <>
+                     <div className="space-y-4 mb-4">
+                       {result.watered_count > 0 && (
+                         <div className={`p-4 rounded-xl border ${getThemedClasses()}`}>
+                           <p className={`font-semibold ${getTextColor()}`}>
+                             💧 Logged watering for {result.watered_count} plant{result.watered_count > 1 ? 's' : ''}
+                           </p>
+                         </div>
+                       )}
 
-                      {result.reminder_count > 0 && (
-                        <div className={`p-4 rounded-xl border ${getThemedClasses()}`}>
-                          <p className={`font-semibold ${getTextColor()}`}>
-                            ⏰ Created {result.reminder_count} reminder{result.reminder_count > 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                       {result.reminder_count > 0 && (
+                         <div className={`p-4 rounded-xl border ${getThemedClasses()}`}>
+                           <p className={`font-semibold ${getTextColor()}`}>
+                             ⏰ Created {result.reminder_count} reminder{result.reminder_count > 1 ? 's' : ''}
+                           </p>
+                         </div>
+                       )}
+                     </div>
 
-                    <Button
-                      onClick={handleReset}
-                      className="w-full bg-green-600 hover:bg-green-700"
-                    >
-                      Log Another
-                    </Button>
-                  </>
-                )}
+                     <div className="flex gap-3">
+                       <Button
+                         onClick={handleReset}
+                         variant="outline"
+                         className="flex-1"
+                       >
+                         Log Another
+                       </Button>
+                       <Button
+                         onClick={() => navigate('/Dashboard')}
+                         className="flex-1 bg-green-600 hover:bg-green-700"
+                       >
+                         Back to Garden
+                       </Button>
+                     </div>
+                   </>
+                 )}
               </>
             )}
           </CardContent>
