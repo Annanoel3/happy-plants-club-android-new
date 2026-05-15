@@ -2,12 +2,11 @@ import React, { useEffect, useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Droplets, AlertCircle, Sparkles, Mic, Filter, CheckCircle, Bell, BellOff } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { differenceInDays, parseISO } from "date-fns";
+import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X } from "lucide-react";
+
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
 import PullToRefresh from "@/components/PullToRefresh";
+import PlantTypeStack from "@/components/PlantTypeStack";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -16,8 +15,7 @@ export default function Dashboard() {
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'light';
   });
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [selectedType, setSelectedType] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [wateringRemindersEnabled, setWateringRemindersEnabled] = useState(true);
 
   useEffect(() => {
@@ -171,68 +169,28 @@ export default function Dashboard() {
   };
 
   const plantsList = Array.isArray(plants) ? plants : [];
-  
-  const allTags = useMemo(() => {
-    const tagSet = new Set();
-    plantsList.forEach(plant => {
-      if (plant.tags && Array.isArray(plant.tags)) {
-        plant.tags.forEach(tag => tagSet.add(tag));
-      }
+
+  // Group by plant type, filtered by search
+  const groupedPlants = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = q
+      ? plantsList.filter(p =>
+          (p.plant_type || '').toLowerCase().includes(q) ||
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.nickname || '').toLowerCase().includes(q)
+        )
+      : plantsList;
+
+    const groups = {};
+    filtered.forEach(plant => {
+      const type = plant.plant_type || 'Other';
+      if (!groups[type]) groups[type] = [];
+      groups[type].push(plant);
     });
-    return Array.from(tagSet).sort();
-  }, [plantsList]);
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [plantsList, searchQuery]);
 
-  const allPlantTypes = useMemo(() => {
-    const typeSet = new Set();
-    plantsList.forEach(plant => { if (plant.plant_type) typeSet.add(plant.plant_type); });
-    return Array.from(typeSet).sort();
-  }, [plantsList]);
 
-  const filteredPlants = useMemo(() => {
-    return plantsList.filter(plant => {
-      const tagMatch = selectedTags.length === 0 || (plant.tags && selectedTags.some(t => plant.tags.includes(t)));
-      const typeMatch = !selectedType || plant.plant_type === selectedType;
-      return tagMatch && typeMatch;
-    });
-  }, [plantsList, selectedTags, selectedType]);
-
-  const toggleTag = (tag) => {
-    setSelectedTags(prev => 
-      prev.includes(tag) 
-        ? prev.filter(t => t !== tag)
-        : [...prev, tag]
-    );
-  };
-
-  const getWateringStatus = (plant) => {
-    if (plant?.status === 'wilted') {
-      return { status: 'wilted', color: 'bg-red-200 text-red-900', text: 'HELP!', icon: AlertCircle };
-    }
-    
-    if (!plant?.next_watering_due) {
-      return { status: 'unknown', color: 'bg-gray-100 text-gray-700', text: 'Not set' };
-    }
-    
-    try {
-      const today = new Date();
-      const dueDate = parseISO(plant.next_watering_due);
-      const daysUntil = differenceInDays(dueDate, today);
-      
-      const isDarkTheme = theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'stpatricks' || theme === 'summer' || theme === 'fall' || theme === 'winter' || theme === 'dark';
-      
-      if (daysUntil < 0) {
-        return { status: 'overdue', color: 'bg-red-100 text-red-700', text: `${Math.abs(daysUntil)}d overdue`, icon: AlertCircle };
-      } else if (daysUntil === 0) {
-        return { status: 'today', color: 'bg-orange-100 text-orange-700', text: 'Today', icon: Droplets };
-      } else if (daysUntil <= 2) {
-        return { status: 'soon', color: isDarkTheme ? 'bg-yellow-600 text-white' : 'bg-yellow-100 text-yellow-700', text: `${daysUntil}d until watering`, icon: Droplets };
-      } else {
-        return { status: 'good', color: isDarkTheme ? 'bg-green-700 text-white' : 'bg-green-100 text-green-700', text: `${daysUntil}d until watering`, icon: Droplets };
-      }
-    } catch (e) {
-      return { status: 'unknown', color: 'bg-gray-100 text-gray-700', text: 'Invalid' };
-    }
-  };
 
   // Helper functions for theming
   const getThemedClasses = () => {
@@ -269,36 +227,7 @@ export default function Dashboard() {
     return 'text-gray-600';
   };
 
-  const getPlantCardFooterBgClass = () => {
-    if (theme === 'botanical') return 'bg-green-950/70';
-    if (theme === 'kawaii') return 'bg-pink-100/80';
-    if (theme === 'halloween') return 'bg-orange-950/70';
-    if (theme === 'dark') return 'bg-gray-900/70';
-    if (theme === 'christmas') return 'bg-red-950/70';
-    if (theme === 'valentines') return 'bg-pink-100/80';
-    if (theme === 'newyears') return 'bg-purple-950/70';
-    if (theme === 'stpatricks') return 'bg-green-100/80';
-    if (theme === 'fourthofjuly') return 'bg-blue-950/70';
-    if (theme === 'summer') return 'bg-orange-100/80';
-    if (theme === 'spring') return 'bg-purple-100/80';
-    if (theme === 'fall') return 'bg-amber-950/70';
-    if (theme === 'winter') return 'bg-blue-100/80';
-    return 'bg-white/90'; // light mode
-  };
 
-  const getPlantCardTextColor = () => {
-    // Dark themes need white text on dark backgrounds
-    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'fall') return 'text-white';
-    // Light themes
-    return 'text-gray-900';
-  };
-
-  const getPlantCardSecondaryTextColor = () => {
-    // Dark themes
-    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'fall') return 'text-white/90';
-    // Light themes
-    return 'text-gray-600';
-  };
 
   const getSeasonalThemes = () => {
     const now = new Date();
@@ -448,23 +377,6 @@ export default function Dashboard() {
   console.log('🌿 PlantsList:', plantsList.length, 'plants');
   const eventsList = Array.isArray(activeEvents) ? activeEvents : [];
 
-  const growthEmojis = {
-    seedling: '🌱',
-    small: '🌿',
-    medium: '🪴',
-    large: '🌳',
-    mature: '🌲'
-  };
-
-  const tierEmojis = {
-    'New Sprout': '🌱',
-    'Green Thumb': '🪴',
-    'Gold Thumb': '🏵️',
-    'Master Gardener': '🌳',
-    'Plant Whisperer': '✨',
-    'Legendary Botanist': '👑'
-  };
-
   // Check if there are plants needing water today
   const plantsNeedingWaterToday = plantsList.filter(plant => {
     if (!plant?.next_watering_due) return false;
@@ -476,13 +388,7 @@ export default function Dashboard() {
                                 !todayReminder.dismissed && 
                                 plantsNeedingWaterToday.length > 0;
 
-  // Watering status badge styling
-  const getStatusBadgeStyle = (status) => {
-    if (status === 'overdue' || status === 'wilted') return 'bg-red-500 text-white';
-    if (status === 'today') return 'bg-orange-500 text-white';
-    if (status === 'soon') return 'bg-amber-400 text-amber-900';
-    return 'bg-emerald-500 text-white';
-  };
+
 
   return (
     <>
@@ -582,65 +488,27 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Plant Type Filter */}
-          {allPlantTypes.length > 0 && (
-            <div className="mb-3">
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {allPlantTypes.map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setSelectedType(selectedType === type ? null : type)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
-                      selectedType === type
-                        ? 'bg-teal-600 text-white border-teal-600 shadow-md'
-                        : `${getThemedClasses()} ${getTextColor()}`
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
+          {/* Search */}
+          {plantsList.length > 0 && (
+            <div className={`relative mb-5 flex items-center rounded-2xl px-4 py-2.5 ${getThemedClasses()}`}>
+              <Search className={`w-4 h-4 flex-shrink-0 mr-3 ${getSecondaryTextColor()}`} />
+              <input
+                type="text"
+                placeholder="Search by type or name..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className={`flex-1 bg-transparent text-sm outline-none ${getTextColor()} placeholder:opacity-50`}
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')}>
+                  <X className={`w-4 h-4 ${getSecondaryTextColor()}`} />
+                </button>
+              )}
             </div>
           )}
 
-          {/* Tags Filter */}
-          {allTags.length > 0 && (
-            <div className="mb-5">
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {allTags.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
-                      selectedTags.includes(tag)
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
-                        : `${getThemedClasses()} ${getTextColor()}`
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                ))}
-                {selectedTags.length > 0 && (
-                  <button
-                    onClick={() => setSelectedTags([])}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${getSecondaryTextColor()}`}
-                  >
-                    ✕ Clear
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Plants Grid */}
-          {filteredPlants.length === 0 && selectedTags.length > 0 ? (
-            <div className={`text-center py-16 rounded-3xl ${getThemedClasses()}`}>
-              <p className={`text-base font-semibold ${getTextColor()}`}>No plants match these tags</p>
-              <button onClick={() => setSelectedTags([])} className="mt-3 text-emerald-500 text-sm font-bold">
-                Clear Filters
-              </button>
-            </div>
-          ) : plantsList.length === 0 ? (
+          {/* Stacked wallet cards grouped by plant type */}
+          {plantsList.length === 0 ? (
             <div className={`text-center py-20 rounded-3xl ${getThemedClasses()} px-8`}>
               <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-5">
                 <Sparkles className="w-10 h-10 text-emerald-500" />
@@ -656,83 +524,23 @@ export default function Dashboard() {
                 <Plus className="w-4 h-4" /> Add Your First Plant
               </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {filteredPlants.map((plant) => {
-                if (!plant || !plant.id) return null;
-                
-                const wateringStatus = getWateringStatus(plant);
-                const needsWaterToday = wateringStatus.status === 'today' || wateringStatus.status === 'overdue' || plant.status === 'wilted';
-                const displayName = plant.nickname || plant.name || 'Unknown Plant';
-                
-                return (
-                  <button key={plant.id} onClick={() => navigate(`/PlantDetail?id=${plant.id}`)} className="group text-left">
-                    {/* Full-bleed photo card — name lives on the image */}
-                    <div className={`relative rounded-3xl overflow-hidden shadow-lg active:scale-95 transition-all duration-200 ${
-                      plant.status === 'wilted' ? 'ring-2 ring-red-500' : ''
-                    }`} style={{ aspectRatio: '3/4' }}>
-
-                      {/* Photo / placeholder */}
-                      {plant.image_url ? (
-                        <img
-                          src={plant.image_url}
-                          alt={displayName}
-                          className={`absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${plant.status === 'wilted' ? 'grayscale' : ''}`}
-                        />
-                      ) : (
-                        <div className="absolute inset-0 bg-emerald-900/30 flex items-center justify-center">
-                          <span className="text-6xl">🪴</span>
-                        </div>
-                      )}
-
-                      {/* Strong bottom gradient for text legibility */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-                      {/* Top-right: watering status pill */}
-                      {!needsWaterToday && wateringStatus.status !== 'unknown' && (
-                        <span className={`absolute top-2.5 right-2.5 text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm ${getStatusBadgeStyle(wateringStatus.status)}`}>
-                          {wateringStatus.text}
-                        </span>
-                      )}
-
-                      {/* Top-left: growth stage */}
-                      {plant.growth_stage && (
-                        <span className="absolute top-2.5 left-2.5 text-base drop-shadow-md">
-                          {growthEmojis[plant.growth_stage]}
-                        </span>
-                      )}
-
-                      {/* Thirsty overlay */}
-                      {needsWaterToday && wateringRemindersEnabled && (
-                        <div className="absolute inset-0 bg-blue-900/40 backdrop-blur-[1px] flex flex-col items-center justify-center gap-1">
-                          <Droplets className="w-9 h-9 text-white drop-shadow-lg animate-bounce" />
-                          <span className="text-white text-xs font-bold tracking-wide drop-shadow-lg">Thirsty!</span>
-                        </div>
-                      )}
-
-                      {/* Bottom text overlay */}
-                      <div className="absolute bottom-0 left-0 right-0 p-3">
-                        <h3 className="text-white font-bold text-sm leading-tight line-clamp-1 drop-shadow-md">
-                          {displayName}
-                        </h3>
-                        {plant.environment && (
-                          <p className="text-white/70 text-[10px] mt-0.5 leading-tight">{plant.environment}</p>
-                        )}
-                        {plant.tags && plant.tags.length > 0 && (
-                          <div className="flex gap-1 mt-1.5 flex-wrap">
-                            {plant.tags.slice(0, 2).map(tag => (
-                              <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/20 text-white font-medium backdrop-blur-sm">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+          ) : groupedPlants.length === 0 ? (
+            <div className={`text-center py-12 rounded-3xl ${getThemedClasses()}`}>
+              <p className={`text-sm font-semibold ${getTextColor()}`}>No plants match your search</p>
+              <button onClick={() => setSearchQuery('')} className="mt-2 text-emerald-500 text-sm font-bold">Clear</button>
             </div>
+          ) : (
+            groupedPlants.map(([type, typePlants]) => (
+              <PlantTypeStack
+                key={type}
+                plantType={type}
+                plants={typePlants}
+                wateringRemindersEnabled={wateringRemindersEnabled}
+                themedClasses={getThemedClasses()}
+                textColor={getTextColor()}
+                secondaryTextColor={getSecondaryTextColor()}
+              />
+            ))
           )}
 
           <div className="mt-10 flex justify-center">
