@@ -73,7 +73,11 @@ export default function VoiceLog() {
       setAudioChunks(chunks);
     } catch (error) {
       console.error('Error starting recording:', error);
-      toast.error('Could not access microphone');
+      if (error.name === 'NotAllowedError') {
+        toast.error('Microphone permission denied. Check Android Settings > Apps > Happy Plants > Permissions');
+      } else {
+        toast.error('Could not access microphone');
+      }
     }
   };
 
