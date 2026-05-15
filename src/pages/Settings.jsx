@@ -436,7 +436,7 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className={`font-medium ${getTextColor()}`}>Custom Reminders</p>
-                    <p className={`text-sm ${getSecondaryTextColor()}`}>Get notified about scheduled tasks</p>
+                    <p className={`text-sm ${getSecondaryTextColor()}`}>Fertilizing, repotting, pruning & other plant care tasks you schedule</p>
                   </div>
                   <button
                     onClick={() => handleToggleNotification('notifications_reminders', !notificationsReminders)}

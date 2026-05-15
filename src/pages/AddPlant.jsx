@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { Camera, Mic, Keyboard, Plus, Loader2 } from "lucide-react";
@@ -20,6 +19,7 @@ export default function AddPlant() {
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     loadUser();
@@ -99,7 +99,7 @@ export default function AddPlant() {
         toast.error('Could not identify plant');
       }
     } catch (error) {
-      toast.error('Error processing image');
+      toast.error('Error processing image: ' + (error?.message || 'Unknown error'));
     } finally {
       setIsProcessing(false);
     }
@@ -218,26 +218,27 @@ export default function AddPlant() {
           </div>
 
           <div className="space-y-4">
-            <label className="cursor-pointer">
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleImageCapture}
-                className="hidden"
-              />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageCapture}
+              className="hidden"
+            />
+            <button className="w-full cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <Card className={`${getThemedClasses()} hover:scale-[1.02] transition-all`}>
                 <CardContent className="p-6 flex items-center gap-4">
                   <div className="w-16 h-16 bg-green-600 rounded-2xl flex items-center justify-center">
                     <Camera className="w-8 h-8 text-white" />
                   </div>
-                  <div>
+                  <div className="text-left">
                     <h3 className={`text-xl font-bold ${getTextColor()}`}>Take a Photo</h3>
                     <p className={`text-sm ${getSecondaryTextColor()}`}>Snap a pic and we'll identify it</p>
                   </div>
                 </CardContent>
               </Card>
-            </label>
+            </button>
 
             <button onClick={() => setMode('voice')} className="w-full">
               <Card className={`${getThemedClasses()} hover:scale-[1.02] transition-all`}>
