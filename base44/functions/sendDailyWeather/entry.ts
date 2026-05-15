@@ -2,25 +2,16 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
 
 Deno.serve(async (req) => {
     try {
-        const CRON_SECRET = Deno.env.get('CRON_SECRET');
+        const base44 = createClientFromRequest(req);
         
-        const url = new URL(req.url);
-        const providedSecret = url.searchParams.get('secret') || '';
-        
-        if (!CRON_SECRET || providedSecret !== CRON_SECRET) {
-            return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const base44 = createClientFromRequest(req, { serviceRole: true });
-        
-        const plants = await base44.entities.Plant.filter({});
+        const plants = await base44.asServiceRole.entities.Plant.list();
         
         let sent = 0;
         let skipped = 0;
 
         for (const plant of plants) {
             try {
-                const users = await base44.entities.User.filter({ 
+                const users = await base44.asServiceRole.entities.User.filter({ 
                     email: plant.created_by 
                 });
                 

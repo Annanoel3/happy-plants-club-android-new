@@ -37,14 +37,7 @@ function getScheduledSendTime(hour, today) {
 
 Deno.serve(async (req) => {
     try {
-        const url = new URL(req.url);
-        const secret = url.searchParams.get('secret');
-        
-        if (secret !== Deno.env.get('CRON_SECRET')) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const base44 = createClientFromRequest(req, { serviceRole: true });
+        const base44 = createClientFromRequest(req);
         
         const now = new Date();
         const today = getTodayInCentral();
