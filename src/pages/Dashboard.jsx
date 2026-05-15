@@ -7,7 +7,7 @@ import { categorizePlants } from "@/functions/categorizePlants";
 import SortFilterBar from "@/components/SortFilterBar";
 
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
-import PullToRefresh from "@/components/PullToRefresh";
+
 import PlantTypeStack from "@/components/PlantTypeStack";
 import BulkActionBar from "@/components/BulkActionBar";
 import { AnimatePresence } from "framer-motion";
@@ -470,8 +470,7 @@ export default function Dashboard() {
   return (
     <>
       <DailyWeatherPopup />
-      <PullToRefresh onRefresh={() => refetch()}>
-      <div className="min-h-screen theme-bg pb-28">
+      <div className="min-h-screen theme-bg pb-28 overflow-y-auto">
         <div className="max-w-6xl mx-auto px-4 pt-6">
 
           {/* Header: date + title */}
@@ -696,7 +695,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      </PullToRefresh>
 
       <AnimatePresence>
         {selectMode && (
