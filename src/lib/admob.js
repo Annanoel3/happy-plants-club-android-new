@@ -51,6 +51,13 @@ export async function maybeShowAdOnOpen() {
   const count = parseInt(localStorage.getItem('appOpenCount') || '0') + 1;
   localStorage.setItem('appOpenCount', String(count));
 
+  // Don't show ads on input-focused pages
+  const restrictedPages = ['/AddPlant', '/VoiceLog', '/Settings'];
+  const currentPath = window.location.pathname;
+  if (restrictedPages.some(page => currentPath.includes(page))) {
+    return;
+  }
+
   if (count % SHOW_EVERY_N_OPENS === 0) {
     await new Promise(resolve => setTimeout(resolve, AD_DELAY_MS));
     await showInterstitialAd();
