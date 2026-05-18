@@ -17,9 +17,10 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { message, conversation_id } = await req.json();
+        const { message, conversation_id, image_url } = await req.json();
         console.log('💭 User message:', message);
         console.log('📝 Conversation ID:', conversation_id);
+        console.log('📸 Image URL:', image_url ? 'Present' : 'None');
 
         // Get or create conversation
         let conversationHistory = [];
@@ -62,10 +63,17 @@ Be helpful, detailed, and encouraging.
 ${contextMessage}`;
 
         // Build full conversation
+        const userContent = image_url 
+            ? [
+                { type: 'text', text: message },
+                { type: 'image_url', image_url: { url: image_url } }
+              ]
+            : message;
+
         const messages = [
             { role: 'system', content: systemPrompt },
             ...conversationHistory,
-            { role: 'user', content: message }
+            { role: 'user', content: userContent }
         ];
 
         const response = await openai.chat.completions.create({
@@ -76,7 +84,7 @@ ${contextMessage}`;
         console.log('✅ Response generated');
         const reply = response.choices[0].message.content;
 
-        // Update conversation history
+        // Update conversation history (store as text for consistency)
         conversationHistory.push(
             { role: 'user', content: message },
             { role: 'assistant', content: reply }
