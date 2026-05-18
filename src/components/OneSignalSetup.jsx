@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { saveMyPlayerId } from '@/functions/saveMyPlayerId';
 
 // Helper function to detect if running in Capacitor mobile app
 function isRunningInCapacitor() {
@@ -60,8 +61,12 @@ export default function OneSignalSetup({ user }) {
             console.warn('[OneSignal] requestPermission threw (may already be granted):', permErr);
           }
           // Always call login regardless of permission result
-          await NotifyBridge.login({ externalId: externalId });
+          const loginResult = await NotifyBridge.login({ externalId: externalId });
           console.log('[OneSignal] ✅ login() sent for:', externalId);
+          if (loginResult?.playerId) {
+            console.log('[OneSignal] ✅ Got playerId:', loginResult.playerId, '— saving to user record');
+            await saveMyPlayerId({ playerId: loginResult.playerId });
+          }
         } else {
           console.log('[OneSignal] Calling NotifyBridge.logout()');
           await NotifyBridge.logout();
