@@ -19,18 +19,10 @@ Deno.serve(async (req) => {
             return Response.json({ success: false, error: "Missing OneSignal credentials" }, { status: 500 });
         }
 
-        // Get target user's player IDs using service role (no user auth needed)
-        const targetUsers = await base44.asServiceRole.entities.User.filter({ email: targetEmail });
-        const targetUser = targetUsers[0];
-        
-        if (!targetUser || !targetUser.onesignal_player_ids || targetUser.onesignal_player_ids.length === 0) {
-            console.log('No player IDs found for user:', targetEmail);
-            return Response.json({ success: false, error: 'User has no registered devices' });
-        }
-
         const payload = {
             app_id: appId.trim(),
-            include_player_ids: targetUser.onesignal_player_ids,
+            include_aliases: { external_id: [targetEmail] },
+            target_channel: 'push',
             headings: { en: title },
             contents: { en: message },
             data: data || {}
@@ -42,7 +34,7 @@ Deno.serve(async (req) => {
             payload.send_after = sendAt.toUTCString();
         }
 
-        console.log('Sending push to:', targetUser.onesignal_player_ids, send_after_seconds ? `scheduled for ${send_after_seconds}s` : 'immediate');
+        console.log('Sending push to:', targetEmail, send_after_seconds ? `scheduled for ${send_after_seconds}s` : 'immediate');
 
         const response = await fetch("https://onesignal.com/api/v1/notifications", {
             method: "POST",
