@@ -92,29 +92,38 @@ export default function PlantChat() {
   const handleVoiceRecord = async () => {
     if (!isRecording) {
       try {
+        console.log('🎤 Starting recording...');
         await VoiceRecorder.startRecording();
         setIsRecording(true);
+        toast.success('Recording started...');
       } catch (error) {
-        toast.error('Failed to start recording');
+        console.error('❌ Recording error:', error);
+        toast.error('Failed to start recording: ' + error.message);
       }
     } else {
       try {
+        console.log('⏹️ Stopping recording...');
         const result = await VoiceRecorder.stopRecording();
         setIsRecording(false);
+        console.log('📦 Recording result:', result);
 
         if (result.value?.recordDataBase64) {
           setIsProcessing(true);
+          toast.loading('Processing voice...');
           const audioBlob = new Blob([Uint8Array.from(atob(result.value.recordDataBase64), c => c.charCodeAt(0))], { type: 'audio/wav' });
           const { file_url } = await base44.integrations.Core.UploadFile({ file: audioBlob });
           const transcript = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
           setInputMessage(transcript);
           setIsProcessing(false);
           toast.success('Voice transcribed!');
+        } else {
+          toast.error('No audio recorded');
         }
       } catch (error) {
+        console.error('❌ Stop recording error:', error);
         setIsRecording(false);
         setIsProcessing(false);
-        toast.error('Failed to process voice');
+        toast.error('Failed to process voice: ' + error.message);
       }
     }
   };
