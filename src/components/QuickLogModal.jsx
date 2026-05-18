@@ -34,7 +34,8 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
               bytes[i] = binaryString.charCodeAt(i);
             }
             
-            const { file_url } = await base44.integrations.Core.UploadFile({ file: bytes });
+            const audioFile = new File([bytes], "audio.wav", { type: "audio/wav" });
+            const { file_url } = await base44.integrations.Core.UploadFile({ file: audioFile });
             const transcript = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
             
             // Auto-save after transcription
