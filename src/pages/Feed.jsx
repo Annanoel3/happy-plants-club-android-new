@@ -374,7 +374,7 @@ export default function Feed() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-    <div className="min-h-screen theme-bg p-6 pb-24">
+    <div className="min-h-screen theme-bg p-6 pb-24 overflow-y-auto">
       {/* Easter Egg GIF Popup */}
       <AnimatePresence>
         {showEasterEgg && (
@@ -419,7 +419,6 @@ export default function Feed() {
                 placeholder="Share something about your plants..."
                 value={newPost}
                 onChange={(e) => setNewPost(e.target.value)}
-                onFocus={(e) => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                 className={`mb-4 ${getInputClasses()}`}
               />
               
