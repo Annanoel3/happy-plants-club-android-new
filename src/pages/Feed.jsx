@@ -76,6 +76,8 @@ export default function Feed() {
       for (const notif of userNotifications) {
         await base44.entities.Notification.update(notif.id, { dismissed: true });
       }
+      // Invalidate query to clear the red dot
+      queryClient.invalidateQueries(['feedNotifications']);
     } catch (error) {
       console.error('Error loading user:', error);
     }

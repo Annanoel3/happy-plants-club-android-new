@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from 'framer-motion';
-import { chatWithExpert } from "@/functions/chatWithExpert";
 
 export default function PlantChat() {
   const navigate = useNavigate();
@@ -106,7 +105,7 @@ export default function PlantChat() {
     setIsProcessing(true);
 
     try {
-       const data = await chatWithExpert({
+       const data = await base44.functions.invoke('chatWithExpert', {
          message: userMessage,
          image_url: newUserMessage.image_url,
          conversation_id: conversationId
