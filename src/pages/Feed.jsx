@@ -319,10 +319,20 @@ export default function Feed() {
   };
 
   const handleCreatePost = () => {
+    console.log('handleCreatePost called', { newPost, uploadedImage });
     if (!newPost.trim() && !uploadedImage) { // Updated state names
       toast.error('Post cannot be empty');
       return;
     }
+
+    console.log('Creating post with:', {
+      content: newPost,
+      image_url: uploadedImage,
+      author_email: user.email,
+      author_name: user.full_name,
+      plant_id: selectedPlant?.id,
+      plant_name: selectedPlant?.nickname || selectedPlant?.name,
+    });
 
     createPostMutation.mutate({
       content: newPost, // Updated state name
