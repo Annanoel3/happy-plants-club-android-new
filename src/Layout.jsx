@@ -24,7 +24,6 @@ import NotificationPopup from "@/components/NotificationPopup";
 
 import OneSignalSetup from "@/components/OneSignalSetup";
 import ThemeMode from "@/components/ThemeMode";
-import PermissionsCheck from "@/components/PermissionsCheck";
 
 function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
@@ -370,7 +369,6 @@ export default function Layout({ children, currentPageName }) {
       <ThemeMode />
       <OneSignalSetup user={user} />
       <NotificationPopup user={user} />
-      <PermissionsCheck />
       <LayoutContent children={children} currentPageName={currentPageName} />
       
       <style>{`
