@@ -17,7 +17,16 @@ export default function DailyWeatherPopup() {
   });
 
   useEffect(() => {
-    checkAndShowWeather();
+    // Check if opened via push notification deep link
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('weather') === '1') {
+      // Remove the param from URL without reload
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+      checkAndShowWeather(true); // force show
+    } else {
+      checkAndShowWeather(false);
+    }
   }, []);
 
   const getWeatherImage = (message) => {
@@ -101,11 +110,11 @@ export default function DailyWeatherPopup() {
     }
   };
 
-  const checkAndShowWeather = async () => {
+  const checkAndShowWeather = async (forceShow = false) => {
     const today = new Date().toISOString().split('T')[0];
     const lastShown = localStorage.getItem('lastWeatherShown');
 
-    if (lastShown === today) {
+    if (!forceShow && lastShown === today) {
       return;
     }
 
@@ -146,7 +155,7 @@ export default function DailyWeatherPopup() {
           lowerCleanMessage.includes('extreme heat') ||
           lowerCleanMessage.includes('drought warning');
 
-        if (isMorning || isWeatherWarning) {
+        if (forceShow || isMorning || isWeatherWarning) {
             if (isNight && isWeatherWarning) {
                 cleanMessage = `Tonight's urgent warning: ${cleanMessage}`;
             } else if (isNight) {

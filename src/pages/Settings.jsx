@@ -38,6 +38,7 @@ export default function Settings() {
   const [notificationsComments, setNotificationsComments] = useState(true);
   const [notificationsFollows, setNotificationsFollows] = useState(true);
   const [notificationsWeather, setNotificationsWeather] = useState(true); // New weather notification state
+  const [weatherNotificationTime, setWeatherNotificationTime] = useState("09:00"); // Local time HH:MM
 
   useEffect(() => {
     loadUser();
@@ -77,6 +78,17 @@ export default function Settings() {
       setNotificationsComments(currentUser?.notifications_comments !== false);
       setNotificationsFollows(currentUser?.notifications_follows !== false);
       setNotificationsWeather(currentUser?.notifications_weather !== false); // Initialize new weather notification state
+
+      // Load weather notification time (stored as UTC hour, convert back to local)
+      if (currentUser?.weather_notification_hour !== undefined && currentUser?.weather_notification_hour !== null) {
+        const utcHour = currentUser.weather_notification_hour;
+        const localDate = new Date();
+        localDate.setUTCHours(utcHour, 0, 0, 0);
+        const localHour = localDate.getHours();
+        setWeatherNotificationTime(`${String(localHour).padStart(2, '0')}:00`);
+      } else {
+        setWeatherNotificationTime("09:00");
+      }
 
       // Initialize individual privacy states
       setProfilePrivate(currentUser?.profile_private === true);
@@ -181,6 +193,16 @@ export default function Settings() {
       toast.error('Failed to update notification settings');
     }
   });
+
+  const handleSaveWeatherTime = async (timeStr) => {
+    // Convert local HH:MM to UTC hour
+    const [localHour] = timeStr.split(':').map(Number);
+    const localDate = new Date();
+    localDate.setHours(localHour, 0, 0, 0);
+    const utcHour = localDate.getUTCHours();
+    setWeatherNotificationTime(timeStr);
+    updateNotificationMutation.mutate({ weather_notification_hour: utcHour });
+  };
 
   const handleToggleNotification = (key, value) => {
     if (key === 'notifications_watering') setNotificationsWatering(value);
@@ -486,7 +508,7 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className={`font-medium ${getTextColor()}`}>Daily Weather</p>
-                    <p className={`text-sm ${getSecondaryTextColor()}`}>Get daily weather updates for your plants</p>
+                    <p className={`text-sm ${getSecondaryTextColor()}`}>Get a push notification with plant weather each morning</p>
                   </div>
                   <button
                     onClick={() => handleToggleNotification('notifications_weather', !notificationsWeather)}
@@ -501,6 +523,20 @@ export default function Settings() {
                     />
                   </button>
                 </div>
+                {notificationsWeather && (
+                  <div className={`ml-4 pl-4 border-l-2 border-green-500/30 flex items-center gap-3`}>
+                    <div>
+                      <p className={`text-sm font-medium ${getTextColor()}`}>Notification Time</p>
+                      <p className={`text-xs ${getSecondaryTextColor()}`}>What time should we send it?</p>
+                    </div>
+                    <input
+                      type="time"
+                      value={weatherNotificationTime}
+                      onChange={(e) => handleSaveWeatherTime(e.target.value)}
+                      className={`rounded-lg px-3 py-2 text-sm border ${getInputClasses()}`}
+                    />
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
