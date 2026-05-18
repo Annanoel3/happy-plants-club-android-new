@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { identifyPlantWithExpert } from "@/functions/identifyPlantWithExpert";
+import { setMicActive } from "@/lib/admob";
 import { transcribeVoice } from "@/functions/transcribeVoice";
 import { processBulkPlants } from "@/functions/processBulkPlants";
 
@@ -167,6 +168,7 @@ export default function AddPlant() {
       recorder.start();
       setMediaRecorder(recorder);
       setIsRecording(true);
+      setMicActive(true);
     } catch (error) {
       toast.error('Could not access microphone');
     }
@@ -176,6 +178,7 @@ export default function AddPlant() {
     if (mediaRecorder) {
       mediaRecorder.stop();
       setIsRecording(false);
+      setMicActive(false);
     }
   };
 

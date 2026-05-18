@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { transcribeVoice } from "@/functions/transcribeVoice";
 import { processVoiceWatering } from "@/functions/processVoiceWatering";
 import { Capacitor } from "@capacitor/core";
+import { setMicActive } from "@/lib/admob";
 
 export default function VoiceLog() {
   const navigate = useNavigate();
@@ -83,6 +84,7 @@ export default function VoiceLog() {
       setMediaRecorder(recorder);
       setIsRecording(true);
       setAudioChunks(chunks);
+      setMicActive(true);
     } catch (error) {
       console.error('Error starting recording:', error);
       if (error.name === 'NotAllowedError') {
@@ -99,6 +101,7 @@ export default function VoiceLog() {
     if (mediaRecorder && mediaRecorder.state === 'recording') {
       mediaRecorder.stop();
       setIsRecording(false);
+      setMicActive(false);
     }
   };
 
