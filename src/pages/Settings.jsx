@@ -27,7 +27,8 @@ export default function Settings() {
   const [notificationsReminders, setNotificationsReminders] = useState(true);
   const [notificationsComments, setNotificationsComments] = useState(true);
   const [notificationsFollows, setNotificationsFollows] = useState(true);
-  const [notificationsWeather, setNotificationsWeather] = useState(true); // New weather notification state
+  const [notificationsWeather, setNotificationsWeather] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true); // Community engagement notifications
   const [weatherNotificationTime, setWeatherNotificationTime] = useState("09:00"); // Local time HH:MM
 
   useEffect(() => {
@@ -67,7 +68,8 @@ export default function Settings() {
       setNotificationsReminders(currentUser?.notifications_reminders !== false);
       setNotificationsComments(currentUser?.notifications_comments !== false);
       setNotificationsFollows(currentUser?.notifications_follows !== false);
-      setNotificationsWeather(currentUser?.notifications_weather !== false); // Initialize new weather notification state
+      setNotificationsWeather(currentUser?.notifications_weather !== false);
+      setNotificationsEnabled(currentUser?.notifications_enabled !== false);
 
       // Load weather notification time (stored as UTC hour, convert back to local)
       if (currentUser?.weather_notification_hour !== undefined && currentUser?.weather_notification_hour !== null) {
@@ -200,6 +202,7 @@ export default function Settings() {
     if (key === 'notifications_comments') setNotificationsComments(value);
     if (key === 'notifications_follows') setNotificationsFollows(value);
     if (key === 'notifications_weather') setNotificationsWeather(value);
+    if (key === 'notifications_enabled') setNotificationsEnabled(value);
     updateNotificationMutation.mutate({ [key]: value });
   };
 
@@ -459,23 +462,42 @@ export default function Settings() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className={`font-medium ${getTextColor()}`}>Follows</p>
-                    <p className={`text-sm ${getSecondaryTextColor()}`}>Get notified about new followers</p>
-                  </div>
-                  <button
-                    onClick={() => handleToggleNotification('notifications_follows', !notificationsFollows)}
-                    className={`w-12 h-6 rounded-full transition-colors ${
-                      notificationsFollows ? 'bg-green-600' : 'bg-gray-300'
-                    }`}
-                  >
-                    <div
-                      className={`w-5 h-5 bg-white rounded-full transition-transform ${
-                        notificationsFollows ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
+                   <div>
+                     <p className={`font-medium ${getTextColor()}`}>Follows</p>
+                     <p className={`text-sm ${getSecondaryTextColor()}`}>Get notified about new followers</p>
+                   </div>
+                   <button
+                     onClick={() => handleToggleNotification('notifications_follows', !notificationsFollows)}
+                     className={`w-12 h-6 rounded-full transition-colors ${
+                       notificationsFollows ? 'bg-green-600' : 'bg-gray-300'
+                     }`}
+                   >
+                     <div
+                       className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                         notificationsFollows ? 'translate-x-6' : 'translate-x-1'
+                       }`}
+                     />
+                   </button>
+                 </div>
+
+                <div className="flex items-center justify-between">
+                   <div>
+                     <p className={`font-medium ${getTextColor()}`}>Community Engagement</p>
+                     <p className={`text-sm ${getSecondaryTextColor()}`}>Likes and comments on your posts</p>
+                   </div>
+                   <button
+                     onClick={() => handleToggleNotification('notifications_enabled', !notificationsEnabled)}
+                     className={`w-12 h-6 rounded-full transition-colors ${
+                       notificationsEnabled ? 'bg-green-600' : 'bg-gray-300'
+                     }`}
+                   >
+                     <div
+                       className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                         notificationsEnabled ? 'translate-x-6' : 'translate-x-1'
+                       }`}
+                     />
+                   </button>
+                 </div>
 
                 <div className="flex items-center justify-between">
                   <div>

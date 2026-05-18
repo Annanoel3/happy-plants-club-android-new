@@ -183,13 +183,13 @@ function LayoutContent({ children, currentPageName }) {
       return notifs;
     },
     enabled: !!user,
-    refetchInterval: 30000,
+    refetchInterval: 15000,
   });
 
   const navigationItems = [
     { title: "My Garden", url: "/Dashboard", icon: Home },
     { title: "Schedule", url: "/Schedule", icon: Calendar },
-    { title: "Community", url: "/Feed", icon: MessageCircle, badge: feedNotifications.length },
+    { title: "Community", url: "/Feed", icon: MessageCircle, badge: user?.notifications_enabled !== false ? feedNotifications.length : 0 },
     { title: "Find Friends", url: "/Search", icon: Search, badge: pendingRequests.length },
     { title: "Plant Expert", url: "/PlantChat", icon: MessageCircle },
     { title: "Settings", url: "/Settings", icon: Settings },

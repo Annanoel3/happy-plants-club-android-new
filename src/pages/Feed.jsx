@@ -235,11 +235,26 @@ export default function Feed() {
           await base44.entities.Like.delete(likeToDelete.id);
         }
       } else {
+        const post = posts.find(p => p.id === postId);
         await base44.entities.Like.create({ post_id: postId, user_email: user.email });
+
+        if (post && post.created_by !== user.email) {
+            const postAuthor = await base44.functions.invoke('getUserByEmail', { email: post.created_by });
+            if (postAuthor?.data?.notifications_enabled !== false) {
+              await base44.entities.Notification.create({
+                user_email: post.created_by,
+                type: 'like',
+                message: `${user.full_name} liked your post`,
+                from_user_email: user.email,
+                from_user_name: user.full_name,
+                from_user_handle: user.handle,
+              });
+            }
+          }
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['userLikes']); // Invalidate the new query key
+      queryClient.invalidateQueries(['userLikes']);
       queryClient.invalidateQueries(['posts']);
     },
   });
@@ -269,16 +284,19 @@ export default function Feed() {
       console.log('Comment created successfully');
 
       if (post.created_by !== user.email) {
-        console.log('Creating notification...');
-        await base44.entities.Notification.create({
-          user_email: post.created_by,
-          type: 'comment',
-          message: `${user.full_name} commented on your post`,
-          from_user_email: user.email,
-          from_user_name: user.full_name,
-          from_user_handle: user.handle,
-        });
-      }
+         console.log('Creating notification...');
+         const postAuthor = await base44.functions.invoke('getUserByEmail', { email: post.created_by });
+         if (postAuthor?.data?.notifications_enabled !== false) {
+           await base44.entities.Notification.create({
+             user_email: post.created_by,
+             type: 'comment',
+             message: `${user.full_name} commented on your post`,
+             from_user_email: user.email,
+             from_user_name: user.full_name,
+             from_user_handle: user.handle,
+           });
+         }
+       }
     },
     onSuccess: (data, variables) => {
       console.log('Comment mutation succeeded');
