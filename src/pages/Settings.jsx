@@ -259,32 +259,13 @@ export default function Settings() {
   };
 
   const handleLogout = async () => {
-    try {
-      // Logout from OneSignal (web)
-      await window.OneSignal?.logout();
-      
-      // Logout from OneSignal (native/Capacitor via legacy function)
-      if (window.onNativePushLogout) {
-        window.onNativePushLogout();
-      }
-      
-      // Also call the Capacitor bridge directly
-      try {
-        await window.Capacitor?.Plugins?.NotifyBridge?.logout();
-        console.log("✅ Successfully unlinked device from OneSignal");
-      } catch (err) {
-        console.error("❌ Failed to unlink device from OneSignal", err);
-      }
-      
-      // Perform actual logout from base44
-      await base44.auth.logout();
-      
-      // Reload page to clear state and re-initialize
-      window.location.reload();
-    } catch (error) {
-      console.error("Error logging out:", error);
-      toast.error("Failed to logout");
-    }
+    // Best-effort OneSignal cleanup — never block actual logout
+    try { await window.OneSignal?.logout(); } catch (_) {}
+    try { window.onNativePushLogout?.(); } catch (_) {}
+    try { await window.Capacitor?.Plugins?.NotifyBridge?.logout(); } catch (_) {}
+
+    // Always proceed with base44 logout
+    await base44.auth.logout();
   };
 
   if (isLoading) {
