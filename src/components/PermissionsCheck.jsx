@@ -19,26 +19,34 @@ export default function PermissionsCheck() {
   const requestMic = async () => {
     setMicStatus('requesting');
     try {
-      // This line triggers the REAL OS permission dialog
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(t => t.stop());
       setMicStatus('granted');
-    } catch {
+    } catch (err) {
       setMicStatus('denied');
-      setDeniedWarning('mic');
+      // Only show the warning if the user explicitly denied (not if the browser/env blocked it)
+      if (err && err.name === 'NotAllowedError') {
+        setDeniedWarning('mic');
+      } else {
+        // Environment doesn't support it (iframe, no HTTPS, etc.) — treat as skipped
+        setDeniedWarning(null);
+      }
     }
   };
 
   const requestCamera = async () => {
     setCameraStatus('requesting');
     try {
-      // This line triggers the REAL OS permission dialog
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       stream.getTracks().forEach(t => t.stop());
       setCameraStatus('granted');
-    } catch {
+    } catch (err) {
       setCameraStatus('denied');
-      setDeniedWarning('camera');
+      if (err && err.name === 'NotAllowedError') {
+        setDeniedWarning('camera');
+      } else {
+        setDeniedWarning(null);
+      }
     }
   };
 
