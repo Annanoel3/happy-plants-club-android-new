@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
-import { Send, Loader2, Sparkles, Camera } from "lucide-react";
+import { Send, Loader2, Sparkles, Camera, Mic, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from 'framer-motion';
+import { VoiceRecorder } from 'capacitor-voice-recorder';
 
 export default function PlantChat() {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export default function PlantChat() {
   const [currentGif, setCurrentGif] = useState(0);
   const [uploadedImage, setUploadedImage] = useState(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const imageInputRef = useRef(null);
   
   const easterEggGifs = [
@@ -84,6 +86,36 @@ export default function PlantChat() {
       toast.error('Failed to upload image');
     } finally {
       setIsUploadingImage(false);
+    }
+  };
+
+  const handleVoiceRecord = async () => {
+    if (!isRecording) {
+      try {
+        await VoiceRecorder.startRecording();
+        setIsRecording(true);
+      } catch (error) {
+        toast.error('Failed to start recording');
+      }
+    } else {
+      try {
+        const result = await VoiceRecorder.stopRecording();
+        setIsRecording(false);
+
+        if (result.value?.recordDataBase64) {
+          setIsProcessing(true);
+          const audioBlob = new Blob([Uint8Array.from(atob(result.value.recordDataBase64), c => c.charCodeAt(0))], { type: 'audio/wav' });
+          const { file_url } = await base44.integrations.Core.UploadFile({ file: audioBlob });
+          const transcript = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
+          setInputMessage(transcript);
+          setIsProcessing(false);
+          toast.success('Voice transcribed!');
+        }
+      } catch (error) {
+        setIsRecording(false);
+        setIsProcessing(false);
+        toast.error('Failed to process voice');
+      }
     }
   };
 
@@ -306,6 +338,19 @@ export default function PlantChat() {
                  <Loader2 className="w-4 h-4 animate-spin" />
                ) : (
                  <Camera className="w-4 h-4" />
+               )}
+             </Button>
+             <Button
+               variant="outline"
+               size="icon"
+               onClick={handleVoiceRecord}
+               disabled={isProcessing}
+               className={`${getThemedClasses()} ${isRecording ? 'animate-pulse' : ''}`}
+             >
+               {isRecording ? (
+                 <Square className="w-4 h-4 text-red-500" />
+               ) : (
+                 <Mic className="w-4 h-4" />
                )}
              </Button>
              <Input
