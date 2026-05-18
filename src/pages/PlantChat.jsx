@@ -297,6 +297,9 @@ export default function PlantChat() {
                   ? getPrimaryButtonClasses() + ' text-white'
                   : getThemedClasses()
               }`}>
+                {msg.image_url && (
+                  <img src={msg.image_url} alt="Uploaded" className="max-w-full h-auto rounded-lg mb-2" />
+                )}
                 <p className={`text-sm whitespace-pre-wrap ${
                   msg.role === 'user' ? 'text-white' : getTextColor()
                 }`}>
