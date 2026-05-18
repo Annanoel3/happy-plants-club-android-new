@@ -23,12 +23,12 @@ export default function PermissionsCheck() {
       stream.getTracks().forEach(t => t.stop());
       setMicStatus('granted');
     } catch (err) {
+      console.log('[PermissionsCheck] mic error name:', err?.name, 'message:', err?.message);
       setMicStatus('denied');
-      // Only show the warning if the user explicitly denied (not if the browser/env blocked it)
-      if (err && err.name === 'NotAllowedError') {
+      // NotAllowedError = user explicitly denied; anything else = env issue
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
         setDeniedWarning('mic');
       } else {
-        // Environment doesn't support it (iframe, no HTTPS, etc.) — treat as skipped
         setDeniedWarning(null);
       }
     }
@@ -41,8 +41,9 @@ export default function PermissionsCheck() {
       stream.getTracks().forEach(t => t.stop());
       setCameraStatus('granted');
     } catch (err) {
+      console.log('[PermissionsCheck] camera error name:', err?.name, 'message:', err?.message);
       setCameraStatus('denied');
-      if (err && err.name === 'NotAllowedError') {
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
         setDeniedWarning('camera');
       } else {
         setDeniedWarning(null);
