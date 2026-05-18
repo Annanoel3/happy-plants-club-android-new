@@ -88,7 +88,11 @@ export default function PlantChat() {
   };
 
   const handleSend = async () => {
-    if (!inputMessage.trim() || isProcessing) return;
+    console.log('🔵 handleSend called, input:', inputMessage, 'isProcessing:', isProcessing);
+    if (!inputMessage.trim() || isProcessing) {
+      console.log('❌ Early return - input empty or already processing');
+      return;
+    }
 
     const userMessage = inputMessage.trim();
 
