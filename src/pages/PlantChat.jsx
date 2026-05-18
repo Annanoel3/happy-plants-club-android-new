@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
-import { Send, Loader2, Sparkles } from "lucide-react";
+import { Send, Loader2, Sparkles, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -21,6 +20,9 @@ export default function PlantChat() {
 
   const [showEasterEgg, setShowEasterEgg] = useState(false);
   const [currentGif, setCurrentGif] = useState(0);
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const imageInputRef = useRef(null);
   
   const easterEggGifs = [
     'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcWp5dzh5dGJ4dHFyZGRsMzZyMzJwOGJyZGRsMzZyMzJwOGJy/giphy.gif',
@@ -70,6 +72,22 @@ export default function PlantChat() {
     }
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setUploadedImage(file_url);
+      toast.success('Image uploaded!');
+    } catch (error) {
+      toast.error('Failed to upload image');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handleSend = async () => {
     if (!inputMessage.trim() || isProcessing) return;
 
@@ -79,15 +97,18 @@ export default function PlantChat() {
 
     const newUserMessage = {
       role: 'user',
-      content: userMessage
+      content: userMessage,
+      image_url: uploadedImage
     };
     
     setMessages(prev => [...prev, newUserMessage]);
+    setUploadedImage(null);
     setIsProcessing(true);
 
     try {
       const data = await chatWithExpert({
         message: userMessage,
+        image_url: newUserMessage.image_url,
         conversation_id: conversationId
       });
 
@@ -245,26 +266,57 @@ export default function PlantChat() {
       </div>
 
       <div className={`border-t theme-border p-3 flex-shrink-0 ${getThemedClasses()}`}>
-        <div className="max-w-4xl mx-auto">
-          <div className="flex gap-2">
-            <Input
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-              placeholder="Ask about a plant..."
-              disabled={isProcessing}
-              className={getInputClasses()}
-            />
-            <Button
-              onClick={handleSend}
-              disabled={isProcessing || !inputMessage.trim()}
-              className={getPrimaryButtonClasses()}
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
+         <div className="max-w-4xl mx-auto">
+           {uploadedImage && (
+             <div className="mb-3 relative inline-block">
+               <img src={uploadedImage} alt="Preview" className="h-20 rounded-lg" />
+               <button
+                 onClick={() => setUploadedImage(null)}
+                 className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+               >
+                 ×
+               </button>
+             </div>
+           )}
+           <div className="flex gap-2">
+             <input
+               ref={imageInputRef}
+               type="file"
+               accept="image/*"
+               onChange={handleImageUpload}
+               className="hidden"
+             />
+             <Button
+               variant="outline"
+               size="icon"
+               onClick={() => imageInputRef.current?.click()}
+               disabled={isUploadingImage}
+               className={`${getThemedClasses()}`}
+             >
+               {isUploadingImage ? (
+                 <Loader2 className="w-4 h-4 animate-spin" />
+               ) : (
+                 <Camera className="w-4 h-4" />
+               )}
+             </Button>
+             <Input
+               value={inputMessage}
+               onChange={(e) => setInputMessage(e.target.value)}
+               onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+               placeholder="Ask about a plant..."
+               disabled={isProcessing}
+               className={getInputClasses()}
+             />
+             <Button
+               onClick={handleSend}
+               disabled={isProcessing || !inputMessage.trim()}
+               className={getPrimaryButtonClasses()}
+             >
+               <Send className="w-4 h-4" />
+             </Button>
+           </div>
+         </div>
+       </div>
     </div>
   );
 }
