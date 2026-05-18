@@ -40,7 +40,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
             
             // Auto-save after transcription
             await base44.functions.invoke("processVoiceNotes", {
-              message: transcript,
+              transcript: transcript,
             });
             
             toast.success("Log saved!");
@@ -69,7 +69,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
     setIsProcessing(true);
     try {
       await base44.functions.invoke("processVoiceNotes", {
-        message: inputMessage,
+        transcript: inputMessage,
       });
       toast.success("Log saved!");
       setInputMessage("");
