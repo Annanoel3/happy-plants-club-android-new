@@ -409,6 +409,7 @@ export default function Feed() {
                 placeholder="Share something about your plants..."
                 value={newPost}
                 onChange={(e) => setNewPost(e.target.value)}
+                onFocus={(e) => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                 className={`mb-4 ${getInputClasses()}`}
               />
               
