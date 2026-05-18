@@ -53,29 +53,23 @@ Deno.serve(async (req) => {
 
 ${plantContext}
 
-IMPORTANT: This message is shown in the MORNING (6 AM - 12 PM). Focus on TODAY'S weather during daylight hours.
+IMPORTANT: 
+- This message is shown in the MORNING (6 AM - 12 PM). Focus on TODAY'S weather during daylight hours.
+- ${hasOutdoorPlants ? 'The user HAS outdoor plants, so mention exposure to weather elements.' : 'The user has ONLY indoor plants, so focus on how weather affects indoor conditions (humidity, light, temperature indoors).'}
+- ${hasIndoorPlants && !hasOutdoorPlants ? 'Do NOT mention moving plants outside, storms affecting plants directly, or bringing plants inside. Instead, focus on how the weather might affect their home (humidity, light levels, indoor temperature).' : ''}
 
 ONLY mention tonight/nighttime if:
 1. Tonight will have actual hazards (frost below 35°F, freezing, storms, heavy rain, strong winds)
-2. In that case, add a brief warning: "Watch out for [hazard] tonight - [specific action]"
+2. In that case, add a brief warning with action specific to their plant types
 
 If tonight will be normal/mild, DO NOT mention nighttime at all.
 
 Write a warm, encouraging message (2-3 sentences max) that:
-- Describes today's daytime weather in terms of how plants will experience it
+- Describes today's weather in terms of how plants will experience it
 - ONLY mentions tonight if it will be hazardous
-- Gives practical daytime advice (watering, shade, etc.)
+- Gives practical daytime advice appropriate for their plant types
 - Uses friendly, conversational language
 - Includes relevant emoji
-
-Examples (morning messages with hazard warning):
-- "Beautiful sunny day ahead at 75°F! ☀️ Your plants are going to love soaking up those rays. Just watch out for frost tonight (28°F) - bring sensitive outdoor plants inside."
-- "Pleasant day today at 60°F with some clouds. ☁️ A comfortable day for your plants! Note: It'll freeze tonight, so cover your outdoor plants or bring them inside."
-
-Examples (morning messages without hazard):
-- "It's going to rain today! 🌧️ Your outdoor plants are going to be so happy - they'll get a nice natural watering. Indoor plants might enjoy a little extra humidity from the weather too!"
-- "Beautiful sunny day ahead at 75°F! ☀️ Your plants are going to love soaking up those rays. Make sure they're getting enough water to stay hydrated in the warmth."
-- "Mild and cloudy today around 65°F. ☁️ A nice comfortable day for your plants!"
 
 Return ONLY the message text, no extra formatting.`,
             add_context_from_internet: true
