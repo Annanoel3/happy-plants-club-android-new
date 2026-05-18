@@ -137,8 +137,6 @@ export default function PlantChat() {
 
     const userMessage = inputMessage.trim();
 
-    setInputMessage("");
-
     const newUserMessage = {
       role: 'user',
       content: userMessage,
@@ -146,6 +144,7 @@ export default function PlantChat() {
     };
 
     setMessages(prev => [...prev, newUserMessage]);
+    setInputMessage("");
     setUploadedImage(null);
     setIsProcessing(true);
     console.log('📤 Sending message:', { userMessage, image_url: uploadedImage, conversationId });
