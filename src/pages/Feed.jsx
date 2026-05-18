@@ -246,20 +246,30 @@ export default function Feed() {
 
   const commentMutation = useMutation({
     mutationFn: async ({ postId, content }) => {
+      console.log('Moderating comment...');
       const moderated = await base44.functions.invoke('moderateContent', { content });
+      console.log('Moderation result:', moderated);
       if (!moderated.data.appropriate) {
         throw new Error('Comment contains inappropriate content');
       }
       
+      console.log('Creating comment in DB...');
       const post = posts.find(p => p.id === postId);
+      if (!post) {
+        console.error('Post not found:', postId);
+        throw new Error('Post not found');
+      }
+      
       await base44.entities.Comment.create({
         post_id: postId,
         content,
         author_email: user.email,
         author_name: user.full_name,
       });
+      console.log('Comment created successfully');
 
       if (post.created_by !== user.email) {
+        console.log('Creating notification...');
         await base44.entities.Notification.create({
           user_email: post.created_by,
           type: 'comment',
@@ -271,11 +281,13 @@ export default function Feed() {
       }
     },
     onSuccess: (data, variables) => {
+      console.log('Comment mutation succeeded');
       queryClient.invalidateQueries(['comments']);
-      setCommentInputs(prev => ({ ...prev, [variables.postId]: "" })); // Clear specific comment input
+      setCommentInputs(prev => ({ ...prev, [variables.postId]: "" }));
       toast.success('Comment added!');
     },
     onError: (error) => {
+      console.error('Comment mutation error:', error);
       toast.error(error.message || 'Failed to add comment');
     },
   });
