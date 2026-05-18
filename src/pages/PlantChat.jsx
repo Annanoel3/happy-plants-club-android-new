@@ -143,27 +143,37 @@ export default function PlantChat() {
 
     try {
        console.log('🔄 Invoking chatWithExpert...');
-       const data = await base44.functions.invoke('chatWithExpert', {
+       const response = await base44.functions.invoke('chatWithExpert', {
          message: userMessage,
          image_url: newUserMessage.image_url,
          conversation_id: conversationId
        });
-       console.log('✅ Response received:', data);
+       console.log('✅ Response received:', response);
 
-       if (data.error) {
+       // Extract the actual response data
+       const data = response?.data || response;
+       console.log('📦 Extracted data:', data);
+
+       if (data?.error) {
          toast.error(data.error);
          setMessages(prev => prev.slice(0, -1));
          return;
        }
 
-       if (data.conversation_id && !conversationId) {
-         setConversationId(data.conversation_id);
-       }
+       if (data?.message) {
+         if (data.conversation_id && !conversationId) {
+           setConversationId(data.conversation_id);
+         }
 
-       setMessages(prev => [...prev, {
-         role: 'assistant',
-         content: data.message
-       }]);
+         setMessages(prev => [...prev, {
+           role: 'assistant',
+           content: data.message
+         }]);
+       } else {
+         console.error('❌ No message in response:', data);
+         toast.error('No response from expert');
+         setMessages(prev => prev.slice(0, -1));
+       }
      } catch (error) {
        console.error('❌ Error in chat:', error);
        toast.error(error.message || "Failed to send message");
