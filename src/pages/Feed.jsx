@@ -70,6 +70,12 @@ export default function Feed() {
     try {
       const currentUser = await base44.auth.me();
       setUser(currentUser);
+      
+      // Mark all notifications as dismissed when Feed is visited
+      const userNotifications = await base44.entities.Notification.filter({ user_email: currentUser.email, dismissed: false });
+      for (const notif of userNotifications) {
+        await base44.entities.Notification.update(notif.id, { dismissed: true });
+      }
     } catch (error) {
       console.error('Error loading user:', error);
     }
