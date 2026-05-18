@@ -6,13 +6,7 @@ const isNative = () => window.Capacitor?.isNativePlatform?.() ?? false;
 
 async function requestMicPermission() {
   if (isNative()) {
-    const NotifyBridge = window.Capacitor?.Plugins?.NotifyBridge;
-    if (NotifyBridge?.requestPermission) {
-      try {
-        await NotifyBridge.requestPermission();
-      } catch (_) {}
-    }
-    // Check actual mic status via getUserMedia
+    // On native, trigger the OS dialog via getUserMedia — this is the most reliable cross-platform approach
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(t => t.stop());
@@ -21,7 +15,6 @@ async function requestMicPermission() {
       return false;
     }
   }
-  // Web fallback
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   stream.getTracks().forEach(t => t.stop());
   return true;
@@ -31,10 +24,9 @@ async function requestCameraPermission() {
   if (isNative()) {
     const Camera = window.Capacitor?.Plugins?.Camera;
     if (Camera) {
-      try {
-        await Camera.requestPermissions({ permissions: ['camera', 'photos'] });
-      } catch (_) {}
-      // Check actual result after requesting
+      // Request first (shows OS dialog)
+      try { await Camera.requestPermissions({ permissions: ['camera', 'photos'] }); } catch (_) {}
+      // Then check the real status — don't trust the request result directly
       try {
         const check = await Camera.checkPermissions();
         return check?.camera === 'granted' || check?.photos === 'granted';
@@ -42,7 +34,6 @@ async function requestCameraPermission() {
     }
     return false;
   }
-  // Web fallback
   const stream = await navigator.mediaDevices.getUserMedia({ video: true });
   stream.getTracks().forEach(t => t.stop());
   return true;
