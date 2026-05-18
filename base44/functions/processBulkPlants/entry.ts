@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { plant_names } = await req.json();
+        const { plant_names, location, environment } = await req.json();
 
         if (!plant_names || !Array.isArray(plant_names) || plant_names.length === 0) {
             return Response.json({ error: 'No plant names provided' }, { status: 400 });
@@ -77,7 +77,9 @@ Extract only actual plant names. Skip filler words like "I have a", "and", "also
             const newPlant = await base44.entities.Plant.create({
                 ...plantData,
                 last_watered: today,
-                next_watering_due: nextWatering.toISOString().split('T')[0]
+                next_watering_due: nextWatering.toISOString().split('T')[0],
+                ...(location ? { location } : {}),
+                ...(environment ? { environment } : {})
             });
 
             addedPlants.push(newPlant);

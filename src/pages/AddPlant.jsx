@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
-import { Camera, Mic, Keyboard, Plus, Loader2 } from "lucide-react";
+import { Camera, Mic, Keyboard, Plus, Loader2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,21 @@ import { toast } from "sonner";
 import { identifyPlantWithExpert } from "@/functions/identifyPlantWithExpert";
 import { transcribeVoice } from "@/functions/transcribeVoice";
 import { processBulkPlants } from "@/functions/processBulkPlants";
+
+const AREA_OPTIONS = [
+  { label: "🏠 Living Room",    value: "Living Room",    environment: "Indoor" },
+  { label: "🍳 Kitchen",        value: "Kitchen",        environment: "Indoor" },
+  { label: "🛏 Bedroom",        value: "Bedroom",        environment: "Indoor" },
+  { label: "🪟 Window Sill",    value: "Window Sill",    environment: "Window Sill" },
+  { label: "💼 Office",         value: "Office",         environment: "Office" },
+  { label: "🌿 Greenhouse",     value: "Greenhouse",     environment: "Greenhouse" },
+  { label: "🌳 Garden",         value: "Garden",         environment: "Outdoor" },
+  { label: "🌞 Deck / Patio",   value: "Deck",           environment: "Patio" },
+  { label: "🏡 Balcony",        value: "Balcony",        environment: "Balcony" },
+  { label: "🌱 Raised Bed",     value: "Raised Bed",     environment: "Outdoor" },
+  { label: "🏕 Front Yard",     value: "Front Yard",     environment: "Outdoor" },
+  { label: "🌾 Backyard",       value: "Backyard",       environment: "Outdoor" },
+];
 
 export default function AddPlant() {
   const navigate = useNavigate();
@@ -19,6 +34,7 @@ export default function AddPlant() {
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+  const [selectedArea, setSelectedArea] = useState(null);
   const fileInputRef = useRef(null);
   const [loadingIndex, setLoadingIndex] = useState(0);
 
@@ -95,6 +111,7 @@ export default function AddPlant() {
     setIsProcessing(true);
     try {
       const today = new Date().toISOString().split('T')[0];
+      const area = AREA_OPTIONS.find(a => a.value === selectedArea);
 
       const results = await Promise.allSettled(
         files.map(async (file) => {
@@ -109,7 +126,8 @@ export default function AddPlant() {
             ...plantData,
             image_url: file_url,
             last_watered: today,
-            next_watering_due: nextWatering.toISOString().split('T')[0]
+            next_watering_due: nextWatering.toISOString().split('T')[0],
+            ...(area ? { location: area.value, environment: area.environment } : {})
           });
           return plantData.name;
         })
@@ -174,8 +192,10 @@ export default function AddPlant() {
         return;
       }
 
+      const area = AREA_OPTIONS.find(a => a.value === selectedArea);
       const result = await processBulkPlants({
-        plant_names: [transcriptData.transcript]
+        plant_names: [transcriptData.transcript],
+        ...(area ? { location: area.value, environment: area.environment } : {})
       });
 
       if (result.success) {
@@ -200,8 +220,10 @@ export default function AddPlant() {
     setIsProcessing(true);
     try {
       // Pass the raw text — processBulkPlants will extract plant names via AI
+      const area = AREA_OPTIONS.find(a => a.value === selectedArea);
       const result = await processBulkPlants({
-        plant_names: [plantNames.trim()]
+        plant_names: [plantNames.trim()],
+        ...(area ? { location: area.value, environment: area.environment } : {})
       });
 
       if (result.success) {
@@ -255,10 +277,38 @@ export default function AddPlant() {
     return (
       <div className="min-h-screen theme-bg p-6 pb-24">
         <div className="max-w-md mx-auto">
-          <div className={`mb-8 rounded-2xl p-6 inline-block ${getThemedClasses()}`}>
+          <div className={`mb-6 rounded-2xl p-6 inline-block ${getThemedClasses()}`}>
             <h1 className={`text-4xl font-bold mb-2 ${getTextColor()}`}>Add Plants</h1>
             <p className={getSecondaryTextColor()}>Choose how you'd like to add your plants</p>
           </div>
+
+          {/* Area Selector — prominent, required feel */}
+          <Card className={`${getThemedClasses()} mb-6`}>
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <MapPin className="w-5 h-5 text-green-500" />
+                <p className={`font-bold text-lg ${getTextColor()}`}>Where do these plants live?</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {AREA_OPTIONS.map((area) => (
+                  <button
+                    key={area.value}
+                    onClick={() => setSelectedArea(area.value)}
+                    className={`px-3 py-2 rounded-xl text-sm font-medium transition-all border ${
+                      selectedArea === area.value
+                        ? 'bg-green-600 text-white border-green-600 scale-105'
+                        : `border-gray-300/50 ${getSecondaryTextColor()} hover:border-green-500`
+                    }`}
+                  >
+                    {area.label}
+                  </button>
+                ))}
+              </div>
+              {!selectedArea && (
+                <p className="text-xs text-amber-500 mt-2">⚠ Pick an area so we can tailor care advice</p>
+              )}
+            </CardContent>
+          </Card>
 
           <div className="space-y-4">
             <input
