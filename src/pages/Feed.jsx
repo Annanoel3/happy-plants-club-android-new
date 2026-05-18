@@ -209,7 +209,7 @@ export default function Feed() {
   const createPostMutation = useMutation({
     mutationFn: async (postData) => {
       const moderated = await base44.functions.invoke('moderateContent', { content: postData.content });
-      if (!moderated.data.approved) {
+      if (!moderated.data.appropriate) {
         throw new Error('Post contains inappropriate content');
       }
       return base44.entities.Post.create(postData);
@@ -247,7 +247,7 @@ export default function Feed() {
   const commentMutation = useMutation({
     mutationFn: async ({ postId, content }) => {
       const moderated = await base44.functions.invoke('moderateContent', { content });
-      if (!moderated.data.approved) {
+      if (!moderated.data.appropriate) {
         throw new Error('Comment contains inappropriate content');
       }
       
