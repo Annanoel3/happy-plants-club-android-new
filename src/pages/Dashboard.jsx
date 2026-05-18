@@ -122,26 +122,8 @@ export default function Dashboard() {
     queryKey: ['plants', user?.email],
     queryFn: async () => {
       try {
-        console.log('🌱 Fetching plants for user:', user?.email);
         const result = await base44.entities.Plant.filter({ created_by: user.email });
-        console.log('📦 Raw result:', result);
-        console.log('📊 Is array?', Array.isArray(result));
-        console.log('📏 Length:', Array.isArray(result) ? result.length : 'N/A');
-        
-        if (!result) {
-          console.log('⚠️ No result returned');
-          return [];
-        }
-        if (Array.isArray(result)) {
-          console.log('✅ Returning array with', result.length, 'plants');
-          return result;
-        }
-        if (result.data && Array.isArray(result.data)) {
-          console.log('✅ Returning result.data with', result.data.length, 'plants');
-          return result.data;
-        }
-        console.log('⚠️ Unknown result format, returning empty array');
-        return [];
+        return Array.isArray(result) ? result : (result?.data || []);
       } catch (err) {
         console.error("❌ Error fetching plants:", err);
         return [];
@@ -154,10 +136,7 @@ export default function Dashboard() {
     refetchOnMount: true,
   });
 
-  console.log('🎨 Dashboard render - plants:', plants);
-  console.log('🎨 Dashboard render - isLoading:', isLoading);
-  console.log('🎨 Dashboard render - user:', user?.email);
-  console.log('🎨 Dashboard render - authChecked:', authChecked);
+
 
   const { data: activeEvents = [] } = useQuery({
     queryKey: ['activeEvents', user?.email],
@@ -451,7 +430,6 @@ export default function Dashboard() {
     );
   }
 
-  console.log('🌿 PlantsList:', plantsList.length, 'plants');
   const eventsList = Array.isArray(activeEvents) ? activeEvents : [];
 
   // Check if there are plants needing water today

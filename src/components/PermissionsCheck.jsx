@@ -6,19 +6,20 @@ const isNative = () => window.Capacitor?.isNativePlatform?.() ?? false;
 
 async function requestMicPermission() {
   if (isNative()) {
-    // Use Capacitor Microphone plugin if available
-    const Microphone = window.Capacitor?.Plugins?.Microphone;
-    if (Microphone) {
-      const result = await Microphone.requestPermissions();
-      return result?.microphone === 'granted' || result?.microphone === 'prompt-with-rationale';
+    const NotifyBridge = window.Capacitor?.Plugins?.NotifyBridge;
+    if (NotifyBridge?.requestPermission) {
+      try {
+        await NotifyBridge.requestPermission();
+      } catch (_) {}
     }
-    // Fallback: Camera plugin sometimes covers audio too
-    const Camera = window.Capacitor?.Plugins?.Camera;
-    if (Camera) {
-      const result = await Camera.requestPermissions({ permissions: ['microphone'] });
-      return result?.microphone === 'granted';
+    // Check actual mic status via getUserMedia
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+      return true;
+    } catch (_) {
+      return false;
     }
-    return false;
   }
   // Web fallback
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -30,8 +31,14 @@ async function requestCameraPermission() {
   if (isNative()) {
     const Camera = window.Capacitor?.Plugins?.Camera;
     if (Camera) {
-      const result = await Camera.requestPermissions({ permissions: ['camera', 'photos'] });
-      return result?.camera === 'granted' || result?.photos === 'granted';
+      try {
+        await Camera.requestPermissions({ permissions: ['camera', 'photos'] });
+      } catch (_) {}
+      // Check actual result after requesting
+      try {
+        const check = await Camera.checkPermissions();
+        return check?.camera === 'granted' || check?.photos === 'granted';
+      } catch (_) {}
     }
     return false;
   }
