@@ -2,11 +2,50 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, Camera, CheckCircle, X, AlertCircle } from "lucide-react";
 
+const isNative = () => window.Capacitor?.isNativePlatform?.() ?? false;
+
+async function requestMicPermission() {
+  if (isNative()) {
+    // Use Capacitor Microphone plugin if available
+    const Microphone = window.Capacitor?.Plugins?.Microphone;
+    if (Microphone) {
+      const result = await Microphone.requestPermissions();
+      return result?.microphone === 'granted' || result?.microphone === 'prompt-with-rationale';
+    }
+    // Fallback: Camera plugin sometimes covers audio too
+    const Camera = window.Capacitor?.Plugins?.Camera;
+    if (Camera) {
+      const result = await Camera.requestPermissions({ permissions: ['microphone'] });
+      return result?.microphone === 'granted';
+    }
+    return false;
+  }
+  // Web fallback
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  stream.getTracks().forEach(t => t.stop());
+  return true;
+}
+
+async function requestCameraPermission() {
+  if (isNative()) {
+    const Camera = window.Capacitor?.Plugins?.Camera;
+    if (Camera) {
+      const result = await Camera.requestPermissions({ permissions: ['camera', 'photos'] });
+      return result?.camera === 'granted' || result?.photos === 'granted';
+    }
+    return false;
+  }
+  // Web fallback
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  stream.getTracks().forEach(t => t.stop());
+  return true;
+}
+
 export default function PermissionsCheck() {
   const [showPrompt, setShowPrompt] = useState(false);
-  const [micStatus, setMicStatus] = useState('idle'); // idle | requesting | granted | denied
+  const [micStatus, setMicStatus] = useState('idle');
   const [cameraStatus, setCameraStatus] = useState('idle');
-  const [deniedWarning, setDeniedWarning] = useState(null); // null | 'mic' | 'camera'
+  const [deniedWarning, setDeniedWarning] = useState(null);
   const [allDone, setAllDone] = useState(false);
 
   useEffect(() => {
@@ -19,35 +58,34 @@ export default function PermissionsCheck() {
   const requestMic = async () => {
     setMicStatus('requesting');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(t => t.stop());
-      setMicStatus('granted');
-    } catch (err) {
-      console.log('[PermissionsCheck] mic error name:', err?.name, 'message:', err?.message);
-      setMicStatus('denied');
-      // NotAllowedError = user explicitly denied; anything else = env issue
-      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        setDeniedWarning('mic');
+      const granted = await requestMicPermission();
+      if (granted) {
+        setMicStatus('granted');
       } else {
-        setDeniedWarning(null);
+        setMicStatus('denied');
+        setDeniedWarning('mic');
       }
+    } catch (err) {
+      console.log('[Permissions] mic error:', err?.name, err?.message);
+      setMicStatus('denied');
+      setDeniedWarning('mic');
     }
   };
 
   const requestCamera = async () => {
     setCameraStatus('requesting');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach(t => t.stop());
-      setCameraStatus('granted');
-    } catch (err) {
-      console.log('[PermissionsCheck] camera error name:', err?.name, 'message:', err?.message);
-      setCameraStatus('denied');
-      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        setDeniedWarning('camera');
+      const granted = await requestCameraPermission();
+      if (granted) {
+        setCameraStatus('granted');
       } else {
-        setDeniedWarning(null);
+        setCameraStatus('denied');
+        setDeniedWarning('camera');
       }
+    } catch (err) {
+      console.log('[Permissions] camera error:', err?.name, err?.message);
+      setCameraStatus('denied');
+      setDeniedWarning('camera');
     }
   };
 
@@ -58,7 +96,6 @@ export default function PermissionsCheck() {
 
   const dismissDeniedWarning = () => {
     setDeniedWarning(null);
-    // If both have been decided, close the whole popup
     const micDone = micStatus !== 'idle' && micStatus !== 'requesting';
     const camDone = cameraStatus !== 'idle' && cameraStatus !== 'requesting';
     if (micDone && camDone) {
@@ -67,7 +104,6 @@ export default function PermissionsCheck() {
     }
   };
 
-  // Auto-close with success when both granted
   useEffect(() => {
     if (micStatus === 'granted' && cameraStatus === 'granted') {
       setAllDone(true);
@@ -126,8 +162,8 @@ export default function PermissionsCheck() {
                   </p>
                   <p className={`text-sm ${subText}`}>
                     {deniedWarning === 'mic'
-                      ? "You won't be able to add plants or log watering by voice — you'll need to type everything manually."
-                      : "You won't be able to use AI plant health checks or add plant photos to your garden."}
+                      ? "You won't be able to add plants or log watering by voice."
+                      : "You won't be able to identify plants or do health checks with photos."}
                   </p>
                   <p className="text-xs mt-2 text-amber-500 font-medium">You can allow this anytime in your device Settings.</p>
                 </div>
