@@ -33,7 +33,11 @@ function LayoutContent({ children, currentPageName }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'light';
+    const saved = localStorage.getItem('theme');
+    if (!saved) {
+      localStorage.setItem('theme', 'light');
+    }
+    return saved || 'light';
   });
 
   useEffect(() => {
