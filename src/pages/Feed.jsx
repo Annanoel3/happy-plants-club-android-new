@@ -249,11 +249,14 @@ export default function Feed() {
                 from_user_name: user.full_name,
                 from_user_handle: user.handle,
               });
-              await base44.functions.invoke('sendPushNotification', {
-                email: post.created_by,
-                title: 'New Like',
-                body: `${user.full_name} liked your post`,
-              });
+              // Push notification intentionally disabled to avoid duplicate notifications
+              // Users already get the in-app red badge notification
+              // Uncomment below if needed with a valid deeplink
+              // await base44.functions.invoke('sendPushNotification', {
+              //   target_email: post.created_by,
+              //   title: 'New Like',
+              //   message: `${user.full_name} liked your post`,
+              // });
             }
           }
       }
@@ -300,11 +303,14 @@ export default function Feed() {
              from_user_name: user.full_name,
              from_user_handle: user.handle,
            });
-           await base44.functions.invoke('sendPushNotification', {
-             email: post.created_by,
-             title: 'New Comment',
-             body: `${user.full_name} commented on your post`,
-           });
+           // Push notification intentionally disabled to avoid duplicate notifications
+             // Users already get the in-app red badge notification
+             // Uncomment below if needed with a valid deeplink
+             // await base44.functions.invoke('sendPushNotification', {
+             //   target_email: post.created_by,
+             //   title: 'New Comment',
+             //   message: `${user.full_name} commented on your post`,
+             // });
          }
        }
     },
