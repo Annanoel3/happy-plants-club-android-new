@@ -41,18 +41,19 @@ async function checkAndRequestCamera() {
   }
 }
 
-export default function PermissionsCheck() {
+export default function PermissionsCheck({ user }) {
   const [showPrompt, setShowPrompt] = useState(false);
   const [micStatus, setMicStatus] = useState('idle');
   const [cameraStatus, setCameraStatus] = useState('idle');
   const [allDone, setAllDone] = useState(false);
 
   useEffect(() => {
+    if (!user) return; // Wait until user is authenticated
     const alreadyAsked = localStorage.getItem('permissions_asked');
     if (alreadyAsked) return;
     const timer = setTimeout(() => setShowPrompt(true), 2000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [user]);
 
   const requestMic = async () => {
     setMicStatus('requesting');

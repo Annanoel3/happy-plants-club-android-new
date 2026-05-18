@@ -374,7 +374,7 @@ export default function Layout({ children, currentPageName }) {
       <ThemeMode />
       <OneSignalSetup user={user} />
       <NotificationPopup user={user} />
-      <PermissionsCheck />
+      <PermissionsCheck user={user} />
       <LayoutContent children={children} currentPageName={currentPageName} />
       
       <style>{`
