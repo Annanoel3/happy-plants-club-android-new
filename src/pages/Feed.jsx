@@ -201,7 +201,7 @@ export default function Feed() {
 
   const { data: userPlants = [] } = useQuery({
     queryKey: ['userPlants', user?.email],
-    queryFn: () => base44.entities.Plant.filter({ user_email: user.email }),
+    queryFn: () => base44.entities.Plant.filter({ created_by: user.email }),
     enabled: !!user,
     initialData: [],
   });
