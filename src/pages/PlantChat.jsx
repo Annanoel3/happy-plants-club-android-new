@@ -91,7 +91,7 @@ export default function PlantChat() {
     if (!inputMessage.trim() || isProcessing) return;
 
     const userMessage = inputMessage.trim();
-    
+
     setInputMessage("");
 
     const newUserMessage = {
@@ -99,17 +99,20 @@ export default function PlantChat() {
       content: userMessage,
       image_url: uploadedImage
     };
-    
+
     setMessages(prev => [...prev, newUserMessage]);
     setUploadedImage(null);
     setIsProcessing(true);
+    console.log('📤 Sending message:', { userMessage, image_url: uploadedImage, conversationId });
 
     try {
+       console.log('🔄 Invoking chatWithExpert...');
        const data = await base44.functions.invoke('chatWithExpert', {
          message: userMessage,
          image_url: newUserMessage.image_url,
          conversation_id: conversationId
        });
+       console.log('✅ Response received:', data);
 
        if (data.error) {
          toast.error(data.error);
@@ -126,7 +129,7 @@ export default function PlantChat() {
          content: data.message
        }]);
      } catch (error) {
-       console.error('Error in chat:', error);
+       console.error('❌ Error in chat:', error);
        toast.error(error.message || "Failed to send message");
        setMessages(prev => prev.slice(0, -1));
      } finally {
