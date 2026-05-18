@@ -7,6 +7,7 @@ import { categorizePlants } from "@/functions/categorizePlants";
 import SortFilterBar from "@/components/SortFilterBar";
 
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
+import QuickLogModal from "@/components/QuickLogModal";
 
 import PlantTypeStack from "@/components/PlantTypeStack";
 import BulkActionBar from "@/components/BulkActionBar";
@@ -27,6 +28,7 @@ export default function Dashboard() {
   const [categorizing, setCategorizing] = useState(false);
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('garden_sortBy') || null);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('garden_viewMode') || 'stack');
+  const [showQuickLog, setShowQuickLog] = useState(false);
 
   useEffect(() => {
     checkAuthentication();
@@ -467,10 +469,10 @@ export default function Dashboard() {
                 <Plus className="w-3 h-3" /> Add
               </button>
               <button
-                onClick={() => navigate('/VoiceLog')}
+                onClick={() => setShowQuickLog(true)}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 ${getThemedClasses()} ${getTextColor()}`}
               >
-                <Mic className="w-3 h-3" /> Voice
+                <Mic className="w-3 h-3" /> Quick Log
               </button>
             </div>
           </div>
@@ -681,6 +683,13 @@ export default function Dashboard() {
             allPlants={plantsList}
             onDone={handleBulkDone}
             onCancel={toggleSelectMode}
+          />
+        )}
+        {showQuickLog && (
+          <QuickLogModal
+            isOpen={showQuickLog}
+            onClose={() => setShowQuickLog(false)}
+            theme={theme}
           />
         )}
       </AnimatePresence>
