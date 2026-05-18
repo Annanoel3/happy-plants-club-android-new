@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
-import { Send, Loader2, Sparkles, Camera, Mic, Square } from "lucide-react";
+import { Send, Loader2, Sparkles, Camera, Mic, Square, PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
+import { useSidebar } from "@/components/ui/sidebar";
 
 export default function PlantChat() {
   const navigate = useNavigate();
+  const { toggleSidebar } = useSidebar();
   const [user, setUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
@@ -280,20 +282,30 @@ export default function PlantChat() {
       </AnimatePresence>
 
       <div className={`border-b theme-border p-3 flex-shrink-0 ${getThemedClasses()} relative`}>
-        <div className="max-w-4xl mx-auto">
-          <h1 className={`text-xl font-bold flex items-center gap-2 ${getTextColor()}`}>
-            <Sparkles className="w-5 h-5 text-green-600" />
-            Plant Expert
-          </h1>
-          <p className={`text-xs ${getSecondaryTextColor()}`}>Ask me anything about plants!</p>
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleSidebar}
+              className={`md:hidden p-2 rounded-lg transition-opacity hover:opacity-70 ${getTextColor()}`}
+            >
+              <PanelLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className={`text-xl font-bold flex items-center gap-2 ${getTextColor()}`}>
+                <Sparkles className="w-5 h-5 text-green-600" />
+                Plant Expert
+              </h1>
+              <p className={`text-xs ${getSecondaryTextColor()}`}>Ask me anything about plants!</p>
+            </div>
+          </div>
+          
+          <button
+            onClick={handleEasterEggClick}
+            className="text-[8px] opacity-20 hover:opacity-40 transition-opacity"
+          >
+            🌱
+          </button>
         </div>
-        
-        <button
-          onClick={handleEasterEggClick}
-          className="absolute bottom-2 right-2 text-[8px] opacity-20 hover:opacity-40 transition-opacity"
-        >
-          🌱
-        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
