@@ -19,22 +19,36 @@ Deno.serve(async (req) => {
             return Response.json({ success: false, error: "Missing OneSignal credentials" }, { status: 500 });
         }
 
+        // Look up the user's saved player IDs as fallback
+        let playerIds = [];
+        try {
+            const users = await base44.asServiceRole.entities.User.filter({ email: targetEmail });
+            playerIds = users[0]?.onesignal_player_ids || [];
+        } catch (_) {}
+
+        // Build payload — prefer external_id alias, fall back to player IDs if we have them
         const payload = {
             app_id: appId.trim(),
-            include_aliases: { external_id: [targetEmail] },
-            target_channel: 'push',
             headings: { en: title },
             contents: { en: message },
             data: data || {}
         };
 
-        // OneSignal expects send_after as a UTC datetime string: "2015-09-24 14:00:00 GMT-0700"
+        if (playerIds.length > 0) {
+            // Use direct player IDs — most reliable
+            payload.include_player_ids = playerIds;
+            console.log('Sending push via player IDs:', playerIds, 'to:', targetEmail);
+        } else {
+            // Fall back to external_id alias
+            payload.include_aliases = { external_id: [targetEmail] };
+            payload.target_channel = 'push';
+            console.log('Sending push via external_id alias to:', targetEmail);
+        }
+
         if (send_after_seconds && send_after_seconds > 0) {
             const sendAt = new Date(Date.now() + send_after_seconds * 1000);
             payload.send_after = sendAt.toUTCString();
         }
-
-        console.log('Sending push to:', targetEmail, send_after_seconds ? `scheduled for ${send_after_seconds}s` : 'immediate');
 
         const response = await fetch("https://onesignal.com/api/v1/notifications", {
             method: "POST",
@@ -51,7 +65,7 @@ Deno.serve(async (req) => {
         if (!response.ok || result.errors) {
             return Response.json({
                 success: false,
-                error: result.errors?.[0] || "Failed to send notification",
+                error: "Failed to send notification",
                 details: result
             });
         }
