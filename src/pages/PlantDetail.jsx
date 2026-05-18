@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -832,19 +831,40 @@ export default function PlantDetail() {
                     {wateringStatus.text}
                   </div>
 
+                  {/* Location Section - PROMINENT */}
+                  <div className="mb-6 pb-6 border-b border-green-500/30">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className={`font-bold text-lg flex items-center gap-2 ${getTextColor()}`}>
+                        <MapPin className="w-5 h-5 text-green-500" />
+                        Where is this plant?
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowEditDialog(true)}
+                        className={`${getThemedClasses()} ${getTextColor()}`}
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {plant.location ? (
+                        <div className="px-4 py-3 rounded-lg bg-green-100 dark:bg-green-900/30 border border-green-300/50">
+                          <p className={`font-semibold text-green-900 dark:text-green-100`}>{plant.location}</p>
+                        </div>
+                      ) : (
+                        <p className={`text-sm italic ${getSecondaryTextColor()}`}>Location not set yet</p>
+                      )}
+                      {plant.environment && (
+                        <div className="text-sm flex items-center gap-2">
+                          <span className="text-gray-400">•</span>
+                          <span className={getSecondaryTextColor()}>{plant.environment}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="space-y-3">
-                    {plant.location && (
-                      <div className="flex items-center gap-3">
-                        <MapPin className={`w-5 h-5 ${getSecondaryTextColor()}`} />
-                        <span className={getTextColor()}>{plant.location}</span>
-                      </div>
-                    )}
-                    {plant.environment && (
-                      <div className="flex items-center gap-3">
-                        <Calendar className={`w-5 h-5 ${getSecondaryTextColor()}`} />
-                        <span className={getTextColor()}>{plant.environment}</span>
-                      </div>
-                    )}
                     {plant.last_watered && (
                       <div className="flex items-center gap-3">
                         <Droplets className={`w-5 h-5 ${getSecondaryTextColor()}`} />
