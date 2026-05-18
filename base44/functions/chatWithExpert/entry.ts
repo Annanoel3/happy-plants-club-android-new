@@ -22,6 +22,17 @@ Deno.serve(async (req) => {
         console.log('📝 Conversation ID:', conversation_id);
         console.log('📸 Image URL:', image_url ? 'Present' : 'None');
 
+        // Moderate user message
+        console.log('🔍 Moderating message...');
+        const moderated = await base44.functions.invoke('moderateContent', { content: message });
+        if (!moderated.data.appropriate) {
+            console.log('❌ Message flagged as inappropriate');
+            return Response.json({ 
+                error: 'Your message contains inappropriate content. Please keep the conversation respectful.',
+                conversation_id: conversation_id
+            }, { status: 400 });
+        }
+
         // Get or create conversation
         let conversationHistory = [];
         let convId = conversation_id;

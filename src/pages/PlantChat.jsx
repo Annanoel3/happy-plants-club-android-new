@@ -106,30 +106,33 @@ export default function PlantChat() {
     setIsProcessing(true);
 
     try {
-      const data = await chatWithExpert({
-        message: userMessage,
-        image_url: newUserMessage.image_url,
-        conversation_id: conversationId
-      });
+       const data = await chatWithExpert({
+         message: userMessage,
+         image_url: newUserMessage.image_url,
+         conversation_id: conversationId
+       });
 
-      if (data.conversation_id && !conversationId) {
-        setConversationId(data.conversation_id);
-      }
+       if (data.error) {
+         toast.error(data.error);
+         setMessages(prev => prev.slice(0, -1));
+         return;
+       }
 
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: data.message
-      }]);
-    } catch (error) {
-      console.error('Error in chat:', error);
-      toast.error("Failed to send message");
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: "Sorry, I encountered an error. Please try again."
-      }]);
-    } finally {
-      setIsProcessing(false);
-    }
+       if (data.conversation_id && !conversationId) {
+         setConversationId(data.conversation_id);
+       }
+
+       setMessages(prev => [...prev, {
+         role: 'assistant',
+         content: data.message
+       }]);
+     } catch (error) {
+       console.error('Error in chat:', error);
+       toast.error(error.message || "Failed to send message");
+       setMessages(prev => prev.slice(0, -1));
+     } finally {
+       setIsProcessing(false);
+     }
   };
 
   const handleEasterEggClick = () => {
