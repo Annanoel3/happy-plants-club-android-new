@@ -27,16 +27,29 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
 
         if (result.value?.recordDataBase64) {
           setIsProcessing(true);
-          toast.loading("Processing voice...");
-          const audioBlob = new Blob(
-            [Uint8Array.from(atob(result.value.recordDataBase64), c => c.charCodeAt(0))],
-            { type: "audio/wav" }
-          );
-          const { file_url } = await base44.integrations.Core.UploadFile({ file: audioBlob });
-          const transcript = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
-          setInputMessage(transcript);
-          setIsProcessing(false);
-          toast.success("Voice transcribed!");
+          try {
+            const binaryString = atob(result.value.recordDataBase64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            
+            const { file_url } = await base44.integrations.Core.UploadFile({ file: bytes });
+            const transcript = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
+            
+            // Auto-save after transcription
+            await base44.functions.invoke("processVoiceNotes", {
+              message: transcript,
+            });
+            
+            toast.success("Log saved!");
+            setInputMessage("");
+            onClose();
+          } catch (error) {
+            console.error("Error processing audio:", error);
+            toast.error("Failed to process audio: " + error.message);
+            setIsProcessing(false);
+          }
         } else {
           toast.error("No audio recorded");
         }
