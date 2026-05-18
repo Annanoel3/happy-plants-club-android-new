@@ -1,39 +1,34 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, Camera, CheckCircle, X, AlertCircle } from "lucide-react";
+import { Mic, Camera as CameraIcon, CheckCircle, X, AlertCircle } from "lucide-react";
 
 const isNative = () => window.Capacitor?.isNativePlatform?.() ?? false;
 
+// Microphone: getUserMedia IS the correct way (no official @capacitor/microphone plugin)
+// It triggers the native OS permission dialog on both iOS and Android via Capacitor's WebView bridge
 async function checkAndRequestMic() {
-  if (isNative()) {
-    const MicPlugin = window.Capacitor?.Plugins?.Microphone;
-    if (MicPlugin) {
-      const status = await MicPlugin.checkPermissions();
-      if (status?.microphone === 'granted') return 'granted';
-      if (status?.microphone === 'denied') return 'denied';
-      const result = await MicPlugin.requestPermissions();
-      return result?.microphone === 'granted' ? 'granted' : 'denied';
-    }
-  }
-  // Web fallback
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach(t => t.stop());
     return 'granted';
-  } catch (_) {
+  } catch (err) {
     return 'denied';
   }
 }
 
+// Camera: use @capacitor/camera plugin for proper native permission flow
 async function checkAndRequestCamera() {
   if (isNative()) {
-    const CameraPlugin = window.Capacitor?.Plugins?.Camera;
-    if (CameraPlugin) {
-      const status = await CameraPlugin.checkPermissions();
-      if (status?.camera === 'granted') return 'granted';
-      if (status?.camera === 'denied') return 'denied';
-      const result = await CameraPlugin.requestPermissions({ permissions: ['camera', 'photos'] });
-      return result?.camera === 'granted' ? 'granted' : 'denied';
+    try {
+      const Camera = window.Capacitor?.Plugins?.Camera;
+      if (Camera) {
+        const status = await Camera.checkPermissions();
+        if (status.camera === 'granted') return 'granted';
+        const result = await Camera.requestPermissions({ permissions: ['camera', 'photos'] });
+        return result.camera === 'granted' ? 'granted' : 'denied';
+      }
+    } catch (_) {
+      return 'denied';
     }
   }
   // Web fallback
@@ -91,7 +86,6 @@ export default function PermissionsCheck() {
   const textColor = isDark ? 'text-white' : 'text-gray-900';
   const subText = isDark ? 'text-gray-400' : 'text-gray-500';
   const rowBg = isDark ? 'bg-white/5' : 'bg-gray-50';
-  const warnBg = isDark ? 'bg-amber-900/30 border-amber-700/50' : 'bg-amber-50 border-amber-200';
 
   const bothHandled = micStatus !== 'idle' && micStatus !== 'requesting' &&
                       cameraStatus !== 'idle' && cameraStatus !== 'requesting';
@@ -103,7 +97,6 @@ export default function PermissionsCheck() {
 
       <div className={`relative w-full max-w-sm rounded-3xl border shadow-2xl overflow-hidden ${cardBg}`}>
 
-        {/* Header */}
         <div className="px-6 pt-6 pb-4">
           <div className="flex items-start justify-between">
             <div>
@@ -116,7 +109,6 @@ export default function PermissionsCheck() {
           </div>
         </div>
 
-        {/* All done state */}
         {allDone && (
           <div className="px-6 pb-6 text-center">
             <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-green-100 flex items-center justify-center">
@@ -126,7 +118,6 @@ export default function PermissionsCheck() {
           </div>
         )}
 
-        {/* Permission rows */}
         {!allDone && (
           <div className="px-6 pb-6 space-y-3">
             {/* Microphone row */}
@@ -142,9 +133,7 @@ export default function PermissionsCheck() {
                   </div>
                 </div>
                 {micStatus === 'idle' && (
-                  <Button size="sm" onClick={requestMic} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4">
-                    Enable
-                  </Button>
+                  <Button size="sm" onClick={requestMic} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4">Enable</Button>
                 )}
                 {micStatus === 'requesting' && (
                   <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
@@ -153,7 +142,9 @@ export default function PermissionsCheck() {
                 {micStatus === 'denied' && <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0" />}
               </div>
               {micStatus === 'denied' && (
-                <p className="text-xs text-amber-500 mt-2 ml-14">To enable, go to your device Settings → Happy Plants → Microphone.</p>
+                <p className="text-xs text-amber-500 mt-2 ml-14">
+                  To enable, go to your device <strong>Settings → Happy Plants → Microphone</strong>.
+                </p>
               )}
             </div>
 
@@ -162,7 +153,7 @@ export default function PermissionsCheck() {
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-2xl bg-green-100 flex items-center justify-center flex-shrink-0">
-                    <Camera className="w-5 h-5 text-green-600" />
+                    <CameraIcon className="w-5 h-5 text-green-600" />
                   </div>
                   <div>
                     <p className={`font-semibold text-sm ${textColor}`}>Camera & Gallery</p>
@@ -170,9 +161,7 @@ export default function PermissionsCheck() {
                   </div>
                 </div>
                 {cameraStatus === 'idle' && (
-                  <Button size="sm" onClick={requestCamera} className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-4">
-                    Enable
-                  </Button>
+                  <Button size="sm" onClick={requestCamera} className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-4">Enable</Button>
                 )}
                 {cameraStatus === 'requesting' && (
                   <div className="w-5 h-5 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
@@ -181,7 +170,9 @@ export default function PermissionsCheck() {
                 {cameraStatus === 'denied' && <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0" />}
               </div>
               {cameraStatus === 'denied' && (
-                <p className="text-xs text-amber-500 mt-2 ml-14">To enable, go to your device Settings → Happy Plants → Camera.</p>
+                <p className="text-xs text-amber-500 mt-2 ml-14">
+                  To enable, go to your device <strong>Settings → Happy Plants → Camera</strong>.
+                </p>
               )}
             </div>
 
