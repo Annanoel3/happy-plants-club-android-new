@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { motion, AnimatePresence } from 'framer-motion';
-import PullToRefresh from "@/components/PullToRefresh";
+
 
 export default function Feed() {
   const navigate = useNavigate();
@@ -351,7 +351,11 @@ export default function Feed() {
 
   const handleComment = (postId) => {
     const content = commentInputs[postId]; // Updated state name
-    if (!content?.trim()) return;
+    if (!content?.trim()) {
+      toast.error('Comment cannot be empty');
+      return;
+    }
+    console.log('Submitting comment:', { postId, content });
     commentMutation.mutate({ postId, content });
   };
 
@@ -368,13 +372,8 @@ export default function Feed() {
 
   // Removed userLocation as filter is removed from UI
 
-  const handleRefresh = async () => {
-    await refetch();
-  };
-
   return (
-    <PullToRefresh onRefresh={handleRefresh}>
-    <div className="min-h-screen theme-bg p-6 pb-24 overflow-y-auto">
+    <div className="min-h-screen theme-bg p-6 pb-24">
       {/* Easter Egg GIF Popup */}
       <AnimatePresence>
         {showEasterEgg && (
@@ -641,6 +640,5 @@ export default function Feed() {
         </div>
       </div>
     </div>
-    </PullToRefresh>
   );
 }
