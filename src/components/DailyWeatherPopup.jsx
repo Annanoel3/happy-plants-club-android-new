@@ -1,13 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Cloud } from "lucide-react";
+import { Cloud, X } from "lucide-react";
 
 export default function DailyWeatherPopup() {
   const [isOpen, setIsOpen] = useState(false);
@@ -183,21 +177,33 @@ export default function DailyWeatherPopup() {
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className={`max-w-md border-2 ${getThemedClasses()} [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:opacity-70`}>
-        <DialogHeader>
-          <DialogTitle className={`flex items-center gap-2 text-xl ${getTextColor()}`}>
-            <Cloud className="w-6 h-6 text-blue-500" />
-            Today's Plant Weather
-          </DialogTitle>
-        </DialogHeader>
-        
-        <div className="py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
+      
+      {/* Modal */}
+      <div className={`relative w-full max-w-md rounded-2xl border-2 p-6 shadow-2xl ${getThemedClasses()}`}>
+        {/* Close button */}
+        <button
+          onClick={handleClose}
+          className={`absolute top-4 right-4 ${getSecondaryTextColor()} hover:opacity-70 transition-opacity`}
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Title */}
+        <div className={`flex items-center gap-2 text-xl font-bold mb-4 ${getTextColor()}`}>
+          <Cloud className="w-6 h-6 text-blue-500" />
+          Today's Plant Weather
+        </div>
+
+        {/* Content */}
+        <div className="py-2">
           {weatherImage && (
             <div className="flex justify-center mb-6">
-              <img 
-                src={weatherImage} 
-                alt="Weather illustration" 
+              <img
+                src={weatherImage}
+                alt="Weather illustration"
                 className="w-48 h-48 object-contain"
               />
             </div>
@@ -206,13 +212,13 @@ export default function DailyWeatherPopup() {
           <p className={`text-base leading-relaxed text-center ${getTextColor()}`}>{weatherMessage}</p>
         </div>
 
-        <Button 
+        <Button
           onClick={handleClose}
-          className={`w-full ${getButtonClasses()}`}
+          className={`w-full mt-4 ${getButtonClasses()}`}
         >
           Got it! 🌿
         </Button>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
