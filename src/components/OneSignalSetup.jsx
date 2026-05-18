@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { saveMyPlayerId } from '@/functions/saveMyPlayerId';
+import { setOneSignalExternalUserId } from '@/functions/setOneSignalExternalUserId';
 
 // Helper function to detect if running in Capacitor mobile app
 function isRunningInCapacitor() {
@@ -63,9 +64,13 @@ export default function OneSignalSetup({ user }) {
           // Always call login regardless of permission result
           const loginResult = await NotifyBridge.login({ externalId: externalId });
           console.log('[OneSignal] ✅ login() sent for:', externalId);
-          if (loginResult?.playerId) {
-            console.log('[OneSignal] ✅ Got playerId:', loginResult.playerId, '— saving to user record');
-            await saveMyPlayerId({ playerId: loginResult.playerId });
+          const playerId = loginResult?.playerId;
+          if (playerId) {
+            console.log('[OneSignal] ✅ Got playerId:', playerId, '— saving & linking external_id');
+            // Save player ID locally
+            await saveMyPlayerId({ playerId });
+            // Force-link external_id to this player via REST API
+            await setOneSignalExternalUserId({ playerId, externalId });
           }
         } else {
           console.log('[OneSignal] Calling NotifyBridge.logout()');
