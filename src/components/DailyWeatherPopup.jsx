@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import {
@@ -116,6 +115,9 @@ export default function DailyWeatherPopup() {
       return;
     }
 
+    // Set immediately to prevent duplicate calls from concurrent renders
+    localStorage.setItem('lastWeatherShown', today);
+
     setIsLoading(true);
     try {
       const user = await base44.auth.me();
@@ -163,7 +165,6 @@ export default function DailyWeatherPopup() {
             setLocation(data.location);
             setWeatherImage(getWeatherImage(cleanMessage));
             setIsOpen(true);
-            localStorage.setItem('lastWeatherShown', today);
         }
       }
     } catch (error) {
@@ -183,7 +184,7 @@ export default function DailyWeatherPopup() {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className={`max-w-md border-2 ${getThemedClasses()}`}>
+      <DialogContent className={`max-w-md border-2 ${getThemedClasses()} [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:opacity-70`}>
         <DialogHeader>
           <DialogTitle className={`flex items-center gap-2 text-xl ${getTextColor()}`}>
             <Cloud className="w-6 h-6 text-blue-500" />
