@@ -1,7 +1,6 @@
-
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { Camera, Heart, Loader2, X } from "lucide-react";
+import { Camera, Image, Heart, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -132,22 +131,38 @@ export default function PlantHealthCheck({ plant }) {
 
           <div className="space-y-4">
             {!imagePreview ? (
-              <div className="border-2 border-dashed theme-border rounded-xl p-8 text-center">
-                <Camera className="w-12 h-12 theme-text-secondary mx-auto mb-4" />
+              <div className="border-2 border-dashed theme-border rounded-xl p-6 text-center">
+                <Camera className="w-12 h-12 theme-text-secondary mx-auto mb-3" />
                 <p className="theme-text mb-4">Take or upload a photo of your plant</p>
+                {/* Camera */}
                 <input
                   type="file"
                   accept="image/*"
                   capture="environment"
                   onChange={handleImageSelect}
                   className="hidden"
-                  id="health-image-input"
+                  id="health-camera-input"
                 />
-                <label htmlFor="health-image-input">
-                  <Button asChild>
-                    <span>Select Photo</span>
-                  </Button>
-                </label>
+                {/* Gallery */}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                  id="health-gallery-input"
+                />
+                <div className="flex gap-3 justify-center">
+                  <label htmlFor="health-camera-input">
+                    <Button asChild className="bg-green-600 hover:bg-green-700 cursor-pointer">
+                      <span className="flex items-center gap-2"><Camera className="w-4 h-4" /> Camera</span>
+                    </Button>
+                  </label>
+                  <label htmlFor="health-gallery-input">
+                    <Button asChild variant="outline" className="cursor-pointer">
+                      <span className="flex items-center gap-2"><Image className="w-4 h-4" /> Gallery</span>
+                    </Button>
+                  </label>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">

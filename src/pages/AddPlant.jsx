@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
-import { Camera, Mic, Keyboard, Plus, Loader2, MapPin } from "lucide-react";
+import { Camera, Image, Mic, Keyboard, Plus, Loader2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +36,7 @@ export default function AddPlant() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [selectedArea, setSelectedArea] = useState(null);
   const fileInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
   const [loadingIndex, setLoadingIndex] = useState(0);
 
   const loadingMessages = [
@@ -311,8 +312,18 @@ export default function AddPlant() {
           </Card>
 
           <div className="space-y-4">
+            {/* Camera input */}
             <input
               ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageCapture}
+              className="hidden"
+            />
+            {/* Gallery input */}
+            <input
+              ref={galleryInputRef}
               type="file"
               accept="image/*"
               multiple
@@ -327,7 +338,21 @@ export default function AddPlant() {
                   </div>
                   <div className="text-left">
                     <h3 className={`text-xl font-bold ${getTextColor()}`}>Take a Photo</h3>
-                    <p className={`text-sm ${getSecondaryTextColor()}`}>Select one or more photos to identify</p>
+                    <p className={`text-sm ${getSecondaryTextColor()}`}>Use your camera to identify plants</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </button>
+
+            <button className="w-full cursor-pointer" onClick={() => galleryInputRef.current?.click()}>
+              <Card className={`${getThemedClasses()} hover:scale-[1.02] transition-all`}>
+                <CardContent className="p-6 flex items-center gap-4">
+                  <div className="w-16 h-16 bg-teal-600 rounded-2xl flex items-center justify-center">
+                    <Image className="w-8 h-8 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className={`text-xl font-bold ${getTextColor()}`}>Choose from Gallery</h3>
+                    <p className={`text-sm ${getSecondaryTextColor()}`}>Pick one or more photos from your library</p>
                   </div>
                 </CardContent>
               </Card>
