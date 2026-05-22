@@ -15,6 +15,15 @@ import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import TermsAndConditions from '@/pages/TermsAndConditions';
 import DeleteAccount from '@/pages/DeleteAccount.jsx';
 
+// Sentry loaded via CDN in index.html
+const Sentry = window.Sentry;
+if (Sentry) {
+  Sentry.init({
+    dsn: "https://1ad77d994069d7174260cd66aa39fff7@o4511434142580736.ingest.us.sentry.io/4511434172661760",
+    environment: "production",
+  });
+}
+
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
