@@ -36,6 +36,7 @@ export default function Feed() {
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [followingOnly, setFollowingOnly] = useState(false);
+  const [sortMode, setSortMode] = useState('friends_first'); // 'friends_first' | 'newest'
 
   const [showEasterEgg, setShowEasterEgg] = useState(false);
   const [currentGif, setCurrentGif] = useState(0);
@@ -418,12 +419,15 @@ export default function Feed() {
   };
 
   // Filter and sort posts: following users' posts first, then optional following-only filter
-  const displayedPosts = useMemo(() => {
+  const displayedPosts = useMemo(() => { // eslint-disable-line
     let filtered = posts;
     if (followingOnly) {
       filtered = posts.filter(p => following.includes(p.created_by) || p.created_by === user?.email);
     }
-    // Sort: own posts and followed users first, then others
+    if (sortMode === 'newest') {
+      return [...filtered].sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+    }
+    // friends_first: followed users' posts first, then by date
     return [...filtered].sort((a, b) => {
       const aIsFollowed = following.includes(a.created_by) || a.created_by === user?.email;
       const bIsFollowed = following.includes(b.created_by) || b.created_by === user?.email;
@@ -431,7 +435,7 @@ export default function Feed() {
       if (!aIsFollowed && bIsFollowed) return 1;
       return new Date(b.created_date) - new Date(a.created_date);
     });
-  }, [posts, following, followingOnly, user?.email]);
+  }, [posts, following, followingOnly, sortMode, user?.email]);
 
   if (!user) {
     return (
@@ -479,17 +483,25 @@ export default function Feed() {
                 <h1 className={`text-4xl font-bold mb-1 ${getTextColor()}`}>Community</h1>
                 <p className={getSecondaryTextColor()}>Share your plant journey</p>
               </div>
-              <button
-                onClick={() => setFollowingOnly(prev => !prev)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
-                  followingOnly
-                    ? getPrimaryButtonClasses()
-                    : `${getThemedClasses()} ${getTextColor()}`
-                }`}
-              >
-                <User className="w-4 h-4" />
-                {followingOnly ? 'Following only' : 'Everyone'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSortMode(prev => prev === 'friends_first' ? 'newest' : 'friends_first')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${getThemedClasses()} ${getTextColor()}`}
+                >
+                  {sortMode === 'newest' ? '🕒 Newest' : '👥 Friends first'}
+                </button>
+                <button
+                  onClick={() => setFollowingOnly(prev => !prev)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                    followingOnly
+                      ? getPrimaryButtonClasses()
+                      : `${getThemedClasses()} ${getTextColor()}`
+                  }`}
+                >
+                  <User className="w-4 h-4" />
+                  {followingOnly ? 'Following only' : 'Everyone'}
+                </button>
+              </div>
             </div>
             
             {/* Easter Egg Button */}
