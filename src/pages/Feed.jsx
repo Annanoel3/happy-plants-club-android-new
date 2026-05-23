@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Heart, MessageCircle, Send, Image, Filter, Loader2, Camera, Leaf, Trash2, User } from "lucide-react";
@@ -35,7 +35,8 @@ export default function Feed() {
   // Removed filter state as it's removed from UI in the outline
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
-  
+  const [followingOnly, setFollowingOnly] = useState(false);
+
   const [showEasterEgg, setShowEasterEgg] = useState(false);
   const [currentGif, setCurrentGif] = useState(0);
   
@@ -170,11 +171,20 @@ export default function Feed() {
     setTimeout(() => setShowEasterEgg(false), 3000);
   };
 
+  const { data: following = [] } = useQuery({
+    queryKey: ['following', user?.email],
+    queryFn: async () => {
+      const follows = await base44.entities.Follow.filter({ follower_email: user.email });
+      return follows.map(f => f.following_email);
+    },
+    enabled: !!user,
+    initialData: [],
+  });
+
   const { data: posts = [], refetch } = useQuery({
-    queryKey: ['posts', user?.email], // Removed filter from queryKey
+    queryKey: ['posts', user?.email],
     queryFn: async () => {
       if (!user) return [];
-      // Simplified queryFn as filter logic is removed from UI
       return await base44.entities.Post.list('-created_date', 100);
     },
     enabled: !!user,
@@ -407,6 +417,22 @@ export default function Feed() {
     commentMutation.mutate({ postId, content });
   };
 
+  // Filter and sort posts: following users' posts first, then optional following-only filter
+  const displayedPosts = useMemo(() => {
+    let filtered = posts;
+    if (followingOnly) {
+      filtered = posts.filter(p => following.includes(p.created_by) || p.created_by === user?.email);
+    }
+    // Sort: own posts and followed users first, then others
+    return [...filtered].sort((a, b) => {
+      const aIsFollowed = following.includes(a.created_by) || a.created_by === user?.email;
+      const bIsFollowed = following.includes(b.created_by) || b.created_by === user?.email;
+      if (aIsFollowed && !bIsFollowed) return -1;
+      if (!aIsFollowed && bIsFollowed) return 1;
+      return new Date(b.created_date) - new Date(a.created_date);
+    });
+  }, [posts, following, followingOnly, user?.email]);
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center theme-bg">
@@ -448,8 +474,23 @@ export default function Feed() {
       <div className="p-6">
         <div className="max-w-2xl mx-auto">
           <div className={`mb-8 rounded-2xl p-6 relative ${getThemedClasses()}`}>
-            <h1 className={`text-4xl font-bold mb-2 ${getTextColor()}`}>Community</h1>
-            <p className={getSecondaryTextColor()}>Share your plant journey</p>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h1 className={`text-4xl font-bold mb-1 ${getTextColor()}`}>Community</h1>
+                <p className={getSecondaryTextColor()}>Share your plant journey</p>
+              </div>
+              <button
+                onClick={() => setFollowingOnly(prev => !prev)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                  followingOnly
+                    ? getPrimaryButtonClasses()
+                    : `${getThemedClasses()} ${getTextColor()}`
+                }`}
+              >
+                <User className="w-4 h-4" />
+                {followingOnly ? 'Following only' : 'Everyone'}
+              </button>
+            </div>
             
             {/* Easter Egg Button */}
             <button
@@ -549,15 +590,15 @@ export default function Feed() {
           </Card>
 
           <div className="space-y-6">
-            {posts.length === 0 ? (
+            {displayedPosts.length === 0 ? (
               <Card className={getThemedClasses()}>
                 <CardContent className="p-12 text-center">
                   <MessageCircle className={`w-16 h-16 mx-auto mb-4 ${getSecondaryTextColor()}`} />
-                  <p className={getSecondaryTextColor()}>No posts yet. Be the first to share!</p>
+                  <p className={getSecondaryTextColor()}>{followingOnly ? 'No posts from people you follow yet.' : 'No posts yet. Be the first to share!'}</p>
                 </CardContent>
               </Card>
             ) : (
-              posts.map((post) => (
+              displayedPosts.map((post) => (
                 <Card key={post.id} className={getThemedClasses()}>
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
