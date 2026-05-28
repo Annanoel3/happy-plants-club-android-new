@@ -22,14 +22,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
       }
     } else {
       try {
-        console.log("⏹️ Stopping recording...");
         const result = await VoiceRecorder.stopRecording();
-        console.log("📼 Stop result:", JSON.stringify({
-          hasValue: !!result.value,
-          hasBase64: !!result.value?.recordDataBase64,
-          mimeType: result.value?.mimeType,
-          base64Length: result.value?.recordDataBase64?.length,
-        }));
         setIsRecording(false);
 
         if (result.value?.recordDataBase64) {
@@ -40,40 +33,32 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
             for (let i = 0; i < binaryString.length; i++) {
               bytes[i] = binaryString.charCodeAt(i);
             }
-            
-            const mimeType = result.value.mimeType || "audio/aac";
-            const ext = mimeType.includes("webm") ? "webm" : mimeType.includes("mp4") || mimeType.includes("aac") ? "m4a" : "wav";
-            const audioFile = new File([bytes], `audio.${ext}`, { type: mimeType });
-            console.log("📁 Audio file created:", audioFile.name, audioFile.type, audioFile.size, "bytes");
 
-            console.log("⬆️ Uploading file...");
+            // Always use wav — Whisper accepts raw PCM WAV without containerization issues.
+            // Force wav regardless of what the recorder reports, since AAC/M4A requires
+            // proper MP4 container wrapping which capacitor-voice-recorder does not provide.
+            const audioFile = new File([bytes], "audio.wav", { type: "audio/wav" });
+            
             const { file_url } = await base44.integrations.Core.UploadFile({ file: audioFile });
-            console.log("✅ Uploaded, URL:", file_url);
-
-            console.log("🎤 Transcribing...");
             const transcript = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
-            console.log("✅ Transcript:", transcript);
             
-            console.log("💾 Processing voice notes...");
             await base44.functions.invoke("processVoiceNotes", {
               transcript: transcript,
             });
-            console.log("✅ Voice notes processed!");
             
             toast.success("Log saved!");
             setInputMessage("");
             onClose();
           } catch (error) {
-            console.error("❌ Error processing audio:", error.message, error.stack);
+            console.error("❌ Error processing audio:", error.message);
             toast.error("Failed to process audio: " + error.message);
             setIsProcessing(false);
           }
         } else {
-          console.warn("⚠️ No base64 audio data in result:", JSON.stringify(result));
           toast.error("No audio recorded");
         }
       } catch (error) {
-        console.error("❌ Stop recording error:", error.message, error.stack);
+        console.error("❌ Stop recording error:", error.message);
         setIsRecording(false);
         setIsProcessing(false);
         toast.error("Failed to process voice: " + error.message);
