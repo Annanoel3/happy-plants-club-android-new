@@ -2,7 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
 import OpenAI from 'npm:openai@4.73.1';
 
 Deno.serve(async (req) => {
-    console.log('🎤 transcribeVoice function called');
+    console.log('🎤 transcribeAudio function called');
     
     try {
         const apiKey = Deno.env.get("OPENAI_API_KEY");
@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
             success: true 
         });
     } catch (error) {
-        console.error('❌ ERROR in transcribeVoice');
+        console.error('❌ ERROR in transcribeAudio');
         console.error('Error name:', error.name);
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
