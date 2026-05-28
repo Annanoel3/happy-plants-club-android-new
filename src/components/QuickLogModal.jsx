@@ -28,9 +28,14 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         if (result.value?.recordDataBase64) {
           setIsProcessing(true);
           try {
+            // Upload audio to storage first
+            const { file_url } = await base44.integrations.Core.UploadFile({
+              file: result.value.recordDataBase64,
+            });
+            
+            // Transcribe from stored file (backend will transcode)
             const { data: { transcript } } = await base44.functions.invoke("transcribeAudio", {
-              audio_base64: result.value.recordDataBase64,
-              mime_type: result.value.mimeType || "audio/aac",
+              file_url,
             });
             const { data } = await base44.functions.invoke("processPlantCareLog", { transcript });
             toast.success(data?.summary || "Log saved!");

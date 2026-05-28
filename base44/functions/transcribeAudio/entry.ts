@@ -9,30 +9,19 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { audio_base64, mime_type } = await req.json();
+    const { file_url } = await req.json();
 
-    const binaryStr = atob(audio_base64);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i);
+    // Download audio from file storage
+    const audioResponse = await fetch(file_url);
+    if (!audioResponse.ok) {
+        return Response.json({ error: 'Failed to download audio' }, { status: 500 });
     }
+    
+    const audioBuffer = await audioResponse.arrayBuffer();
+    const audioFile = new File([audioBuffer], 'audio.aac', { type: 'audio/aac' });
 
-    // capacitor-voice-recorder returns audio/aac on iOS & Android.
-    // AAC is natively contained in MP4/M4A — Whisper accepts audio/mp4 with .m4a extension.
-    // For all other formats, map to the correct Whisper-supported extension/mime.
-    const mimeToFile = {
-        'audio/aac':  { ext: 'm4a', type: 'audio/mp4' },
-        'audio/mp4':  { ext: 'm4a', type: 'audio/mp4' },
-        'audio/webm': { ext: 'webm', type: 'audio/webm' },
-        'audio/ogg':  { ext: 'ogg',  type: 'audio/ogg' },
-        'audio/mpeg': { ext: 'mp3',  type: 'audio/mpeg' },
-        'audio/wav':  { ext: 'wav',  type: 'audio/wav' },
-    };
-    const { ext, type } = mimeToFile[mime_type] || { ext: 'webm', type: 'audio/webm' };
-
-    const audioFile = new File([bytes], `audio.${ext}`, { type });
+    // Send to Whisper
     const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
-
     const transcription = await openai.audio.transcriptions.create({
         file: audioFile,
         model: "whisper-1",
