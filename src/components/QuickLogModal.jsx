@@ -14,6 +14,17 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
     console.log("🎤 handleVoiceRecord called, isRecording:", isRecording);
     if (!isRecording) {
       try {
+        // Request microphone permission on native mobile
+        if (typeof window.Capacitor !== 'undefined') {
+          console.log("📱 Running on Capacitor, requesting microphone permission");
+          try {
+            const permission = await window.Capacitor.Plugins.Microphone.requestPermissions();
+            console.log("✅ Permission result:", permission);
+          } catch (permError) {
+            console.error("⚠️ Permission request failed:", permError.message);
+          }
+        }
+        
         console.log("🎤 Calling VoiceRecorder.startRecording()");
         await VoiceRecorder.startRecording();
         console.log("✅ Recording started successfully");
