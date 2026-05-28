@@ -34,9 +34,10 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
             });
             
             // Transcribe from stored file (backend will transcode)
-            const { data: { transcript } } = await base44.functions.invoke("transcribeAudio", {
+            const transcribeResponse = await base44.functions.invoke("transcribeAudio", {
               file_url,
             });
+            const transcript = transcribeResponse.data.transcript;
             const { data } = await base44.functions.invoke("processPlantCareLog", { transcript });
             toast.success(data?.summary || "Log saved!");
             setInputMessage("");
