@@ -34,9 +34,17 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         if (result.value?.recordDataBase64) {
           setIsProcessing(true);
           try {
+            // Convert base64 to blob
+            const binaryString = atob(result.value.recordDataBase64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            const audioBlob = new Blob([bytes], { type: 'audio/webm' });
+            
             // Upload audio to storage first
             const { file_url } = await base44.integrations.Core.UploadFile({
-              file: result.value.recordDataBase64,
+              file: audioBlob,
             });
             
             // Transcribe from stored file (backend will transcode)
