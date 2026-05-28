@@ -1,61 +1,77 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.25";
-import OpenAI from "npm:openai";
+import OpenAI from "npm:openai@4.73.1";
 
 Deno.serve(async (req) => {
+    console.log('🎤 transcribeAudio function called');
+    
     try {
-        console.log('🎤 transcribeAudio: Starting...');
-        
+        const apiKey = Deno.env.get("OPENAI_API_KEY");
+        if (!apiKey) {
+            console.error('❌ OPENAI_API_KEY is not set!');
+            return Response.json({ 
+                error: 'OpenAI API key not configured' 
+            }, { status: 500 });
+        }
+
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
-        console.log('✅ Auth passed for user:', user?.email);
 
         if (!user) {
+            console.error('❌ No user authenticated');
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const body = await req.json();
-        const { file_url } = body;
-        console.log('📁 file_url:', file_url);
+        console.log('✅ Auth passed for user:', user.email);
 
-        // Download audio from file storage
-        console.log('⬇️ Downloading audio...');
-        const audioResponse = await fetch(file_url);
+        const body = await req.json();
+        const fileUrl = body.file_url;
+
+        if (!fileUrl) {
+            console.error('❌ No file_url in request');
+            return Response.json({ error: 'No file_url provided' }, { status: 400 });
+        }
+
+        console.log('📁 Fetching audio file from:', fileUrl);
+
+        // Download the audio file
+        const audioResponse = await fetch(fileUrl);
         if (!audioResponse.ok) {
-            console.error('❌ Download failed:', audioResponse.status);
-            return Response.json({ error: 'Failed to download audio' }, { status: 500 });
+            throw new Error('Failed to download audio file');
         }
         
-        const audioBuffer = await audioResponse.arrayBuffer();
-        console.log('✅ Downloaded', audioBuffer.byteLength, 'bytes');
+        const audioBlob = await audioResponse.blob();
+        console.log('📁 Audio file downloaded:', audioBlob.size, 'bytes');
 
-        // Send to Whisper via raw API (OpenAI SDK has issues with Deno Blob)
-        console.log('🎙️ Sending to Whisper...');
-        const apiKey = Deno.env.get('OPENAI_API_KEY');
-        
-        const formData = new FormData();
-        formData.append('file', new Blob([audioBuffer], { type: 'audio/aac' }), 'audio.aac');
-        formData.append('model', 'whisper-1');
+        const openai = new OpenAI({ apiKey });
 
-        const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-            },
-            body: formData,
+        // Convert blob to File for OpenAI
+        const file = new File([audioBlob], 'recording.aac', { 
+            type: 'audio/aac' 
         });
 
-        if (!whisperResponse.ok) {
-            const errorText = await whisperResponse.text();
-            console.error('❌ Whisper API error:', whisperResponse.status, errorText);
-            return Response.json({ error: `Whisper API failed: ${errorText}` }, { status: 500 });
-        }
+        console.log('🔄 Sending to OpenAI Whisper API...');
 
-        const transcription = await whisperResponse.json();
-        
-        console.log('✅ Transcription complete:', transcription.text.substring(0, 50));
-        return Response.json({ transcript: transcription.text });
+        const transcription = await openai.audio.transcriptions.create({
+            file: file,
+            model: "whisper-1",
+            language: "en",
+        });
+
+        console.log('✅ Transcription complete:', transcription.text);
+
+        return Response.json({ 
+            transcript: transcription.text,
+            success: true 
+        });
     } catch (error) {
-        console.error('❌ Error in transcribeAudio:', error.message);
-        return Response.json({ error: error.message }, { status: 500 });
+        console.error('❌ ERROR in transcribeAudio');
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        
+        return Response.json({ 
+            error: 'Transcription failed',
+            details: error.message
+        }, { status: 500 });
     }
 });
