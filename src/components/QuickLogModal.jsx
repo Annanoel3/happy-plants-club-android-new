@@ -4,7 +4,6 @@ import { X, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { VoiceRecorder } from "capacitor-voice-recorder";
-import { Microphone } from "@capacitor/microphone";
 
 export default function QuickLogModal({ isOpen, onClose, theme }) {
   const [inputMessage, setInputMessage] = useState("");
