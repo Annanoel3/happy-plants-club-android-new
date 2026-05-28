@@ -28,12 +28,12 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         if (result.value?.recordDataBase64) {
           setIsProcessing(true);
           try {
-            const response = await base44.functions.invoke("transcribeAndProcessVoice", {
+            const { data: { transcript } } = await base44.functions.invoke("transcribeAudio", {
               audio_base64: result.value.recordDataBase64,
               mime_type: result.value.mimeType || "audio/aac",
             });
-            
-            toast.success(response.data?.summary || "Log saved!");
+            const { data } = await base44.functions.invoke("processPlantCareLog", { transcript });
+            toast.success(data?.summary || "Log saved!");
             setInputMessage("");
             onClose();
           } catch (error) {
@@ -58,7 +58,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
 
     setIsProcessing(true);
     try {
-      await base44.functions.invoke("processVoiceNotes", {
+      await base44.functions.invoke("processPlantCareLog", {
         transcript: inputMessage,
       });
       toast.success("Log saved!");
