@@ -34,7 +34,9 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
               bytes[i] = binaryString.charCodeAt(i);
             }
             
-            const audioFile = new File([bytes], "audio.mpga", { type: "audio/mpeg" });
+            const mimeType = result.value.mimeType || "audio/aac";
+            const ext = mimeType.includes("webm") ? "webm" : mimeType.includes("mp4") || mimeType.includes("aac") ? "m4a" : "wav";
+            const audioFile = new File([bytes], `audio.${ext}`, { type: mimeType });
             const { file_url } = await base44.integrations.Core.UploadFile({ file: audioFile });
             const transcript = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
             
