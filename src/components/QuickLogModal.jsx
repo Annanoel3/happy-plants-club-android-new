@@ -34,13 +34,16 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         if (result.value?.recordDataBase64) {
           setIsProcessing(true);
           try {
+            console.log("📦 Base64 data length:", result.value.recordDataBase64.length);
             // Convert base64 to blob
             const binaryString = atob(result.value.recordDataBase64);
+            console.log("🔄 Binary string length:", binaryString.length);
             const bytes = new Uint8Array(binaryString.length);
             for (let i = 0; i < binaryString.length; i++) {
               bytes[i] = binaryString.charCodeAt(i);
             }
             const audioBlob = new Blob([bytes], { type: 'audio/webm' });
+            console.log("💾 Blob created, size:", audioBlob.size);
             
             // Upload audio to storage first
             const { file_url } = await base44.integrations.Core.UploadFile({
