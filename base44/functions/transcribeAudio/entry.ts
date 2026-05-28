@@ -36,6 +36,7 @@ Deno.serve(async (req) => {
         // Download the audio file
         const audioResponse = await fetch(fileUrl);
         if (!audioResponse.ok) {
+            console.error('❌ Failed to download:', audioResponse.status);
             throw new Error('Failed to download audio file');
         }
         
@@ -44,9 +45,13 @@ Deno.serve(async (req) => {
 
         const openai = new OpenAI({ apiKey });
 
+        // Detect format from blob type or use webm as default
+        const mimeType = audioBlob.type || 'audio/webm';
+        console.log('🎵 Audio MIME type:', mimeType);
+
         // Convert blob to File for OpenAI
-        const file = new File([audioBlob], 'recording.aac', { 
-            type: 'audio/aac' 
+        const file = new File([audioBlob], 'recording.webm', { 
+            type: mimeType
         });
 
         console.log('🔄 Sending to OpenAI Whisper API...');
