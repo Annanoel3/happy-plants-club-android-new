@@ -11,18 +11,24 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
   const [isRecording, setIsRecording] = useState(false);
 
   const handleVoiceRecord = async () => {
+    console.log("🎤 handleVoiceRecord called, isRecording:", isRecording);
     if (!isRecording) {
       try {
+        console.log("🎤 Calling VoiceRecorder.startRecording()");
         await VoiceRecorder.startRecording();
+        console.log("✅ Recording started successfully");
         setIsRecording(true);
         toast.success("Recording started...");
       } catch (error) {
-        console.error("Recording error:", error);
+        console.error("❌ Recording error:", error);
+        console.error("Error details:", error.message, error.stack);
         toast.error("Failed to start recording: " + error.message);
       }
     } else {
       try {
+        console.log("🎤 Calling VoiceRecorder.stopRecording()");
         const result = await VoiceRecorder.stopRecording();
+        console.log("✅ Recording stopped, result:", result);
         setIsRecording(false);
 
         if (result.value?.recordDataBase64) {
