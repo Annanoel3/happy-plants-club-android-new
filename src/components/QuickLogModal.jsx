@@ -28,25 +28,12 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         if (result.value?.recordDataBase64) {
           setIsProcessing(true);
           try {
-            const binaryString = atob(result.value.recordDataBase64);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-              bytes[i] = binaryString.charCodeAt(i);
-            }
-
-            // Always use wav — Whisper accepts raw PCM WAV without containerization issues.
-            // Force wav regardless of what the recorder reports, since AAC/M4A requires
-            // proper MP4 container wrapping which capacitor-voice-recorder does not provide.
-            const audioFile = new File([bytes], "audio.wav", { type: "audio/wav" });
-            
-            const { file_url } = await base44.integrations.Core.UploadFile({ file: audioFile });
-            const transcript = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
-            
-            await base44.functions.invoke("processVoiceNotes", {
-              transcript: transcript,
+            const response = await base44.functions.invoke("transcribeAndProcessVoice", {
+              audio_base64: result.value.recordDataBase64,
+              mime_type: result.value.mimeType || "audio/aac",
             });
             
-            toast.success("Log saved!");
+            toast.success(response.data?.summary || "Log saved!");
             setInputMessage("");
             onClose();
           } catch (error) {

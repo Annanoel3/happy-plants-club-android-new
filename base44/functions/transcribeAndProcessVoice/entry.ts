@@ -5,14 +5,46 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
-        const openai = new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY") });
 
         if (!user) {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { transcript } = await req.json();
+        const openai = new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY") });
 
+        const { audio_base64, mime_type } = await req.json();
+
+        if (!audio_base64) {
+            return Response.json({ error: 'No audio data provided' }, { status: 400 });
+        }
+
+        // Decode base64 to bytes
+        const binaryString = atob(audio_base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // Use webm if available (best Whisper support), else fall back to wav
+        const isWebm = mime_type && mime_type.includes("webm");
+        const ext = isWebm ? "webm" : "wav";
+        const type = isWebm ? "audio/webm" : "audio/wav";
+
+        const audioFile = new File([bytes], `audio.${ext}`, { type });
+
+        // Transcribe directly with Whisper
+        const transcription = await openai.audio.transcriptions.create({
+            file: audioFile,
+            model: "whisper-1",
+        });
+
+        const transcript = transcription.text;
+
+        if (!transcript || !transcript.trim()) {
+            return Response.json({ error: 'No speech detected' }, { status: 400 });
+        }
+
+        // Now process the transcript against the user's plants
         const plants = await base44.entities.Plant.list();
         const plantsList = plants.map(p => `${p.name} (ID: ${p.id})`).join(', ');
 
@@ -53,7 +85,7 @@ Deno.serve(async (req) => {
 
         const result = JSON.parse(response.choices[0].message.content);
         const today = new Date().toISOString().split('T')[0];
-        
+
         // Handle watering
         for (const plantId of result.watered_plant_ids || []) {
             const plant = plants.find(p => p.id === plantId);
@@ -67,7 +99,7 @@ Deno.serve(async (req) => {
 
                 const nextWatering = new Date();
                 nextWatering.setDate(nextWatering.getDate() + (plant.water_frequency_days || 7));
-                
+
                 await base44.asServiceRole.entities.Plant.update(plantId, {
                     last_watered: today,
                     next_watering_due: nextWatering.toISOString().split('T')[0]
@@ -81,18 +113,19 @@ Deno.serve(async (req) => {
             if (plant) {
                 const currentNotes = plant.notes || '';
                 const timestamp = new Date().toLocaleDateString();
-                const updatedNotes = currentNotes 
+                const updatedNotes = currentNotes
                     ? `${currentNotes}\n\n[${timestamp}] ${plantNote.note}`
                     : `[${timestamp}] ${plantNote.note}`;
-                
+
                 await base44.asServiceRole.entities.Plant.update(plantNote.plant_id, {
                     notes: updatedNotes
                 });
             }
         }
 
-        return Response.json({ 
-            success: true, 
+        return Response.json({
+            success: true,
+            transcript,
             watered_count: result.watered_plant_ids?.length || 0,
             notes_count: result.plant_notes?.length || 0,
             summary: result.summary
