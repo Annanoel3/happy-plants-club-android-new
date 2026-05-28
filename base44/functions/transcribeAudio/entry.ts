@@ -18,12 +18,12 @@ Deno.serve(async (req) => {
     }
     
     const audioBuffer = await audioResponse.arrayBuffer();
-    const audioFile = new File([audioBuffer], 'audio.aac', { type: 'audio/aac' });
+    const audioBlob = new Blob([audioBuffer], { type: 'audio/aac' });
 
     // Send to Whisper
     const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
     const transcription = await openai.audio.transcriptions.create({
-        file: audioFile,
+        file: audioBlob,
         model: "whisper-1",
     });
 
