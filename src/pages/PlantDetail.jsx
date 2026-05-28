@@ -70,6 +70,8 @@ export default function PlantDetail() {
   const [vacationStartDate, setVacationStartDate] = useState("");
   const [vacationEndDate, setVacationEndDate] = useState("");
 
+  const PLANT_TYPES = ["Orchid", "Succulent", "Cactus", "Tropical", "Tree", "Shrub", "Herb", "Vegetable", "Fruit", "Fern", "Vine", "Grass", "Aquatic", "Bulb", "Other"];
+
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'light';
   });
@@ -203,7 +205,8 @@ export default function PlantDetail() {
         pot_size: plant.pot_size || "",
         substrate_type: plant.substrate_type || "",
         notes: plant.notes || "",
-        water_frequency_days: plant.water_frequency_days || 7
+        water_frequency_days: plant.water_frequency_days || 7,
+        plant_type: plant.plant_type || "Other"
       });
       setVacationModeEnabled(plant.vacation_mode_enabled || false);
       setVacationStartDate(plant.vacation_start_date || "");
@@ -1284,6 +1287,22 @@ export default function PlantDetail() {
                   <SelectItem value="Peat-based mix">Peat-based mix</SelectItem>
                   <SelectItem value="Coco coir">Coco coir</SelectItem>
                   <SelectItem value="Custom mix">Custom mix</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Plant Type</label>
+              <Select
+                value={editData.plant_type}
+                onValueChange={(value) => setEditData({...editData, plant_type: value})}
+              >
+                <SelectTrigger className="theme-input">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLANT_TYPES.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
