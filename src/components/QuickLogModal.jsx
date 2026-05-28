@@ -45,9 +45,10 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
             const audioBlob = new Blob([bytes], { type: 'audio/webm' });
             console.log("💾 Blob created, size:", audioBlob.size);
             
-            // Upload audio to storage first
+            // Create File object and upload
+            const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
             const { file_url } = await base44.integrations.Core.UploadFile({
-              file: audioBlob,
+              file: audioFile,
             });
             
             // Transcribe from stored file (backend will transcode)
