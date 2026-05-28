@@ -17,17 +17,18 @@ Deno.serve(async (req) => {
         bytes[i] = binaryStr.charCodeAt(i);
     }
 
-    // AAC from Android is not a valid container for Whisper — treat as webm
-    const mimeToExt = {
-        'audio/webm': 'webm',
-        'audio/ogg': 'ogg',
-        'audio/mpeg': 'mp3',
-        'audio/wav': 'wav',
-        'audio/mp4': 'm4a',
-        'audio/aac': 'webm',
+    // capacitor-voice-recorder returns audio/aac on iOS & Android.
+    // AAC is natively contained in MP4/M4A — Whisper accepts audio/mp4 with .m4a extension.
+    // For all other formats, map to the correct Whisper-supported extension/mime.
+    const mimeToFile = {
+        'audio/aac':  { ext: 'm4a', type: 'audio/mp4' },
+        'audio/mp4':  { ext: 'm4a', type: 'audio/mp4' },
+        'audio/webm': { ext: 'webm', type: 'audio/webm' },
+        'audio/ogg':  { ext: 'ogg',  type: 'audio/ogg' },
+        'audio/mpeg': { ext: 'mp3',  type: 'audio/mpeg' },
+        'audio/wav':  { ext: 'wav',  type: 'audio/wav' },
     };
-    const ext = mimeToExt[mime_type] || 'webm';
-    const type = mime_type === 'audio/aac' ? 'audio/webm' : (mime_type || 'audio/webm');
+    const { ext, type } = mimeToFile[mime_type] || { ext: 'webm', type: 'audio/webm' };
 
     const audioFile = new File([bytes], `audio.${ext}`, { type });
     const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
