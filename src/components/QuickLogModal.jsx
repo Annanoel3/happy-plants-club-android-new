@@ -164,12 +164,12 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         <div className="flex gap-2">
           <button
             onClick={handleVoiceRecord}
-            disabled={isProcessing}
+            disabled={isProcessing || typeof window.Capacitor === 'undefined'}
             className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all ${
               isRecording
                 ? "bg-red-500 text-white"
                 : "bg-green-600 hover:bg-green-700 text-white"
-            }`}
+            } ${typeof window.Capacitor === 'undefined' ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {isRecording ? (
               <Square className="w-4 h-4" />
