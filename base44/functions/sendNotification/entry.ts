@@ -24,23 +24,13 @@ Deno.serve(async (req) => {
             }, { status: 500 });
         }
 
-        // Fetch user's registered player IDs
-        const targetUsers = await base44.asServiceRole.entities.User.filter({ email: toUserEmail });
-        const targetUser = targetUsers[0];
-        
-        if (!targetUser || !targetUser.onesignal_player_ids || targetUser.onesignal_player_ids.length === 0) {
-            console.log('[sendNotification] No player IDs found for user:', toUserEmail);
-            return Response.json({
-                success: false,
-                error: 'User has no registered devices'
-            }, { status: 400 });
-        }
-
-        console.log('[sendNotification] Sending to:', toUserEmail, 'with player IDs:', targetUser.onesignal_player_ids);
+        console.log('[sendNotification] Sending to:', toUserEmail);
 
         const payload = {
             app_id: ONESIGNAL_APP_ID.trim(),
-            include_player_ids: targetUser.onesignal_player_ids,
+            include_aliases: {
+                external_id: [toUserEmail]
+            },
             headings: { en: title },
             contents: { en: message },
             data: { screen: screen || '/Dashboard' }
