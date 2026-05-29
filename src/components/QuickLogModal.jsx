@@ -10,17 +10,16 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
   const [inputMessage, setInputMessage] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [clarificationMode, setClarificationMode] = useState(null); // { prompt, partial_result }
+  const [clarificationAnswer, setClarificationAnswer] = useState("");
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
   useEffect(() => {
-    // Request microphone permission on Android
     if (Capacitor.isNativePlatform()) {
       try {
         const { Permissions } = Capacitor.Plugins;
-        Permissions.requestPermissions({
-          permissions: ['microphone']
-        });
+        Permissions.requestPermissions({ permissions: ['microphone'] });
       } catch (error) {
         console.log('Permission request error:', error);
       }
@@ -34,13 +33,11 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         const recorder = new MediaRecorder(stream);
         const chunks = [];
 
-        recorder.ondataavailable = (e) => {
-          chunks.push(e.data);
-        };
+        recorder.ondataavailable = (e) => { chunks.push(e.data); };
 
         recorder.onstop = async () => {
           const mimeType = recorder.mimeType || 'audio/webm';
-      const audioBlob = new Blob(chunks, { type: mimeType });
+          const audioBlob = new Blob(chunks, { type: mimeType });
           await processAudio(audioBlob, mimeType);
           stream.getTracks().forEach(track => track.stop());
         };
@@ -74,44 +71,69 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
       const ext = (mimeType.includes('mp4') || mimeType.includes('aac')) ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
       const filename = 'recording.' + ext;
       const audioFile = new File([audioBlob], filename, { type: mimeType });
-      const { file_url } = await base44.integrations.Core.UploadFile({
-        file: audioFile,
-      });
-      
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: audioFile });
+
       const transcribeResponse = await base44.functions.invoke("transcribeAudio", { file_url, filename });
       const transcript = transcribeResponse.data.transcript;
-      const { data } = await base44.functions.invoke("processPlantCareLog", { transcript });
-      console.log('[QuickLogModal] processPlantCareLog result:', JSON.stringify(data || 'no data').substring(0, 150));
-      toast.success(data?.summary || "Log saved!");
-      setInputMessage("");
-      onClose();
+      await submitTranscript(transcript);
     } catch (error) {
       console.error("Error processing audio:", error);
       toast.error("Failed to process audio: " + error.message);
-      onClose();
-      setInputMessage('');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleSubmit = async () => {
-    if (!inputMessage.trim() || isProcessing) return;
+  const submitTranscript = async (transcript) => {
+    const { data } = await base44.functions.invoke("processPlantCareLog", { transcript });
+    console.log('[QuickLogModal] processPlantCareLog result:', JSON.stringify(data || 'no data').substring(0, 200));
 
-    setIsProcessing(true);
-    try {
-      await base44.functions.invoke("processPlantCareLog", {
-        transcript: inputMessage,
-      });
-      toast.success("Log saved!");
+    if (data?.needs_clarification) {
+      // AI needs to ask for a time
+      setClarificationMode({ prompt: data.clarification_prompt, partial_result: data.partial_result, original_transcript: transcript });
+      setInputMessage("");
+    } else {
+      toast.success(data?.summary || "Log saved!");
       setInputMessage("");
       onClose();
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!inputMessage.trim() || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      await submitTranscript(inputMessage);
     } catch (error) {
       console.error("Error saving log:", error);
       toast.error("Failed to save log");
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleClarificationSubmit = async () => {
+    if (!clarificationAnswer.trim() || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      // Re-submit combined transcript with the time answer
+      const combined = `${clarificationMode.original_transcript}. The time for the reminder is: ${clarificationAnswer}`;
+      await submitTranscript(combined);
+      setClarificationMode(null);
+      setClarificationAnswer("");
+    } catch (error) {
+      console.error("Clarification error:", error);
+      toast.error("Failed to process: " + error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleClose = () => {
+    setClarificationMode(null);
+    setClarificationAnswer("");
+    setInputMessage("");
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -141,7 +163,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      onClick={onClose}
+      onClick={handleClose}
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
     >
       <motion.div
@@ -152,47 +174,64 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         className={`w-full max-w-md rounded-3xl p-6 shadow-xl border ${getThemedClasses()}`}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className={`text-xl font-bold ${getTextColor()}`}>Quick Log</h2>
-          <button
-            onClick={onClose}
-            className={`p-1 rounded-lg transition-opacity hover:opacity-70 ${getTextColor()}`}
-          >
+          <h2 className={`text-xl font-bold ${getTextColor()}`}>
+            {clarificationMode ? "One more thing..." : "Quick Log"}
+          </h2>
+          <button onClick={handleClose} className={`p-1 rounded-lg transition-opacity hover:opacity-70 ${getTextColor()}`}>
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <textarea
-          value={inputMessage}
-          onChange={e => setInputMessage(e.target.value)}
-          placeholder="What would you like to log about your plants?"
-          className={`w-full h-32 rounded-xl p-3 border text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500 mb-4 ${getInputClasses()}`}
-        />
+        {clarificationMode ? (
+          <>
+            <p className={`text-sm mb-3 ${getTextColor()}`}>{clarificationMode.prompt}</p>
+            <input
+              type="text"
+              value={clarificationAnswer}
+              onChange={e => setClarificationAnswer(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleClarificationSubmit()}
+              placeholder="e.g. 5pm, 3:30pm, tomorrow at 9am"
+              autoFocus
+              className={`w-full rounded-xl p-3 border text-sm focus:outline-none focus:ring-2 focus:ring-green-500 mb-4 ${getInputClasses()}`}
+            />
+            <button
+              onClick={handleClarificationSubmit}
+              disabled={isProcessing || !clarificationAnswer.trim()}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl font-semibold transition-all"
+            >
+              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Set Reminder"}
+            </button>
+          </>
+        ) : (
+          <>
+            <textarea
+              value={inputMessage}
+              onChange={e => setInputMessage(e.target.value)}
+              placeholder="What would you like to log? (e.g. 'I watered the tulips' or 'Remind me to fertilize at 5pm')"
+              className={`w-full h-32 rounded-xl p-3 border text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500 mb-4 ${getInputClasses()}`}
+            />
 
-        <div className="flex gap-2">
-          <button
-            onClick={handleVoiceRecord}
-            disabled={isProcessing && !isRecording}
-            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all disabled:opacity-50 ${
-              isRecording
-                ? "bg-red-500 text-white"
-                : "bg-green-600 hover:bg-green-700 text-white"
-            }`}
-          >
-            {isRecording ? (
-              <Square className="w-4 h-4" />
-            ) : (
-              <Mic className="w-4 h-4" />
-            )}
-            {isRecording ? "Stop" : "Record"}
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isProcessing || !inputMessage.trim()}
-            className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl font-semibold transition-all"
-          >
-            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Log"}
-          </button>
-        </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleVoiceRecord}
+                disabled={isProcessing && !isRecording}
+                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all disabled:opacity-50 ${
+                  isRecording ? "bg-red-500 text-white" : "bg-green-600 hover:bg-green-700 text-white"
+                }`}
+              >
+                {isRecording ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                {isRecording ? "Stop" : "Record"}
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={isProcessing || !inputMessage.trim()}
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl font-semibold transition-all"
+              >
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Log"}
+              </button>
+            </div>
+          </>
+        )}
       </motion.div>
     </motion.div>
   );

@@ -1,11 +1,8 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.25";
 import OpenAI from "npm:openai";
 
-// Strips markdown fences and extracts the first JSON object from a string
 function extractJSON(str) {
-    // Remove markdown code fences if present
     const cleaned = str.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
-    // Find the first { ... } block
     const start = cleaned.indexOf('{');
     const end = cleaned.lastIndexOf('}');
     if (start === -1 || end === -1) throw new Error('No JSON object found in LLM response');
@@ -21,38 +18,40 @@ Deno.serve(async (req) => {
     }
 
     const { transcript } = await req.json();
-    console.log('processPlantCareLog: transcript received, length:', transcript?.length, 'preview:', transcript?.substring(0, 40));
+    console.log('processPlantCareLog: transcript received, length:', transcript?.length, 'preview:', transcript?.substring(0, 60));
 
     if (!transcript || !transcript.trim()) {
         return Response.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
     const plants = await base44.asServiceRole.entities.Plant.filter({ created_by_id: user.id });
-    const plantsList = plants.map(p => `${p.name} (ID: ${p.id})`).join(', ');
+    const plantsList = plants.map(p => `"${p.name}" (ID: ${p.id})`).join(', ');
+    console.log('Available plants:', plantsList);
 
     const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
+    const now = new Date();
+    const nowISO = now.toISOString();
 
     const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
             {
                 role: "system",
-                content: `You are a plant care log parser. Given a transcript and list of plants, extract:
-1. Which plants were watered
-2. Any observations or notes about the plants
+                content: `You are a plant care log parser. Current time: ${nowISO}
 
 Available plants: ${plantsList}
 
-Parse phrases like:
-- "I watered everything except X" -> water all but X
-- "I watered X and Y" -> water only X and Y
-- "The monstera looks wilted" -> note for monstera
+Given a transcript, extract:
+1. Which plants were watered — match plant names FUZZILY (e.g. "tulip" matches "Tulip", "my monstera" matches "Monstera"). "everything" or "all" means all plants.
+2. Any observations or notes about specific plants.
+3. Any reminders the user wants to set. If the user says a specific time (e.g. "at 5pm", "at 3:30", "tomorrow morning"), compute the ISO datetime for that reminder. If the user says something vague like "later" or "soon" with no specific time, set reminder_time to null and needs_time_clarification to true.
 
-Return ONLY valid JSON with no markdown:
+Return ONLY valid JSON:
 {
     "watered_plant_ids": ["id1", "id2"],
     "plant_notes": [{"plant_id": "id", "note": "observation"}],
-    "summary": "brief summary of what was logged"
+    "reminders": [{"description": "what to do", "reminder_time": "ISO datetime or null", "needs_time_clarification": false}],
+    "summary": "brief summary"
 }`
             },
             { role: "user", content: transcript }
@@ -67,59 +66,85 @@ Return ONLY valid JSON with no markdown:
         return Response.json({ error: 'Failed to parse LLM response: ' + e.message }, { status: 500 });
     }
 
+    console.log('LLM result - watered_plant_ids:', result.watered_plant_ids, 'reminders:', result.reminders?.length);
+
+    // Check if any reminder needs time clarification before proceeding
+    const pendingReminders = (result.reminders || []).filter(r => r.needs_time_clarification);
+    if (pendingReminders.length > 0) {
+        // Return early asking for clarification — no DB writes yet
+        return Response.json({
+            success: false,
+            needs_clarification: true,
+            clarification_prompt: `What time would you like to be reminded to ${pendingReminders[0].description}?`,
+            partial_result: result,
+        });
+    }
+
     try {
-    const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0];
 
-    for (const plantId of result.watered_plant_ids || []) {
-        const plant = plants.find(p => p.id === plantId);
-        if (plant) {
-            await base44.asServiceRole.entities.WateringLog.create({
-                plant_id: plantId,
-                plant_name: plant.name,
-                watered_date: today,
-                method: 'voice'
-            });
-            const nextWatering = new Date();
-            nextWatering.setDate(nextWatering.getDate() + (plant.water_frequency_days || 7));
-            try {
-            await base44.asServiceRole.entities.Plant.update(plantId, {
-                last_watered: today,
-                next_watering_due: nextWatering.toISOString().split('T')[0]
-            });
-            } catch (updateErr) {
-              console.log('Plant.update skipped (no permission):', updateErr.message);
+        for (const plantId of result.watered_plant_ids || []) {
+            const plant = plants.find(p => p.id === plantId);
+            if (plant) {
+                console.log('Logging watering for plant:', plant.name, plantId);
+                await base44.asServiceRole.entities.WateringLog.create({
+                    plant_id: plantId,
+                    plant_name: plant.name,
+                    watered_date: today,
+                    method: 'voice'
+                });
+                const nextWatering = new Date();
+                nextWatering.setDate(nextWatering.getDate() + (plant.water_frequency_days || 7));
+                await base44.asServiceRole.entities.Plant.update(plantId, {
+                    last_watered: today,
+                    next_watering_due: nextWatering.toISOString().split('T')[0],
+                    status: 'healthy'
+                });
+                console.log('Plant updated:', plant.name, 'next watering:', nextWatering.toISOString().split('T')[0]);
+            } else {
+                console.warn('Plant ID not found in plant list:', plantId);
             }
         }
-    }
 
-    for (const plantNote of result.plant_notes || []) {
-        const plant = plants.find(p => p.id === plantNote.plant_id);
-        if (plant) {
-            const currentNotes = plant.notes || '';
-            const timestamp = new Date().toLocaleDateString();
-            const updatedNotes = currentNotes
-                ? `${currentNotes}\n\n[${timestamp}] ${plantNote.note}`
-                : `[${timestamp}] ${plantNote.note}`;
-            try {
-            await base44.asServiceRole.entities.Plant.update(plantNote.plant_id, {
-                notes: updatedNotes
-            });
-            } catch (updateErr) {
-              console.log('Plant.update (notes) skipped:', updateErr.message);
+        for (const plantNote of result.plant_notes || []) {
+            const plant = plants.find(p => p.id === plantNote.plant_id);
+            if (plant) {
+                const currentNotes = plant.notes || '';
+                const timestamp = new Date().toLocaleDateString();
+                const updatedNotes = currentNotes
+                    ? `${currentNotes}\n\n[${timestamp}] ${plantNote.note}`
+                    : `[${timestamp}] ${plantNote.note}`;
+                await base44.asServiceRole.entities.Plant.update(plantNote.plant_id, { notes: updatedNotes });
             }
         }
-    }
+
+        // Schedule reminders with specific times
+        for (const reminder of result.reminders || []) {
+            if (reminder.reminder_time) {
+                await base44.asServiceRole.entities.Reminder.create({
+                    plant_id: 'general',
+                    plant_name: 'General',
+                    title: reminder.description,
+                    due_date: reminder.reminder_time.split('T')[0],
+                    completed: false,
+                    is_recurring: false,
+                });
+                console.log('Reminder created:', reminder.description, 'at', reminder.reminder_time);
+            }
+        }
 
     } catch (dbErr) {
-      console.error('processPlantCareLog DB error:', dbErr.message, dbErr.stack?.substring(0, 200));
-      return Response.json({ error: 'DB operation failed: ' + dbErr.message }, { status: 500 });
+        console.error('processPlantCareLog DB error:', dbErr.message, dbErr.stack?.substring(0, 200));
+        return Response.json({ error: 'DB operation failed: ' + dbErr.message }, { status: 500 });
     }
+
     console.log('processPlantCareLog success, summary:', result?.summary, 'watered:', result?.watered_plant_ids?.length);
     return Response.json({
         success: true,
         transcript,
         watered_count: result.watered_plant_ids?.length || 0,
         notes_count: result.plant_notes?.length || 0,
+        reminder_count: (result.reminders || []).filter(r => r.reminder_time).length,
         summary: result.summary
     });
 });
