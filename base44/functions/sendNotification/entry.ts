@@ -44,6 +44,8 @@ Deno.serve(async (req) => {
             data: { screen: screen || '/Dashboard' }
         };
 
+        console.log('[sendNotification] Sending payload:', JSON.stringify(payload, null, 2));
+
         const response = await fetch('https://onesignal.com/api/v1/notifications', {
             method: 'POST',
             headers: {
@@ -64,8 +66,8 @@ Deno.serve(async (req) => {
             }, { status: 500 });
         }
 
-        console.log('[sendNotification] ✅ Sent successfully to', result.recipients, 'recipients');
-        return Response.json({ success: true, recipients: result.recipients || 0 });
+        console.log('[sendNotification] ✅ SUCCESS notification_id:', result.id || 'unknown');
+        return Response.json({ success: true, recipients: result.recipients || 0, notification_id: result.id });
     } catch (error) {
         console.error('[sendNotification] Error:', error);
         return Response.json({ 
