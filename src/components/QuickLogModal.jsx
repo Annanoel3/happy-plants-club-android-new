@@ -4,6 +4,7 @@ import { X, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Capacitor } from "@capacitor/core";
+import { setMicActive } from "@/lib/admob";
 
 export default function QuickLogModal({ isOpen, onClose, theme }) {
   const [inputMessage, setInputMessage] = useState("");
@@ -47,6 +48,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         mediaRecorderRef.current = recorder;
         audioChunksRef.current = chunks;
         setIsRecording(true);
+        setMicActive(true);
         toast.success("Recording started...");
       } catch (error) {
         console.error("Recording error:", error);
@@ -60,6 +62,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.stop();
         setIsRecording(false);
+        setMicActive(false);
       }
     }
   };
