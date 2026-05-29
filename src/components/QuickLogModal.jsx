@@ -3,88 +3,73 @@ import { base44 } from "@/api/base44Client";
 import { X, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { VoiceRecorder } from "capacitor-voice-recorder";
 
 export default function QuickLogModal({ isOpen, onClose, theme }) {
   const [inputMessage, setInputMessage] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   const handleVoiceRecord = async () => {
-    console.log("🎤 handleVoiceRecord called, isRecording:", isRecording);
     if (!isRecording) {
       try {
-        // Request microphone permission on native mobile
-        if (typeof window.Capacitor !== 'undefined') {
-          console.log("📱 Running on Capacitor, requesting microphone permission");
-          try {
-            const permission = await window.Capacitor.Plugins.Microphone.requestPermissions();
-            console.log("✅ Permission result:", permission);
-          } catch (permError) {
-            console.error("⚠️ Permission request failed:", permError.message);
-          }
-        }
-        
-        console.log("🎤 Calling VoiceRecorder.startRecording()");
-        await VoiceRecorder.startRecording();
-        console.log("✅ Recording started successfully");
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        const chunks = [];
+
+        recorder.ondataavailable = (e) => {
+          chunks.push(e.data);
+        };
+
+        recorder.onstop = async () => {
+          const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+          await processAudio(audioBlob);
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        recorder.start();
+        mediaRecorderRef.current = recorder;
+        audioChunksRef.current = chunks;
         setIsRecording(true);
         toast.success("Recording started...");
       } catch (error) {
-        console.error("❌ Recording error:", error);
-        console.error("Error details:", error.message, error.stack);
-        toast.error("Failed to start recording: " + error.message);
+        console.error("Recording error:", error);
+        if (error.name === 'NotAllowedError') {
+          toast.error('Microphone permission denied');
+        } else {
+          toast.error("Failed to start recording: " + error.message);
+        }
       }
     } else {
-      try {
-        console.log("🎤 Calling VoiceRecorder.stopRecording()");
-        const result = await VoiceRecorder.stopRecording();
-        console.log("✅ Recording stopped, result:", result);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
         setIsRecording(false);
-
-        if (result.value?.recordDataBase64) {
-          setIsProcessing(true);
-          try {
-            console.log("📦 Base64 data length:", result.value.recordDataBase64.length);
-            // Convert base64 to blob
-            const binaryString = atob(result.value.recordDataBase64);
-            console.log("🔄 Binary string length:", binaryString.length);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-              bytes[i] = binaryString.charCodeAt(i);
-            }
-            const audioBlob = new Blob([bytes], { type: 'audio/webm' });
-            console.log("💾 Blob created, size:", audioBlob.size);
-            
-            // Create File object and upload
-            const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
-            const { file_url } = await base44.integrations.Core.UploadFile({
-              file: audioFile,
-            });
-            
-            // Transcribe from stored file (backend will transcode)
-            const transcribeResponse = await base44.functions.invoke("transcribeAudio", {
-              file_url,
-            });
-            const transcript = transcribeResponse.data.transcript;
-            const { data } = await base44.functions.invoke("processPlantCareLog", { transcript });
-            toast.success(data?.summary || "Log saved!");
-            setInputMessage("");
-            onClose();
-          } catch (error) {
-            console.error("❌ Error processing audio:", error.message);
-            toast.error("Failed to process audio: " + error.message);
-            setIsProcessing(false);
-          }
-        } else {
-          toast.error("No audio recorded");
-        }
-      } catch (error) {
-        console.error("❌ Stop recording error:", error.message);
-        setIsRecording(false);
-        setIsProcessing(false);
-        toast.error("Failed to process voice: " + error.message);
       }
+    }
+  };
+
+  const processAudio = async (audioBlob) => {
+    setIsProcessing(true);
+    try {
+      const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
+      const { file_url } = await base44.integrations.Core.UploadFile({
+        file: audioFile,
+      });
+      
+      const transcribeResponse = await base44.functions.invoke("transcribeAudio", {
+        file_url,
+      });
+      const transcript = transcribeResponse.data.transcript;
+      const { data } = await base44.functions.invoke("processPlantCareLog", { transcript });
+      toast.success(data?.summary || "Log saved!");
+      setInputMessage("");
+      onClose();
+    } catch (error) {
+      console.error("Error processing audio:", error);
+      toast.error("Failed to process audio: " + error.message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
