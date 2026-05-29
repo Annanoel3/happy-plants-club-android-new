@@ -71,13 +71,13 @@ Available plants: ${plantsList}
 Given a transcript, extract:
 1. Which plants were watered — match using the plant's name, nickname, OR scientific name fuzzily (e.g. "tulips" matches name "Tulip" or scientific "Tulipa", "my monstera" matches "Monstera"). If the user says "everything", "all", "all my plants", return "ALL". If they reference a location like "everything on the porch" / "all the indoor plants", return "LOCATION:<location>". If they say "everything overdue", "all the overdue ones", "everything that needed water", return "OVERDUE".
 2. Any observations or notes about specific plants.
-3. Any reminders the user wants to set. If the user says a specific time (e.g. "at 5pm", "at 3:30", "tomorrow morning"), compute the ISO datetime for that reminder IN THE USER'S TIMEZONE (${userTimezone}). If the user says something vague like "later" or "soon" with no specific time, set reminder_time to null and needs_time_clarification to true.
+3. Any reminders the user wants to set. If the user says a specific time (e.g. "at 5pm", "at 3:30", "tomorrow morning"), compute the ISO datetime for that reminder. IMPORTANT: User's timezone is ${timezone}. Convert the user's local time to UTC, then return as ISO string. For example, if user says "8 PM" and is in America/Chicago (UTC-5 during summer), calculate 8 PM Chicago local time, then convert to UTC (1 AM next day) and return the UTC ISO string. If the user says something vague like "later" or "soon" with no specific time, set reminder_time to null and needs_time_clarification to true.
 
 Return ONLY valid JSON:
 {
     "watered_plant_names": ["Tulip"],
     "plant_notes": [{"plant_name": "Monstera", "note": "observation"}],
-    "reminders": [{"description": "what to do", "reminder_time": "ISO datetime in user timezone or null", "needs_time_clarification": false}],
+    "reminders": [{"description": "what to do", "reminder_time": "ISO datetime in UTC or null", "needs_time_clarification": false}],
     "summary": "brief summary"
 }`
             },
