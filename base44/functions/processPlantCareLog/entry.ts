@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
-    const plants = await base44.entities.Plant.list();
+    const plants = await base44.asServiceRole.entities.Plant.filter({ created_by_id: user.id });
     const plantsList = plants.map(p => `${p.name} (ID: ${p.id})`).join(', ');
 
     const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
