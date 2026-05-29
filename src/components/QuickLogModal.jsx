@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { X, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { Capacitor } from "@capacitor/core";
 
 export default function QuickLogModal({ isOpen, onClose, theme }) {
   const [inputMessage, setInputMessage] = useState("");
@@ -10,6 +11,20 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+
+  useEffect(() => {
+    // Request microphone permission on Android
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { Permissions } = Capacitor.Plugins;
+        Permissions.requestPermissions({
+          permissions: ['microphone']
+        });
+      } catch (error) {
+        console.log('Permission request error:', error);
+      }
+    }
+  }, []);
 
   const handleVoiceRecord = async () => {
     if (!isRecording) {
