@@ -39,13 +39,29 @@ Deno.serve(async (req) => {
     const now = new Date();
     const nowISO = now.toISOString();
     const userTimezone = 'America/Chicago'; // User's timezone
+    
+    // Get current local time in Chicago for LLM context
+    const chicagoFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: userTimezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+    const localTimeStr = chicagoFormatter.format(now);
+    const [datePart, timePart] = localTimeStr.split(', ');
+    const [month, day, year] = datePart.split('/');
+    const localDateTimeStr = `${year}-${month}-${day}T${timePart}`;
 
     const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
             {
                 role: "system",
-                content: `You are a plant care log parser. User's timezone: ${userTimezone}. Current time: ${nowISO}
+                content: `You are a plant care log parser. User's timezone: ${userTimezone}. Current local time in user's timezone: ${localDateTimeStr}. Current UTC time: ${nowISO}
 
 Available plants: ${plantsList}
 
