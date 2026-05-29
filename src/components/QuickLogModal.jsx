@@ -91,7 +91,8 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
   };
 
   const submitTranscript = async (transcript) => {
-    const { data } = await base44.functions.invoke("processPlantCareLog", { transcript });
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const { data } = await base44.functions.invoke("processPlantCareLog", { transcript, userTimezone });
     console.log('[QuickLogModal] processPlantCareLog result:', JSON.stringify(data || 'no data').substring(0, 200));
 
     if (data?.needs_clarification) {
