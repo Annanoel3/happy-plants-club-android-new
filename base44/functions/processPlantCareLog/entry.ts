@@ -170,16 +170,6 @@ Return ONLY valid JSON:
                     is_recurring: false,
                 });
                 console.log('Reminder created:', reminder.description, 'at', reminder.reminder_time);
-                
-                // Send OneSignal push notification for the reminder
-                const reminderDateObj = new Date(reminder.reminder_time);
-                const formattedTime = reminderDateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', meridiem: 'short' });
-                await base44.asServiceRole.functions.invoke('sendNotification', {
-                    title: 'Plant Reminder',
-                    message: `${reminder.description} at ${formattedTime}`,
-                    user_email: user.email,
-                    notification_type: 'reminder'
-                });
             }
         }
 
