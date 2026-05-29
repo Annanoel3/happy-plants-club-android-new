@@ -39,8 +39,9 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         };
 
         recorder.onstop = async () => {
-          const audioBlob = new Blob(chunks, { type: 'audio/webm' });
-          await processAudio(audioBlob);
+          const mimeType = recorder.mimeType || 'audio/webm';
+      const audioBlob = new Blob(chunks, { type: mimeType });
+          await processAudio(audioBlob, mimeType);
           stream.getTracks().forEach(track => track.stop());
         };
 
@@ -67,17 +68,17 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
     }
   };
 
-  const processAudio = async (audioBlob) => {
+  const processAudio = async (audioBlob, mimeType = 'audio/webm') => {
     setIsProcessing(true);
     try {
-      const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
+      const ext = (mimeType.includes('mp4') || mimeType.includes('aac')) ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+      const filename = 'recording.' + ext;
+      const audioFile = new File([audioBlob], filename, { type: mimeType });
       const { file_url } = await base44.integrations.Core.UploadFile({
         file: audioFile,
       });
       
-      const transcribeResponse = await base44.functions.invoke("transcribeAudio", {
-        file_url,
-      });
+      const transcribeResponse = await base44.functions.invoke("transcribeAudio", { file_url, filename });
       const transcript = transcribeResponse.data.transcript;
       const { data } = await base44.functions.invoke("processPlantCareLog", { transcript });
       toast.success(data?.summary || "Log saved!");
