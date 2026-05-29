@@ -1,83 +1,88 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
-
-const ONESIGNAL_APP_ID = Deno.env.get('ONESIGNAL_APP_ID');
-const ONESIGNAL_REST_API_KEY = Deno.env.get('ONESIGNAL_REST_API_KEY');
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
+    console.log('[schedulePush] ========== FUNCTION START ==========');
+    
     try {
-        // Authenticate the user making the request
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-
-        if (!user) {
-            return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        const bodyText = await req.text();
+        let payload;
+        try {
+            payload = JSON.parse(bodyText);
+        } catch (parseError) {
+            return Response.json({ success: false, error: 'Invalid JSON in request body', details: parseError.message }, { status: 400 });
         }
 
-        const { toUserEmail, title, body, minutesFromNow } = await req.json();
+        const appId = Deno.env.get("ONESIGNAL_APP_ID")?.trim();
+        const restApiKey = Deno.env.get("ONESIGNAL_REST_API_KEY")?.trim();
 
-        if (!toUserEmail || !title || !body || minutesFromNow === undefined) {
-            return Response.json({
-                success: false,
-                error: 'Missing required fields: toUserEmail, title, body, minutesFromNow'
-            }, { status: 400 });
+        if (!appId || !restApiKey) {
+            return Response.json({ success: false, error: 'Missing OneSignal environment variables.' }, { status: 500 });
         }
 
-        if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
-            return Response.json({
-                success: false,
-                error: 'OneSignal credentials not configured'
-            }, { status: 500 });
+        const { toUserExternalId, title, body: messageBody, sendAtISO, minutesFromNow, data, android_channel_id, buttons } = payload;
+        
+        if (!toUserExternalId) {
+            return Response.json({ success: false, error: 'toUserExternalId is required' }, { status: 400 });
         }
 
-        // Calculate send time
-        const sendTime = new Date();
-        sendTime.setMinutes(sendTime.getMinutes() + minutesFromNow);
-        const sendAfter = sendTime.toISOString();
+        if (!title || !messageBody) {
+            return Response.json({ success: false, error: 'Missing title or message body' }, { status: 400 });
+        }
 
-        console.log(`📅 Scheduling push for ${toUserEmail} at ${sendAfter}`);
+        const notificationPayload = {
+            app_id: appId,
+            include_external_user_ids: [String(toUserExternalId)],
+            headings: { en: title },
+            contents: { en: messageBody },
+            data: data || {},
+            channel_for_external_user_ids: "push",
+            // Scheduling
+            ...(sendAtISO && { send_after: sendAtISO }),
+            ...((minutesFromNow !== undefined && !sendAtISO) && {
+                send_after: new Date(Date.now() + minutesFromNow * 60 * 1000).toISOString()
+            }),
+            // Action buttons (Snooze / Complete)
+            ...(buttons && buttons.length > 0 && { buttons: buttons }),
+        };
+        
+        if (android_channel_id) {
+            notificationPayload.android_channel_id = android_channel_id;
+        }
 
-        // Send scheduled notification via OneSignal
-        const osRes = await fetch('https://onesignal.com/api/v1/notifications', {
+        console.log('[schedulePush] Sending payload:', JSON.stringify(notificationPayload, null, 2));
+
+        const oneSignalResponse = await fetch("https://onesignal.com/api/v1/notifications", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`,
+                'Authorization': `Basic ${restApiKey}`
             },
-            body: JSON.stringify({
-                app_id: ONESIGNAL_APP_ID,
-                include_aliases: {
-                    external_id: [toUserEmail]  // CRITICAL: Must be email, not user.id
-                },
-                target_channel: 'push',
-                headings: { en: title },
-                contents: { en: body },
-                send_after: sendAfter
-            }),
+            body: JSON.stringify(notificationPayload)
         });
 
-        const osJson = await osRes.json().catch(() => ({}));
-
-        if (!osRes.ok) {
-            console.error('❌ OneSignal error:', osJson);
-            return Response.json({
-                success: false,
-                error: 'OneSignal scheduling failed',
-                details: osJson
-            }, { status: 502 });
+        const responseText = await oneSignalResponse.text();
+        let oneSignalResult;
+        try {
+            oneSignalResult = JSON.parse(responseText);
+        } catch {
+            return Response.json({ success: false, error: 'Invalid response from OneSignal API', response_text: responseText }, { status: 500 });
         }
 
-        console.log('✅ Push scheduled successfully');
+        if (!oneSignalResponse.ok || oneSignalResult.errors) {
+            console.error('[schedulePush] OneSignal error:', oneSignalResult);
+            return Response.json({
+                success: false,
+                error: oneSignalResult.errors?.[0] || 'OneSignal API failed',
+                onesignal_status: oneSignalResponse.status,
+                onesignal_response: oneSignalResult
+            }, { status: 200 });
+        }
 
-        return Response.json({
-            success: true,
-            scheduled_for: sendAfter,
-            onesignal_response: osJson
-        });
-    } catch (err) {
-        console.error('❌ Error in schedulePush:', err);
-        return Response.json({
-            success: false,
-            error: String(err)
-        }, { status: 500 });
+        console.log('[schedulePush] ========== SUCCESS ==========', oneSignalResult.id);
+        return Response.json({ success: true, notificationId: oneSignalResult.id, onesignal_response: oneSignalResult });
+
+    } catch (error) {
+        console.error('[schedulePush] Unhandled error:', error.message);
+        return Response.json({ success: false, error: 'Internal server error', error_message: error.message }, { status: 500 });
     }
 });
