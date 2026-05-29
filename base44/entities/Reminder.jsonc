@@ -39,9 +39,19 @@
         "daily",
         "weekly",
         "biweekly",
-        "monthly"
+        "monthly",
+        "every_two_hours"
       ],
       "description": "How often the reminder repeats"
+    },
+    "onesignal_notification_id": {
+      "type": "string",
+      "description": "OneSignal notification ID for scheduled/recurring notifications"
+    },
+    "schedule_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Specific time for scheduled notification"
     }
   },
   "required": [

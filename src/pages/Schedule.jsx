@@ -126,6 +126,21 @@ export default function Schedule() {
     },
   });
 
+  // Fetch scheduled notifications
+  const { data: remindersWithNotifications = [] } = useQuery({
+    queryKey: ['remindersWithNotifications', user?.email],
+    queryFn: async () => {
+      try {
+        const allReminders = await base44.entities.Reminder.filter({ created_by: user.email }, '-due_date');
+        // Return reminders that have notification details
+        return allReminders.filter(r => r.onesignal_notification_id);
+      } catch (err) {
+        return [];
+      }
+    },
+    enabled: !!user && !!user.email,
+  });
+
   const handleCreateVacation = () => {
     if (!vacationStartDate || !vacationEndDate) {
       toast.error("Please select start and end dates");
@@ -365,6 +380,15 @@ export default function Schedule() {
             )}
           >
             List View
+          </Button>
+          <Button
+            onClick={() => setView('notifications')}
+            variant={view === 'notifications' ? 'default' : 'outline'}
+            className={cn(
+              view === 'notifications' ? getPrimaryButtonClasses() : `${getThemedClasses()} ${getTextColor()}`
+            )}
+          >
+            🔔 Notifications
           </Button>
         </div>
 
@@ -618,6 +642,45 @@ export default function Schedule() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {view === 'notifications' && (
+          <Card className={getThemedClasses()}>
+            <CardContent className="p-6">
+              <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>📬 Upcoming Notifications</h2>
+              {remindersWithNotifications.length === 0 ? (
+                <p className={getSecondaryTextColor()}>No scheduled notifications yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {remindersWithNotifications.map(reminder => (
+                    <div
+                      key={reminder.id}
+                      className={`p-4 rounded-xl border ${getThemedClasses()}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <p className={`font-semibold ${getTextColor()}`}>{reminder.title}</p>
+                          {reminder.description && (
+                            <p className={`text-sm mt-1 ${getSecondaryTextColor()}`}>{reminder.description}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-2">
+                            <p className={`text-sm ${getSecondaryTextColor()}`}>
+                              📅 {format(parseISO(reminder.due_date), 'MMMM d, yyyy')}
+                            </p>
+                            {reminder.recurrence_type && (
+                              <Badge className="text-xs">
+                                {reminder.recurrence_type === 'every_two_hours' ? 'Every 2h' : reminder.recurrence_type}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Vacation Section */}
