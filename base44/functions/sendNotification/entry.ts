@@ -1,11 +1,26 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
-
-const ONESIGNAL_APP_ID = Deno.env.get('ONESIGNAL_APP_ID');
-const ONESIGNAL_REST_API_KEY = Deno.env.get('ONESIGNAL_REST_API_KEY');
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+        
+        if (!user) {
+            return Response.json({ 
+                success: false, 
+                error: 'Unauthorized' 
+            }, { status: 401 });
+        }
+
+        const ONESIGNAL_APP_ID = Deno.env.get('ONESIGNAL_APP_ID');
+        const ONESIGNAL_REST_API_KEY = Deno.env.get('ONESIGNAL_REST_API_KEY');
+
+        if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
+            return Response.json({ 
+                success: false,
+                error: 'OneSignal credentials not configured' 
+            }, { status: 500 });
+        }
         
         const body = await req.json();
         const { toUserEmail, title, body: message, screen } = body;
@@ -15,13 +30,6 @@ Deno.serve(async (req) => {
                 success: false,
                 error: 'Missing required fields: toUserEmail, title, body' 
             }, { status: 400 });
-        }
-
-        if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
-            return Response.json({ 
-                success: false,
-                error: 'OneSignal credentials not configured' 
-            }, { status: 500 });
         }
 
         console.log('[sendNotification] Sending to:', toUserEmail);
