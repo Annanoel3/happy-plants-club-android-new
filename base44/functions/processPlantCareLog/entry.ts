@@ -38,26 +38,27 @@ Deno.serve(async (req) => {
     const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
     const now = new Date();
     const nowISO = now.toISOString();
+    const userTimezone = 'America/Chicago'; // User's timezone
 
     const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
             {
                 role: "system",
-                content: `You are a plant care log parser. Current time: ${nowISO}
+                content: `You are a plant care log parser. User's timezone: ${userTimezone}. Current time: ${nowISO}
 
 Available plants: ${plantsList}
 
 Given a transcript, extract:
 1. Which plants were watered — match using the plant's name, nickname, OR scientific name fuzzily (e.g. "tulips" matches name "Tulip" or scientific "Tulipa", "my monstera" matches "Monstera"). If the user says "everything", "all", "all my plants", return "ALL". If they reference a location like "everything on the porch" / "all the indoor plants", return "LOCATION:<location>". If they say "everything overdue", "all the overdue ones", "everything that needed water", return "OVERDUE".
 2. Any observations or notes about specific plants.
-3. Any reminders the user wants to set. If the user says a specific time (e.g. "at 5pm", "at 3:30", "tomorrow morning"), compute the ISO datetime for that reminder. If the user says something vague like "later" or "soon" with no specific time, set reminder_time to null and needs_time_clarification to true.
+3. Any reminders the user wants to set. If the user says a specific time (e.g. "at 5pm", "at 3:30", "tomorrow morning"), compute the ISO datetime for that reminder IN THE USER'S TIMEZONE (${userTimezone}). If the user says something vague like "later" or "soon" with no specific time, set reminder_time to null and needs_time_clarification to true.
 
 Return ONLY valid JSON:
 {
     "watered_plant_names": ["Tulip"],
     "plant_notes": [{"plant_name": "Monstera", "note": "observation"}],
-    "reminders": [{"description": "what to do", "reminder_time": "ISO datetime or null", "needs_time_clarification": false}],
+    "reminders": [{"description": "what to do", "reminder_time": "ISO datetime in user timezone or null", "needs_time_clarification": false}],
     "summary": "brief summary"
 }`
             },
