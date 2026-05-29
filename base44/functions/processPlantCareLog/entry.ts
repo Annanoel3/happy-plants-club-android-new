@@ -186,13 +186,34 @@ Return ONLY valid JSON:
                 const phrase = reminder.reminder_time_phrase.toLowerCase().trim();
                 
                 try {
-                    // Calculate timezone offset in minutes (user's TZ offset from UTC)
+                    // Calculate timezone offset in minutes using Intl API
                     const now = new Date();
-                    const utcString = now.toLocaleString('en-US', { timeZone: 'UTC' });
-                    const userString = now.toLocaleString('en-US', { timeZone: timezone });
-                    const utcDate = new Date(utcString);
-                    const userDate = new Date(userString);
-                    const tzOffsetMinutes = (userDate.getTime() - utcDate.getTime()) / (60 * 1000);
+                    const formatter = new Intl.DateTimeFormat('en-US', {
+                        timeZone: timezone,
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                    
+                    const parts = formatter.formatToParts(now);
+                    const partsObj = {};
+                    parts.forEach(p => { partsObj[p.type] = p.value; });
+                    
+                    // Create naive date with local time components, then compare to UTC
+                    const naiveDate = new Date(Date.UTC(
+                        parseInt(partsObj.year),
+                        parseInt(partsObj.month) - 1,
+                        parseInt(partsObj.day),
+                        parseInt(partsObj.hour),
+                        parseInt(partsObj.minute),
+                        parseInt(partsObj.second)
+                    ));
+                    
+                    const tzOffsetMinutes = (naiveDate.getTime() - now.getTime()) / (60 * 1000);
                     
                     // Handle relative times (in X hours, in X minutes)
                     const inMatch = phrase.match(/in\s+(\d+)\s+(hour|minute)s?/);
