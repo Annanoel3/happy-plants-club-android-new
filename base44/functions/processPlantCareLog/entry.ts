@@ -186,11 +186,13 @@ Return ONLY valid JSON:
                 const phrase = reminder.reminder_time_phrase.toLowerCase().trim();
                 
                 try {
-                    // Get user's timezone offset (in minutes)
+                    // Calculate timezone offset in minutes (user's TZ offset from UTC)
                     const now = new Date();
-                    const timeInUserTz = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-                    const timeInUTC = now;
-                    const offsetMinutes = (timeInUTC.getTime() - timeInUserTz.getTime()) / (60 * 1000);
+                    const utcString = now.toLocaleString('en-US', { timeZone: 'UTC' });
+                    const userString = now.toLocaleString('en-US', { timeZone: timezone });
+                    const utcDate = new Date(utcString);
+                    const userDate = new Date(userString);
+                    const tzOffsetMinutes = (userDate.getTime() - utcDate.getTime()) / (60 * 1000);
                     
                     // Handle relative times (in X hours, in X minutes)
                     const inMatch = phrase.match(/in\s+(\d+)\s+(hour|minute)s?/);
@@ -207,22 +209,21 @@ Return ONLY valid JSON:
                             const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
                             const isPM = (timeMatch[3] || timeMatch[2])?.toLowerCase() === 'pm';
                             
-                            // Create a date in the user's local timezone
-                            reminderDateTime = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+                            // Start with UTC now as baseline
+                            reminderDateTime = new Date(now);
                             
                             // Check if user said "tomorrow"
                             if (phrase.includes('tomorrow')) {
-                                reminderDateTime.setDate(reminderDateTime.getDate() + 1);
+                                reminderDateTime.setUTCDate(reminderDateTime.getUTCDate() + 1);
                             }
                             
                             let finalHour = hour;
                             if (isPM && hour !== 12) finalHour = hour + 12;
                             if (!isPM && hour === 12) finalHour = 0;
                             
-                            reminderDateTime.setHours(finalHour, minute, 0, 0);
-                            
-                            // Adjust back to UTC by adding the offset
-                            reminderDateTime.setMinutes(reminderDateTime.getMinutes() + offsetMinutes);
+                            // Set to user's local time, then convert to UTC
+                            // If user wants 9 PM local and tz offset is -360 (CDT), 9 PM = 2 AM UTC
+                            reminderDateTime.setUTCHours(finalHour - Math.round(tzOffsetMinutes / 60), minute, 0, 0);
                         } else {
                             console.warn('Could not parse time phrase:', phrase);
                             continue;
