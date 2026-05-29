@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
 Available plants: ${plantsList}
 
 Given a transcript, extract:
-1. Which plants were watered — match using the plant's name, nickname, OR scientific name fuzzily (e.g. "tulips" matches name "Tulip" or scientific "Tulipa", "my monstera" matches "Monstera"). If the user says "everything", "all", "all my plants", or references a location like "everything on the porch" / "all the indoor plants", return the special value "ALL" or "LOCATION:<location>" in watered_plant_names.
+1. Which plants were watered — match using the plant's name, nickname, OR scientific name fuzzily (e.g. "tulips" matches name "Tulip" or scientific "Tulipa", "my monstera" matches "Monstera"). If the user says "everything", "all", "all my plants", return "ALL". If they reference a location like "everything on the porch" / "all the indoor plants", return "LOCATION:<location>". If they say "everything overdue", "all the overdue ones", "everything that needed water", return "OVERDUE".
 2. Any observations or notes about specific plants.
 3. Any reminders the user wants to set. If the user says a specific time (e.g. "at 5pm", "at 3:30", "tomorrow morning"), compute the ISO datetime for that reminder. If the user says something vague like "later" or "soon" with no specific time, set reminder_time to null and needs_time_clarification to true.
 
@@ -102,12 +102,15 @@ Return ONLY valid JSON:
     try {
         const today = new Date().toISOString().split('T')[0];
 
-        // Expand ALL / LOCATION special tokens into real plant lists
+        // Expand ALL / LOCATION / OVERDUE special tokens into real plant lists
         let wateredNames = result.watered_plant_names || [];
         let plantsToWater = [];
         for (const token of wateredNames) {
             if (token === 'ALL') {
                 plantsToWater.push(...plants);
+            } else if (token === 'OVERDUE') {
+                plantsToWater.push(...plants.filter(p => p.next_watering_due && p.next_watering_due <= today));
+                console.log('OVERDUE filter - today:', today, 'matched:', plantsToWater.map(p => p.name));
             } else if (token.startsWith('LOCATION:')) {
                 const loc = token.replace('LOCATION:', '').trim().toLowerCase();
                 plantsToWater.push(...plants.filter(p => p.location?.toLowerCase().includes(loc)));
