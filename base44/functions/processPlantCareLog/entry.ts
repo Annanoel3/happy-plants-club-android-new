@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     }
 
     const plants = await base44.asServiceRole.entities.Plant.filter({ created_by_id: user.id });
-    const plantsList = plants.map(p => `"${p.name}" (ID: ${p.id})`).join(', ');
+    const plantsList = plants.map(p => `"${p.name}"`).join(', ');
     console.log('Available plants:', plantsList);
 
     const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
@@ -48,8 +48,8 @@ Given a transcript, extract:
 
 Return ONLY valid JSON:
 {
-    "watered_plant_ids": ["id1", "id2"],
-    "plant_notes": [{"plant_id": "id", "note": "observation"}],
+    "watered_plant_names": ["Tulip", "Monstera"],
+    "plant_notes": [{"plant_name": "Monstera", "note": "observation"}],
     "reminders": [{"description": "what to do", "reminder_time": "ISO datetime or null", "needs_time_clarification": false}],
     "summary": "brief summary"
 }`
@@ -66,12 +66,15 @@ Return ONLY valid JSON:
         return Response.json({ error: 'Failed to parse LLM response: ' + e.message }, { status: 500 });
     }
 
-    console.log('LLM result - watered_plant_ids:', result.watered_plant_ids, 'reminders:', result.reminders?.length);
+    console.log('LLM result - watered_plant_names:', result.watered_plant_names, 'reminders:', result.reminders?.length);
+
+    // Helper: find plant by name fuzzy match
+    const findPlant = (name) => plants.find(p => p.name.toLowerCase() === name.toLowerCase()) ||
+        plants.find(p => p.name.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(p.name.toLowerCase()));
 
     // Check if any reminder needs time clarification before proceeding
     const pendingReminders = (result.reminders || []).filter(r => r.needs_time_clarification);
     if (pendingReminders.length > 0) {
-        // Return early asking for clarification — no DB writes yet
         return Response.json({
             success: false,
             needs_clarification: true,
@@ -83,38 +86,38 @@ Return ONLY valid JSON:
     try {
         const today = new Date().toISOString().split('T')[0];
 
-        for (const plantId of result.watered_plant_ids || []) {
-            const plant = plants.find(p => p.id === plantId);
+        for (const plantName of result.watered_plant_names || []) {
+            const plant = findPlant(plantName);
             if (plant) {
-                console.log('Logging watering for plant:', plant.name, plantId);
+                console.log('Logging watering for plant:', plant.name, plant.id);
                 await base44.asServiceRole.entities.WateringLog.create({
-                    plant_id: plantId,
+                    plant_id: plant.id,
                     plant_name: plant.name,
                     watered_date: today,
                     method: 'voice'
                 });
                 const nextWatering = new Date();
                 nextWatering.setDate(nextWatering.getDate() + (plant.water_frequency_days || 7));
-                await base44.asServiceRole.entities.Plant.update(plantId, {
+                await base44.asServiceRole.entities.Plant.update(plant.id, {
                     last_watered: today,
                     next_watering_due: nextWatering.toISOString().split('T')[0],
                     status: 'healthy'
                 });
                 console.log('Plant updated:', plant.name, 'next watering:', nextWatering.toISOString().split('T')[0]);
             } else {
-                console.warn('Plant ID not found in plant list:', plantId);
+                console.warn('Plant name not matched:', plantName, '| available:', plants.map(p => p.name));
             }
         }
 
         for (const plantNote of result.plant_notes || []) {
-            const plant = plants.find(p => p.id === plantNote.plant_id);
+            const plant = findPlant(plantNote.plant_name);
             if (plant) {
                 const currentNotes = plant.notes || '';
                 const timestamp = new Date().toLocaleDateString();
                 const updatedNotes = currentNotes
                     ? `${currentNotes}\n\n[${timestamp}] ${plantNote.note}`
                     : `[${timestamp}] ${plantNote.note}`;
-                await base44.asServiceRole.entities.Plant.update(plantNote.plant_id, { notes: updatedNotes });
+                await base44.asServiceRole.entities.Plant.update(plant.id, { notes: updatedNotes });
             }
         }
 
@@ -142,7 +145,7 @@ Return ONLY valid JSON:
     return Response.json({
         success: true,
         transcript,
-        watered_count: result.watered_plant_ids?.length || 0,
+        watered_count: result.watered_plant_names?.length || 0,
         notes_count: result.plant_notes?.length || 0,
         reminder_count: (result.reminders || []).filter(r => r.reminder_time).length,
         summary: result.summary
