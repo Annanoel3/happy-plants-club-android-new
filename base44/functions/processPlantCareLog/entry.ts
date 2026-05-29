@@ -17,12 +17,16 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { transcript } = await req.json();
+    const { transcript, userTimezone } = await req.json();
     console.log('processPlantCareLog: transcript received, length:', transcript?.length, 'preview:', transcript?.substring(0, 60));
 
     if (!transcript || !transcript.trim()) {
         return Response.json({ error: 'No transcript provided' }, { status: 400 });
     }
+
+    // Use provided timezone or fall back to UTC
+    const timezone = userTimezone || 'UTC';
+    console.log('Using timezone:', timezone);
 
     // Fetch plants using user-scoped call (RLS automatically filters to user's plants)
     const plants = await base44.entities.Plant.list('-created_date', 200);
@@ -38,11 +42,10 @@ Deno.serve(async (req) => {
     const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
     const now = new Date();
     const nowISO = now.toISOString();
-    const userTimezone = 'America/Chicago'; // User's timezone
     
-    // Get current local time in Chicago for LLM context
-    const chicagoFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: userTimezone,
+    // Get current local time in user's timezone for LLM context
+    const localFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -51,7 +54,7 @@ Deno.serve(async (req) => {
         second: '2-digit',
         hour12: false
     });
-    const localTimeStr = chicagoFormatter.format(now);
+    const localTimeStr = localFormatter.format(now);
     const [datePart, timePart] = localTimeStr.split(', ');
     const [month, day, year] = datePart.split('/');
     const localDateTimeStr = `${year}-${month}-${day}T${timePart}`;
@@ -61,7 +64,7 @@ Deno.serve(async (req) => {
         messages: [
             {
                 role: "system",
-                content: `You are a plant care log parser. User's timezone: ${userTimezone}. Current local time in user's timezone: ${localDateTimeStr}. Current UTC time: ${nowISO}
+                content: `You are a plant care log parser. User's timezone: ${timezone}. Current local time in user's timezone: ${localDateTimeStr}. Current UTC time: ${nowISO}
 
 Available plants: ${plantsList}
 
