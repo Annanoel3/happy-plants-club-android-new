@@ -71,13 +71,13 @@ Available plants: ${plantsList}
 Given a transcript, extract:
 1. Which plants were watered — match using the plant's name, nickname, OR scientific name fuzzily (e.g. "tulips" matches name "Tulip" or scientific "Tulipa", "my monstera" matches "Monstera"). If the user says "everything", "all", "all my plants", return "ALL". If they reference a location like "everything on the porch" / "all the indoor plants", return "LOCATION:<location>". If they say "everything overdue", "all the overdue ones", "everything that needed water", return "OVERDUE".
 2. Any observations or notes about specific plants.
-3. Any reminders the user wants to set. If the user says a specific time (e.g. "at 5pm", "at 3:30", "tomorrow morning"), compute the ISO datetime for that reminder. CRITICAL: User's timezone is ${timezone}. When the user says a time like "5pm" or "tomorrow at 9am", they ALWAYS mean that time in their local timezone (${timezone}), NOT UTC. You MUST convert from their local time to UTC. Example: if user says "5 PM" and timezone is America/Chicago (UTC-5 in summer), that means 5 PM Chicago local time = 10 PM UTC. Return as UTC ISO string. If the user says something vague like "later" or "soon" with no specific time, set reminder_time to null and needs_time_clarification to true.
+3. Any reminders the user wants to set. Extract the time string exactly as the user said it (e.g. "8 PM", "tomorrow at 9am", "in 2 hours"). Do NOT try to convert timezones yourself — just extract the raw time phrase. Return in reminder_time_phrase. If it's vague like "later" or "soon", set reminder_time_phrase to null and needs_time_clarification to true.
 
 Return ONLY valid JSON:
 {
     "watered_plant_names": ["Tulip"],
     "plant_notes": [{"plant_name": "Monstera", "note": "observation"}],
-    "reminders": [{"description": "what to do", "reminder_time": "ISO datetime in UTC or null", "needs_time_clarification": false}],
+    "reminders": [{"description": "what to do", "reminder_time_phrase": "user's exact time phrase or null", "needs_time_clarification": false}],
     "summary": "brief summary"
 }`
             },
@@ -180,44 +180,83 @@ Return ONLY valid JSON:
 
         // Schedule reminders with specific times
         for (const reminder of result.reminders || []) {
-            if (reminder.reminder_time) {
-                // Calculate delay in minutes until the reminder time
-                const reminderDateTime = new Date(reminder.reminder_time);
-                const delayMinutes = Math.max(0, Math.floor((reminderDateTime.getTime() - Date.now()) / (60 * 1000)));
+            if (reminder.reminder_time_phrase) {
+                // Parse natural language time using Intl to convert user's local time to UTC
+                let reminderDateTime;
+                const phrase = reminder.reminder_time_phrase.toLowerCase().trim();
                 
-                console.log('Scheduling reminder:', reminder.description, 'at', reminder.reminder_time, 'delay:', delayMinutes, 'minutes');
-
-                // Create the reminder record
-                const reminderRecord = await base44.asServiceRole.entities.Reminder.create({
-                    plant_id: 'general',
-                    plant_name: 'General',
-                    title: reminder.description,
-                    description: reminder.description,
-                    due_date: reminder.reminder_time.split('T')[0],
-                    schedule_time: reminder.reminder_time,
-                    completed: false,
-                    is_recurring: false,
-                });
-
-                // Schedule the push notification for the specific time
                 try {
-                    const schedulePushResult = await base44.asServiceRole.functions.invoke('schedulePush', {
-                        toUserExternalId: user.email,
-                        title: '🔔 ' + reminder.description,
-                        body: 'Time to ' + reminder.description.toLowerCase(),
-                        minutesFromNow: delayMinutes,
-                        data: { screen: '/Dashboard' }
-                    });
-                    
-                    // Store the OneSignal notification ID in the reminder
-                    if (schedulePushResult?.notificationId) {
-                        await base44.asServiceRole.entities.Reminder.update(reminderRecord.id, {
-                            onesignal_notification_id: schedulePushResult.notificationId
-                        });
-                        console.log('✅ Reminder scheduled with notification ID:', schedulePushResult.notificationId);
+                    // Handle relative times (in X hours, in X minutes)
+                    const inMatch = phrase.match(/in\s+(\d+)\s+(hour|minute)s?/);
+                    if (inMatch) {
+                        reminderDateTime = new Date();
+                        const amount = parseInt(inMatch[1]);
+                        if (inMatch[2] === 'hour') reminderDateTime.setHours(reminderDateTime.getHours() + amount);
+                        else reminderDateTime.setMinutes(reminderDateTime.getMinutes() + amount);
+                    } else {
+                        // Handle absolute times (8pm, tomorrow at 9am, etc)
+                        // Parse with the user's timezone context
+                        const timeMatch = phrase.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?/i) || phrase.match(/(\d{1,2})\s*(am|pm)/i);
+                        if (timeMatch) {
+                            const hour = parseInt(timeMatch[1]);
+                            const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+                            const isPM = (timeMatch[3] || timeMatch[2])?.toLowerCase() === 'pm';
+                            
+                            reminderDateTime = new Date();
+                            
+                            // Check if user said "tomorrow"
+                            if (phrase.includes('tomorrow')) {
+                                reminderDateTime.setDate(reminderDateTime.getDate() + 1);
+                            }
+                            
+                            let finalHour = hour;
+                            if (isPM && hour !== 12) finalHour = hour + 12;
+                            if (!isPM && hour === 12) finalHour = 0;
+                            
+                            reminderDateTime.setHours(finalHour, minute, 0, 0);
+                        } else {
+                            console.warn('Could not parse time phrase:', phrase);
+                            continue;
+                        }
                     }
-                } catch (scheduleErr) {
-                    console.error('Failed to schedule reminder notification:', scheduleErr.message);
+                    
+                    const delayMinutes = Math.max(0, Math.floor((reminderDateTime.getTime() - Date.now()) / (60 * 1000)));
+                    console.log('Scheduling reminder:', reminder.description, 'phrase:', reminder.reminder_time_phrase, 'computed time:', reminderDateTime.toISOString(), 'delay:', delayMinutes, 'minutes');
+
+                    // Create the reminder record
+                    const reminderRecord = await base44.asServiceRole.entities.Reminder.create({
+                        plant_id: 'general',
+                        plant_name: 'General',
+                        title: reminder.description,
+                        description: reminder.description,
+                        due_date: reminderDateTime.toISOString().split('T')[0],
+                        schedule_time: reminderDateTime.toISOString(),
+                        completed: false,
+                        is_recurring: false,
+                    });
+
+                    // Schedule the push notification for the specific time
+                    try {
+                        const schedulePushResult = await base44.asServiceRole.functions.invoke('schedulePush', {
+                            toUserExternalId: user.email,
+                            title: '🔔 ' + reminder.description,
+                            body: 'Time to ' + reminder.description.toLowerCase(),
+                            minutesFromNow: delayMinutes,
+                            data: { screen: '/Dashboard' }
+                        });
+                        
+                        // Store the OneSignal notification ID in the reminder
+                        if (schedulePushResult?.notificationId) {
+                            await base44.asServiceRole.entities.Reminder.update(reminderRecord.id, {
+                                onesignal_notification_id: schedulePushResult.notificationId
+                            });
+                            console.log('✅ Reminder scheduled with notification ID:', schedulePushResult.notificationId);
+                        }
+                    } catch (scheduleErr) {
+                        console.error('Failed to schedule reminder notification:', scheduleErr.message);
+                    }
+                } catch (parseErr) {
+                    console.error('Failed to parse reminder time:', parseErr.message);
                 }
             }
         }
@@ -233,7 +272,7 @@ Return ONLY valid JSON:
         transcript,
         watered_count: plantsToWater?.length || 0,
         notes_count: result.plant_notes?.length || 0,
-        reminder_count: (result.reminders || []).filter(r => r.reminder_time).length,
+        reminder_count: (result.reminders || []).filter(r => r.reminder_time_phrase).length,
         summary: result.summary
     });
 });
