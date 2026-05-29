@@ -21,6 +21,7 @@ Deno.serve(async (req) => {
     }
 
     const { transcript } = await req.json();
+    console.log('processPlantCareLog: transcript received, length:', transcript?.length, 'preview:', transcript?.substring(0, 40));
 
     if (!transcript || !transcript.trim()) {
         return Response.json({ error: 'No transcript provided' }, { status: 400 });
@@ -66,6 +67,7 @@ Return ONLY valid JSON with no markdown:
         return Response.json({ error: 'Failed to parse LLM response: ' + e.message }, { status: 500 });
     }
 
+    try {
     const today = new Date().toISOString().split('T')[0];
 
     for (const plantId of result.watered_plant_ids || []) {
@@ -100,6 +102,11 @@ Return ONLY valid JSON with no markdown:
         }
     }
 
+    } catch (dbErr) {
+      console.error('processPlantCareLog DB error:', dbErr.message, dbErr.stack?.substring(0, 200));
+      return Response.json({ error: 'DB operation failed: ' + dbErr.message }, { status: 500 });
+    }
+    console.log('processPlantCareLog success, summary:', result?.summary, 'watered:', result?.watered_plant_ids?.length);
     return Response.json({
         success: true,
         transcript,
