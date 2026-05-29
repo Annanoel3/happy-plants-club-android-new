@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { X, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
@@ -7,6 +8,7 @@ import { Capacitor } from "@capacitor/core";
 import { setMicActive } from "@/lib/admob";
 
 export default function QuickLogModal({ isOpen, onClose, theme }) {
+  const queryClient = useQueryClient();
   const [inputMessage, setInputMessage] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -97,10 +99,11 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
       setClarificationMode({ prompt: data.clarification_prompt, partial_result: data.partial_result, original_transcript: transcript });
       setInputMessage("");
     } else {
-      toast.success(data?.summary || "Log saved!");
-      setInputMessage("");
-      onClose();
-    }
+       toast.success(data?.summary || "Log saved!");
+       queryClient.invalidateQueries({ queryKey: ['plants'] });
+       setInputMessage("");
+       onClose();
+     }
   };
 
   const handleSubmit = async () => {
