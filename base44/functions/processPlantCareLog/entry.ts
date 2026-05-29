@@ -170,6 +170,19 @@ Return ONLY valid JSON:
                     is_recurring: false,
                 });
                 console.log('Reminder created:', reminder.description, 'at', reminder.reminder_time);
+
+                // Send push notification for the reminder
+                try {
+                    await base44.asServiceRole.functions.invoke('sendNotification', {
+                        toUserEmail: user.email,
+                        title: '📋 Reminder Set',
+                        body: reminder.description,
+                        screen: '/Schedule'
+                    });
+                    console.log('Push notification sent for reminder:', reminder.description);
+                } catch (notifErr) {
+                    console.error('Failed to send reminder notification:', notifErr.message);
+                }
             }
         }
 
