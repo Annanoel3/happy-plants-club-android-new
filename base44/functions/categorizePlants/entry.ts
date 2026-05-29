@@ -18,14 +18,20 @@ Deno.serve(async (req) => {
     return Response.json({ updated: 0, message: 'All plants already categorized' });
   }
 
-  const plantNames = uncategorized.map(p => p.name);
+  const plantList = uncategorized.map(p => ({
+    id: p.id,
+    key: p.scientific_name || p.name,
+    display: `${p.scientific_name ? p.scientific_name : p.name}${p.scientific_name && p.name ? ` (${p.name})` : ''}`
+  }));
 
-   const response = await openai.chat.completions.create({
-     model: "gpt-4o-mini",
-     messages: [
-       {
-         role: "system",
-         content: `You are an expert botanist. Categorize plants accurately using these definitions:
+  const plantNames = plantList.map(p => p.display);
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `You are an expert botanist. Categorize plants accurately using these definitions:
   - Orchid: Flowering plants in the family Orchidaceae with distinctive blooms and aerial roots
   - Succulent: Plants with thick fleshy leaves/stems that store water (e.g., jade, aloe, echeveria)
   - Cactus: Succulent plants in Cactaceae family with spines and typically spherical/columnar shape
@@ -42,33 +48,32 @@ Deno.serve(async (req) => {
   - Bulb: Plants that grow from bulbs/tubers/corms (tulip, daffodil, hyacinth, dahlia, etc.)
   - Other: Plants that don't fit above categories
 
-  Given a list of plant names, assign each one the MOST SPECIFIC and ACCURATE plant_type from the list above. Return a JSON object as {"plant_name_1": "category_1", "plant_name_2": "category_2"} where keys are plant names exactly as given (case-insensitive match is OK for keys). Only use types from the list.`
-       },
-       {
-         role: "user",
-         content: `Categorize these plants: ${JSON.stringify(plantNames)}`
-       }
-     ],
-     response_format: { type: "json_object" }
-   });
+  Given a list of plant names (with scientific names when available), assign each one the MOST SPECIFIC and ACCURATE plant_type from the list above. Prioritize scientific name accuracy. Return a JSON object where keys match the plant names exactly as given. Only use types from the list.`
+      },
+      {
+        role: "user",
+        content: `Categorize these plants: ${JSON.stringify(plantNames)}`
+      }
+    ],
+    response_format: { type: "json_object" }
+  });
 
-   const categories = JSON.parse(response.choices[0].message.content);
+  const categories = JSON.parse(response.choices[0].message.content);
 
-   let updated = 0;
-   for (const plant of uncategorized) {
-     // Try exact match first, then case-insensitive match
-     let plantType = categories[plant.name];
-     if (!plantType) {
-       const lowerName = plant.name.toLowerCase();
-       const matchingKey = Object.keys(categories).find(k => k.toLowerCase() === lowerName);
-       if (matchingKey) plantType = categories[matchingKey];
-     }
+  let updated = 0;
+  for (const item of plantList) {
+    let plantType = categories[item.display];
+    if (!plantType) {
+      const lowerDisplay = item.display.toLowerCase();
+      const matchingKey = Object.keys(categories).find(k => k.toLowerCase() === lowerDisplay);
+      if (matchingKey) plantType = categories[matchingKey];
+    }
 
-     if (plantType && PLANT_TYPES.includes(plantType)) {
-       await base44.entities.Plant.update(plant.id, { plant_type: plantType });
-       updated++;
-     }
-   }
+    if (plantType && PLANT_TYPES.includes(plantType)) {
+      await base44.entities.Plant.update(item.id, { plant_type: plantType });
+      updated++;
+    }
+  }
 
   return Response.json({ updated, message: `Categorized ${updated} plants` });
 });
