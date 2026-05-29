@@ -214,7 +214,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
             <textarea
               value={inputMessage}
               onChange={e => setInputMessage(e.target.value)}
-              placeholder="What would you like to log? (e.g. 'I watered the tulips' or 'Remind me to fertilize at 5pm')"
+              placeholder="What would you like to log? (e.g. 'I watered the tulips', 'Remind me to fertilize at 5pm', or 'Remind me to check soil moisture every 2 hours')"
               className={`w-full h-32 rounded-xl p-3 border text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500 mb-4 ${getInputClasses()}`}
             />
 
