@@ -71,13 +71,13 @@ Available plants: ${plantsList}
 Given a transcript, extract:
 1. Which plants were watered — match using the plant's name, nickname, OR scientific name fuzzily (e.g. "tulips" matches name "Tulip" or scientific "Tulipa", "my monstera" matches "Monstera"). If the user says "everything", "all", "all my plants", return "ALL". If they reference a location like "everything on the porch" / "all the indoor plants", return "LOCATION:<location>". If they say "everything overdue", "all the overdue ones", "everything that needed water", return "OVERDUE".
 2. Any observations or notes about specific plants.
-3. Any reminders the user wants to set. Extract the time string exactly as the user said it (e.g. "8 PM", "tomorrow at 9am", "in 2 hours"). Do NOT try to convert timezones yourself — just extract the raw time phrase. Return in reminder_time_phrase. If it's vague like "later" or "soon", set reminder_time_phrase to null and needs_time_clarification to true.
+3. Any reminders the user wants to set. Extract the time string exactly as the user said it (e.g. "8 PM", "tomorrow at 9am", "in 2 hours"). Do NOT try to convert timezones yourself — just extract the raw time phrase. Return in reminder_time_phrase. If it's vague like "later" or "soon", set reminder_time_phrase to null and needs_time_clarification to true. Also detect recurrence patterns: if they say "every X hours/days/weeks/months", extract the recurrence_type. Supported types: "daily", "weekly", "biweekly", "monthly", "every_two_hours".
 
 Return ONLY valid JSON:
 {
     "watered_plant_names": ["Tulip"],
     "plant_notes": [{"plant_name": "Monstera", "note": "observation"}],
-    "reminders": [{"description": "what to do", "reminder_time_phrase": "user's exact time phrase or null", "needs_time_clarification": false}],
+    "reminders": [{"description": "what to do", "reminder_time_phrase": "user's exact time phrase or null", "needs_time_clarification": false, "recurrence_type": null}],
     "summary": "brief summary"
 }`
             },
@@ -179,118 +179,163 @@ Return ONLY valid JSON:
         }
 
         // Schedule reminders with specific times
-        for (const reminder of result.reminders || []) {
-            if (reminder.reminder_time_phrase) {
-                // Parse natural language time using Intl to convert user's local time to UTC
-                let reminderDateTime;
-                const phrase = reminder.reminder_time_phrase.toLowerCase().trim();
-                
-                try {
-                    // Calculate timezone offset in minutes using Intl API
-                    const now = new Date();
-                    const formatter = new Intl.DateTimeFormat('en-US', {
-                        timeZone: timezone,
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: false
-                    });
-                    
-                    const parts = formatter.formatToParts(now);
-                    const partsObj = {};
-                    parts.forEach(p => { partsObj[p.type] = p.value; });
-                    
-                    // Create naive date with local time components, then compare to UTC
-                    const naiveDate = new Date(Date.UTC(
-                        parseInt(partsObj.year),
-                        parseInt(partsObj.month) - 1,
-                        parseInt(partsObj.day),
-                        parseInt(partsObj.hour),
-                        parseInt(partsObj.minute),
-                        parseInt(partsObj.second)
-                    ));
-                    
-                    const tzOffsetMinutes = (naiveDate.getTime() - now.getTime()) / (60 * 1000);
-                    
-                    // Handle relative times (in X hours, in X minutes)
-                    const inMatch = phrase.match(/in\s+(\d+)\s+(hour|minute)s?/);
-                    if (inMatch) {
-                        reminderDateTime = new Date();
-                        const amount = parseInt(inMatch[1]);
-                        if (inMatch[2] === 'hour') reminderDateTime.setHours(reminderDateTime.getHours() + amount);
-                        else reminderDateTime.setMinutes(reminderDateTime.getMinutes() + amount);
-                    } else {
-                        // Handle absolute times (8pm, tomorrow at 9am, etc)
-                        const timeMatch = phrase.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?/i) || phrase.match(/(\d{1,2})\s*(am|pm)/i);
-                        if (timeMatch) {
-                            const hour = parseInt(timeMatch[1]);
-                            const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-                            const isPM = (timeMatch[3] || timeMatch[2])?.toLowerCase() === 'pm';
-                            
-                            // Start with UTC now as baseline
-                            reminderDateTime = new Date(now);
-                            
-                            // Check if user said "tomorrow"
-                            if (phrase.includes('tomorrow')) {
-                                reminderDateTime.setUTCDate(reminderDateTime.getUTCDate() + 1);
-                            }
-                            
-                            let finalHour = hour;
-                            if (isPM && hour !== 12) finalHour = hour + 12;
-                            if (!isPM && hour === 12) finalHour = 0;
-                            
-                            // Set to user's local time, then convert to UTC
-                            // If user wants 9 PM local and tz offset is -360 (CDT), 9 PM = 2 AM UTC
-                            reminderDateTime.setUTCHours(finalHour - Math.round(tzOffsetMinutes / 60), minute, 0, 0);
-                        } else {
-                            console.warn('Could not parse time phrase:', phrase);
-                            continue;
-                        }
-                    }
-                    
-                    const delayMinutes = Math.max(0, Math.floor((reminderDateTime.getTime() - Date.now()) / (60 * 1000)));
-                    console.log('Scheduling reminder:', reminder.description, 'phrase:', reminder.reminder_time_phrase, 'computed time:', reminderDateTime.toISOString(), 'delay:', delayMinutes, 'minutes');
+         for (const reminder of result.reminders || []) {
+             if (reminder.reminder_time_phrase) {
+                 // Parse natural language time using Intl to convert user's local time to UTC
+                 let reminderDateTime;
+                 const phrase = reminder.reminder_time_phrase.toLowerCase().trim();
 
-                    // Create the reminder record
-                    const reminderRecord = await base44.asServiceRole.entities.Reminder.create({
-                        plant_id: 'general',
-                        plant_name: 'General',
-                        title: reminder.description,
-                        description: reminder.description,
-                        due_date: reminderDateTime.toISOString().split('T')[0],
-                        schedule_time: reminderDateTime.toISOString(),
-                        completed: false,
-                        is_recurring: false,
-                    });
+                 try {
+                     // Calculate timezone offset in minutes using Intl API
+                     const now = new Date();
+                     const formatter = new Intl.DateTimeFormat('en-US', {
+                         timeZone: timezone,
+                         year: 'numeric',
+                         month: '2-digit',
+                         day: '2-digit',
+                         hour: '2-digit',
+                         minute: '2-digit',
+                         second: '2-digit',
+                         hour12: false
+                     });
 
-                    // Schedule the push notification for the specific time
-                    try {
-                        const schedulePushResult = await base44.asServiceRole.functions.invoke('schedulePush', {
-                            toUserExternalId: user.email,
-                            title: '🔔 ' + reminder.description,
-                            body: 'Time to ' + reminder.description.toLowerCase(),
-                            minutesFromNow: delayMinutes,
-                            data: { screen: '/Dashboard' }
-                        });
-                        
-                        // Store the OneSignal notification ID in the reminder
-                        if (schedulePushResult?.notificationId) {
-                            await base44.asServiceRole.entities.Reminder.update(reminderRecord.id, {
-                                onesignal_notification_id: schedulePushResult.notificationId
-                            });
-                            console.log('✅ Reminder scheduled with notification ID:', schedulePushResult.notificationId);
-                        }
-                    } catch (scheduleErr) {
-                        console.error('Failed to schedule reminder notification:', scheduleErr.message);
-                    }
-                } catch (parseErr) {
-                    console.error('Failed to parse reminder time:', parseErr.message);
-                }
-            }
-        }
+                     const parts = formatter.formatToParts(now);
+                     const partsObj = {};
+                     parts.forEach(p => { partsObj[p.type] = p.value; });
+
+                     // Create naive date with local time components, then compare to UTC
+                     const naiveDate = new Date(Date.UTC(
+                         parseInt(partsObj.year),
+                         parseInt(partsObj.month) - 1,
+                         parseInt(partsObj.day),
+                         parseInt(partsObj.hour),
+                         parseInt(partsObj.minute),
+                         parseInt(partsObj.second)
+                     ));
+
+                     const tzOffsetMinutes = (naiveDate.getTime() - now.getTime()) / (60 * 1000);
+
+                     // Handle relative times (in X hours, in X minutes)
+                     const inMatch = phrase.match(/in\s+(\d+)\s+(hour|minute)s?/);
+                     if (inMatch) {
+                         reminderDateTime = new Date();
+                         const amount = parseInt(inMatch[1]);
+                         if (inMatch[2] === 'hour') reminderDateTime.setHours(reminderDateTime.getHours() + amount);
+                         else reminderDateTime.setMinutes(reminderDateTime.getMinutes() + amount);
+                     } else {
+                         // Handle absolute times (8pm, tomorrow at 9am, etc)
+                         const timeMatch = phrase.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?/i) || phrase.match(/(\d{1,2})\s*(am|pm)/i);
+                         if (timeMatch) {
+                             const hour = parseInt(timeMatch[1]);
+                             const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+                             const isPM = (timeMatch[3] || timeMatch[2])?.toLowerCase() === 'pm';
+
+                             // Start with UTC now as baseline
+                             reminderDateTime = new Date(now);
+
+                             // Check if user said "tomorrow"
+                             if (phrase.includes('tomorrow')) {
+                                 reminderDateTime.setUTCDate(reminderDateTime.getUTCDate() + 1);
+                             }
+
+                             let finalHour = hour;
+                             if (isPM && hour !== 12) finalHour = hour + 12;
+                             if (!isPM && hour === 12) finalHour = 0;
+
+                             // Set to user's local time, then convert to UTC
+                             // If user wants 9 PM local and tz offset is -360 (CDT), 9 PM = 2 AM UTC
+                             reminderDateTime.setUTCHours(finalHour - Math.round(tzOffsetMinutes / 60), minute, 0, 0);
+                         } else {
+                             console.warn('Could not parse time phrase:', phrase);
+                             continue;
+                         }
+                     }
+
+                     const delayMinutes = Math.max(0, Math.floor((reminderDateTime.getTime() - Date.now()) / (60 * 1000)));
+                     console.log('Scheduling reminder:', reminder.description, 'phrase:', reminder.reminder_time_phrase, 'computed time:', reminderDateTime.toISOString(), 'delay:', delayMinutes, 'minutes', 'recurrence:', reminder.recurrence_type);
+
+                     // Create the reminder record
+                     const reminderRecord = await base44.asServiceRole.entities.Reminder.create({
+                         plant_id: 'general',
+                         plant_name: 'General',
+                         title: reminder.description,
+                         description: reminder.description,
+                         due_date: reminderDateTime.toISOString().split('T')[0],
+                         schedule_time: reminderDateTime.toISOString(),
+                         completed: false,
+                         is_recurring: !!reminder.recurrence_type,
+                         recurrence_type: reminder.recurrence_type || null,
+                         original_time_phrase: reminder.reminder_time_phrase,
+                         onesignal_notification_ids: []
+                     });
+
+                     // If recurring, batch-schedule for the whole day
+                     if (reminder.recurrence_type) {
+                         const notificationIds = [];
+                         const scheduleTimesForDay = [];
+
+                         if (reminder.recurrence_type === 'every_two_hours') {
+                             // Schedule every 2 hours from start time for the rest of the day
+                             let schedTime = new Date(reminderDateTime);
+                             const dayEnd = new Date(schedTime);
+                             dayEnd.setUTCHours(23, 59, 59, 999);
+
+                             while (schedTime <= dayEnd) {
+                                 scheduleTimesForDay.push(new Date(schedTime));
+                                 schedTime.setHours(schedTime.getHours() + 2);
+                             }
+                         }
+
+                         // Schedule each occurrence
+                         for (const schedTime of scheduleTimesForDay) {
+                             const delayMin = Math.max(0, Math.floor((schedTime.getTime() - Date.now()) / (60 * 1000)));
+                             try {
+                                 const res = await base44.asServiceRole.functions.invoke('schedulePush', {
+                                     toUserExternalId: user.email,
+                                     title: '🔔 ' + reminder.description,
+                                     body: 'Time to ' + reminder.description.toLowerCase(),
+                                     minutesFromNow: delayMin,
+                                     data: { screen: '/Dashboard' }
+                                 });
+                                 if (res?.notificationId) notificationIds.push(res.notificationId);
+                             } catch (e) {
+                                 console.error('Failed to schedule recurring occurrence:', e.message);
+                             }
+                         }
+
+                         // Update reminder with all notification IDs
+                         if (notificationIds.length > 0) {
+                             await base44.asServiceRole.entities.Reminder.update(reminderRecord.id, {
+                                 onesignal_notification_ids: notificationIds
+                             });
+                             console.log('✅ Recurring reminder scheduled with', notificationIds.length, 'notifications');
+                         }
+                     } else {
+                         // Single notification
+                         try {
+                             const schedulePushResult = await base44.asServiceRole.functions.invoke('schedulePush', {
+                                 toUserExternalId: user.email,
+                                 title: '🔔 ' + reminder.description,
+                                 body: 'Time to ' + reminder.description.toLowerCase(),
+                                 minutesFromNow: delayMinutes,
+                                 data: { screen: '/Dashboard' }
+                             });
+
+                             if (schedulePushResult?.notificationId) {
+                                 await base44.asServiceRole.entities.Reminder.update(reminderRecord.id, {
+                                     onesignal_notification_ids: [schedulePushResult.notificationId]
+                                 });
+                                 console.log('✅ Reminder scheduled with notification ID:', schedulePushResult.notificationId);
+                             }
+                         } catch (scheduleErr) {
+                             console.error('Failed to schedule reminder notification:', scheduleErr.message);
+                         }
+                     }
+                 } catch (parseErr) {
+                     console.error('Failed to parse reminder time:', parseErr.message);
+                 }
+             }
+         }
 
     } catch (dbErr) {
         console.error('processPlantCareLog DB error:', dbErr.message, dbErr.stack?.substring(0, 200));

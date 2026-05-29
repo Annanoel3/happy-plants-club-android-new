@@ -2,99 +2,37 @@
   "name": "User",
   "type": "object",
   "properties": {
-    "location": {
+    "role": {
       "type": "string",
-      "description": "User's location for weather data"
+      "enum": [
+        "admin",
+        "user"
+      ],
+      "default": "user"
     },
-    "timezone": {
-      "type": "string",
-      "default": "America/Chicago",
-      "description": "User's timezone for scheduling notifications"
-    },
-    "last_app_open": {
-      "type": "string",
-      "format": "date-time",
-      "description": "Timestamp of last app open for inactivity tracking"
-    },
-    "profile_complete": {
+    "quiet_hours_enabled": {
       "type": "boolean",
-      "default": false
+      "default": false,
+      "description": "Whether quiet hours are enabled"
     },
-    "profile_picture": {
+    "quiet_hours_start": {
       "type": "string",
-      "description": "URL to profile picture"
+      "description": "Start time in HH:MM format (e.g., '22:00')"
     },
-    "handle": {
+    "quiet_hours_end": {
       "type": "string",
-      "description": "Unique username handle"
+      "description": "End time in HH:MM format (e.g., '08:00')"
     },
-    "bio": {
-      "type": "string"
+    "notifications_enabled": {
+      "type": "boolean",
+      "default": true
     },
     "profile_private": {
       "type": "boolean",
       "default": false
     },
-    "lifetime_waterings": {
-      "type": "number",
-      "default": 0
-    },
-    "current_tier": {
-      "type": "string",
-      "default": "New Sprout"
-    },
-    "total_plant_growths": {
-      "type": "number",
-      "default": 0
-    },
-    "daily_weather_notifications": {
-      "type": "boolean",
-      "default": true,
-      "description": "Whether to receive daily weather notifications"
-    },
-    "notifications_watering": {
-      "type": "boolean",
-      "default": true,
-      "description": "Whether to receive watering reminders"
-    },
-    "trial_start_date": {
-      "type": "string",
-      "format": "date-time",
-      "description": "When the user's trial started (set on first login)"
-    },
-    "trial_end_date": {
-      "type": "string",
-      "format": "date-time",
-      "description": "When the user's trial ends (7 days after start)"
-    },
-    "subscription_active": {
-      "type": "boolean",
-      "default": false,
-      "description": "Whether user has active paid subscription"
-    },
-    "subscription_platform": {
-      "type": "string",
-      "description": "Platform of subscription: 'google_play', 'apple', 'stripe', etc."
-    },
-    "subscription_id": {
-      "type": "string",
-      "description": "External subscription ID from payment platform"
-    },
-    "subscription_expires_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "When the current subscription period ends"
+    "profile_picture": {
+      "type": "string"
     }
-  },
-  "required": [
-    "location",
-    "profile_picture",
-    "handle",
-    "bio",
-    "trial_start_date",
-    "trial_end_date",
-    "subscription_platform",
-    "subscription_id",
-    "subscription_expires_at"
-  ]
+  }
 }

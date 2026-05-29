@@ -18,6 +18,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { generateVacationPDF } from "@/functions/generateVacationPDF";
+import ReminderNotificationManager from "@/components/ReminderNotificationManager";
+import { Switch } from "@/components/ui/switch";
 
 export default function Schedule() {
   const navigate = useNavigate();
@@ -645,43 +647,29 @@ export default function Schedule() {
         )}
 
         {view === 'notifications' && (
-          <Card className={getThemedClasses()}>
-            <CardContent className="p-6">
-              <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>📬 Upcoming Notifications</h2>
-              {remindersWithNotifications.length === 0 ? (
-                <p className={getSecondaryTextColor()}>No scheduled notifications yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {remindersWithNotifications.map(reminder => (
-                    <div
-                      key={reminder.id}
-                      className={`p-4 rounded-xl border ${getThemedClasses()}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <p className={`font-semibold ${getTextColor()}`}>{reminder.title}</p>
-                          {reminder.description && (
-                            <p className={`text-sm mt-1 ${getSecondaryTextColor()}`}>{reminder.description}</p>
-                          )}
-                          <div className="flex items-center gap-2 mt-2">
-                            <p className={`text-sm ${getSecondaryTextColor()}`}>
-                              📅 {format(parseISO(reminder.due_date), 'MMMM d, yyyy')}
-                            </p>
-                            {reminder.recurrence_type && (
-                              <Badge className="text-xs">
-                                {reminder.recurrence_type === 'every_two_hours' ? 'Every 2h' : reminder.recurrence_type}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+           <Card className={getThemedClasses()}>
+             <CardContent className="p-6">
+               <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>📬 Upcoming Notifications</h2>
+               {remindersWithNotifications.length === 0 ? (
+                 <p className={getSecondaryTextColor()}>No scheduled notifications yet</p>
+               ) : (
+                 <div className="space-y-3">
+                   {remindersWithNotifications.map(reminder => (
+                     <ReminderNotificationManager
+                       key={reminder.id}
+                       reminder={reminder}
+                       theme={theme}
+                       onRefresh={() => {
+                         queryClient.invalidateQueries(['reminders']);
+                         queryClient.invalidateQueries(['remindersWithNotifications']);
+                       }}
+                     />
+                   ))}
+                 </div>
+               )}
+             </CardContent>
+           </Card>
+         )}
 
         {/* Vacation Section */}
         <div className={`mt-8 rounded-3xl p-6 ${getThemedClasses()}`}>

@@ -44,14 +44,26 @@
       ],
       "description": "How often the reminder repeats"
     },
-    "onesignal_notification_id": {
+    "recurrence_end_date": {
       "type": "string",
-      "description": "OneSignal notification ID for scheduled/recurring notifications"
+      "format": "date",
+      "description": "When recurring reminders should stop"
+    },
+    "onesignal_notification_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "OneSignal notification IDs for this recurring reminder batch"
     },
     "schedule_time": {
       "type": "string",
       "format": "date-time",
-      "description": "Specific time for scheduled notification"
+      "description": "Specific time for scheduled notification (first instance)"
+    },
+    "original_time_phrase": {
+      "type": "string",
+      "description": "User's original time phrase for editing"
     }
   },
   "required": [
