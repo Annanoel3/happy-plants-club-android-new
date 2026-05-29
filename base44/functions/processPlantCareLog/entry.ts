@@ -161,27 +161,43 @@ Return ONLY valid JSON:
         // Schedule reminders with specific times
         for (const reminder of result.reminders || []) {
             if (reminder.reminder_time) {
-                await base44.asServiceRole.entities.Reminder.create({
+                // Calculate delay in minutes until the reminder time
+                const reminderDateTime = new Date(reminder.reminder_time);
+                const delayMinutes = Math.max(0, Math.floor((reminderDateTime.getTime() - Date.now()) / (60 * 1000)));
+                
+                console.log('Scheduling reminder:', reminder.description, 'at', reminder.reminder_time, 'delay:', delayMinutes, 'minutes');
+
+                // Create the reminder record
+                const reminderRecord = await base44.asServiceRole.entities.Reminder.create({
                     plant_id: 'general',
                     plant_name: 'General',
                     title: reminder.description,
+                    description: reminder.description,
                     due_date: reminder.reminder_time.split('T')[0],
+                    schedule_time: reminder.reminder_time,
                     completed: false,
                     is_recurring: false,
                 });
-                console.log('Reminder created:', reminder.description, 'at', reminder.reminder_time);
 
-                // Send push notification for the reminder
+                // Schedule the push notification for the specific time
                 try {
-                    await base44.asServiceRole.functions.invoke('sendNotification', {
-                        toUserEmail: user.email,
-                        title: '📋 Reminder Set',
-                        body: reminder.description,
-                        screen: '/Schedule'
+                    const schedulePushResult = await base44.asServiceRole.functions.invoke('schedulePush', {
+                        toUserExternalId: user.email,
+                        title: '🔔 ' + reminder.description,
+                        body: 'Time to ' + reminder.description.toLowerCase(),
+                        minutesFromNow: delayMinutes,
+                        data: { screen: '/Dashboard' }
                     });
-                    console.log('Push notification sent for reminder:', reminder.description);
-                } catch (notifErr) {
-                    console.error('Failed to send reminder notification:', notifErr.message);
+                    
+                    // Store the OneSignal notification ID in the reminder
+                    if (schedulePushResult?.notificationId) {
+                        await base44.asServiceRole.entities.Reminder.update(reminderRecord.id, {
+                            onesignal_notification_id: schedulePushResult.notificationId
+                        });
+                        console.log('✅ Reminder scheduled with notification ID:', schedulePushResult.notificationId);
+                    }
+                } catch (scheduleErr) {
+                    console.error('Failed to schedule reminder notification:', scheduleErr.message);
                 }
             }
         }
