@@ -186,6 +186,12 @@ Return ONLY valid JSON:
                 const phrase = reminder.reminder_time_phrase.toLowerCase().trim();
                 
                 try {
+                    // Get user's timezone offset (in minutes)
+                    const now = new Date();
+                    const timeInUserTz = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+                    const timeInUTC = now;
+                    const offsetMinutes = (timeInUTC.getTime() - timeInUserTz.getTime()) / (60 * 1000);
+                    
                     // Handle relative times (in X hours, in X minutes)
                     const inMatch = phrase.match(/in\s+(\d+)\s+(hour|minute)s?/);
                     if (inMatch) {
@@ -195,14 +201,14 @@ Return ONLY valid JSON:
                         else reminderDateTime.setMinutes(reminderDateTime.getMinutes() + amount);
                     } else {
                         // Handle absolute times (8pm, tomorrow at 9am, etc)
-                        // Parse with the user's timezone context
                         const timeMatch = phrase.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?/i) || phrase.match(/(\d{1,2})\s*(am|pm)/i);
                         if (timeMatch) {
                             const hour = parseInt(timeMatch[1]);
                             const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
                             const isPM = (timeMatch[3] || timeMatch[2])?.toLowerCase() === 'pm';
                             
-                            reminderDateTime = new Date();
+                            // Create a date in the user's local timezone
+                            reminderDateTime = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
                             
                             // Check if user said "tomorrow"
                             if (phrase.includes('tomorrow')) {
@@ -214,6 +220,9 @@ Return ONLY valid JSON:
                             if (!isPM && hour === 12) finalHour = 0;
                             
                             reminderDateTime.setHours(finalHour, minute, 0, 0);
+                            
+                            // Adjust back to UTC by adding the offset
+                            reminderDateTime.setMinutes(reminderDateTime.getMinutes() + offsetMinutes);
                         } else {
                             console.warn('Could not parse time phrase:', phrase);
                             continue;
