@@ -24,8 +24,8 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
-    // Fetch plants as service role, filtered by user ID
-    const plants = await base44.asServiceRole.entities.Plant.filter({ created_by_id: user.id }, '-created_date', 200);
+    // Fetch plants using user-scoped call (RLS automatically filters to user's plants)
+    const plants = await base44.entities.Plant.list('-created_date', 200);
     const plantsList = plants.map(p => {
         const parts = [`name: "${p.name}"`];
         if (p.nickname) parts.push(`nickname: "${p.nickname}"`);
