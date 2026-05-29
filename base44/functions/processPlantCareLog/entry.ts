@@ -24,7 +24,8 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
-    const plants = await base44.asServiceRole.entities.Plant.filter({ created_by: user.email });
+    // Use user-scoped call so RLS applies correctly (created_by matches the current user)
+    const plants = await base44.entities.Plant.list();
     const plantsList = plants.map(p => {
         const parts = [`name: "${p.name}"`];
         if (p.nickname) parts.push(`nickname: "${p.nickname}"`);
@@ -99,12 +100,12 @@ Return ONLY valid JSON:
         });
     }
 
+    let plantsToWater = [];
     try {
         const today = new Date().toISOString().split('T')[0];
 
         // Expand ALL / LOCATION / OVERDUE special tokens into real plant lists
         let wateredNames = result.watered_plant_names || [];
-        let plantsToWater = [];
         for (const token of wateredNames) {
             if (token === 'ALL') {
                 plantsToWater.push(...plants);
@@ -121,8 +122,8 @@ Return ONLY valid JSON:
             }
         }
         // Deduplicate
-        const seen = new Set();
-        plantsToWater = plantsToWater.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+        const seenIds = new Set();
+        plantsToWater = plantsToWater.filter(p => { if (seenIds.has(p.id)) return false; seenIds.add(p.id); return true; });
 
         for (const plant of plantsToWater) {
             if (plant) {
