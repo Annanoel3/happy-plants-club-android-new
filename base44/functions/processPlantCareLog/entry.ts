@@ -24,8 +24,8 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
-    // Use user-scoped call so RLS applies correctly (created_by matches the current user)
-    const plants = await base44.entities.Plant.list();
+    // Fetch plants as service role, filtered by user email
+    const plants = await base44.asServiceRole.entities.Plant.filter({ created_by: user.email }, '-created_date', 200);
     const plantsList = plants.map(p => {
         const parts = [`name: "${p.name}"`];
         if (p.nickname) parts.push(`nickname: "${p.nickname}"`);
@@ -132,11 +132,12 @@ Return ONLY valid JSON:
                     plant_id: plant.id,
                     plant_name: plant.name,
                     watered_date: today,
-                    method: 'voice'
+                    method: 'voice',
+                    created_by: user.email
                 });
                 const nextWatering = new Date();
                 nextWatering.setDate(nextWatering.getDate() + (plant.water_frequency_days || 7));
-                await base44.asServiceRole.entities.Plant.update(plant.id, {
+                await base44.entities.Plant.update(plant.id, {
                     last_watered: today,
                     next_watering_due: nextWatering.toISOString().split('T')[0],
                     status: 'healthy'
@@ -153,7 +154,7 @@ Return ONLY valid JSON:
                 const updatedNotes = currentNotes
                     ? `${currentNotes}\n\n[${timestamp}] ${plantNote.note}`
                     : `[${timestamp}] ${plantNote.note}`;
-                await base44.asServiceRole.entities.Plant.update(plant.id, { notes: updatedNotes });
+                await base44.entities.Plant.update(plant.id, { notes: updatedNotes });
             }
         }
 
