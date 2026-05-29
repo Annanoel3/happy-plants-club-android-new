@@ -81,12 +81,15 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
       const transcribeResponse = await base44.functions.invoke("transcribeAudio", { file_url, filename });
       const transcript = transcribeResponse.data.transcript;
       const { data } = await base44.functions.invoke("processPlantCareLog", { transcript });
+      console.log('[QuickLogModal] processPlantCareLog result:', JSON.stringify(data || 'no data').substring(0, 150));
       toast.success(data?.summary || "Log saved!");
       setInputMessage("");
       onClose();
     } catch (error) {
       console.error("Error processing audio:", error);
       toast.error("Failed to process audio: " + error.message);
+      onClose();
+      setInputMessage('');
     } finally {
       setIsProcessing(false);
     }
