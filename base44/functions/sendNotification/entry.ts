@@ -2,16 +2,6 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
     try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-        
-        if (!user) {
-            return Response.json({ 
-                success: false, 
-                error: 'Unauthorized' 
-            }, { status: 401 });
-        }
-
         const ONESIGNAL_APP_ID = Deno.env.get('ONESIGNAL_APP_ID');
         const ONESIGNAL_REST_API_KEY = Deno.env.get('ONESIGNAL_REST_API_KEY');
 
