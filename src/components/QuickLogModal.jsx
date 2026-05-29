@@ -149,8 +149,8 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         <div className="flex gap-2">
           <button
             onClick={handleVoiceRecord}
-            disabled={isProcessing}
-            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all ${
+            disabled={isProcessing && !isRecording}
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all disabled:opacity-50 ${
               isRecording
                 ? "bg-red-500 text-white"
                 : "bg-green-600 hover:bg-green-700 text-white"
