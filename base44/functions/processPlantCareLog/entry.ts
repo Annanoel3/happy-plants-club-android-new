@@ -24,9 +24,15 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
-    const plants = await base44.asServiceRole.entities.Plant.filter({ created_by_id: user.id });
-    const plantsList = plants.map(p => `"${p.name}"`).join(', ');
-    console.log('Available plants:', plantsList);
+    const plants = await base44.asServiceRole.entities.Plant.filter({ created_by: user.email });
+    const plantsList = plants.map(p => {
+        const parts = [`name: "${p.name}"`];
+        if (p.nickname) parts.push(`nickname: "${p.nickname}"`);
+        if (p.scientific_name) parts.push(`scientific: "${p.scientific_name}"`);
+        if (p.location) parts.push(`location: "${p.location}"`);
+        return `{${parts.join(', ')}}`;
+    }).join(', ');
+    console.log('Available plants:', plantsList, '| count:', plants.length);
 
     const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
     const now = new Date();
@@ -42,13 +48,13 @@ Deno.serve(async (req) => {
 Available plants: ${plantsList}
 
 Given a transcript, extract:
-1. Which plants were watered — match plant names FUZZILY (e.g. "tulip" matches "Tulip", "my monstera" matches "Monstera"). "everything" or "all" means all plants.
+1. Which plants were watered — match using the plant's name, nickname, OR scientific name fuzzily (e.g. "tulips" matches name "Tulip" or scientific "Tulipa", "my monstera" matches "Monstera"). If the user says "everything", "all", "all my plants", or references a location like "everything on the porch" / "all the indoor plants", return the special value "ALL" or "LOCATION:<location>" in watered_plant_names.
 2. Any observations or notes about specific plants.
 3. Any reminders the user wants to set. If the user says a specific time (e.g. "at 5pm", "at 3:30", "tomorrow morning"), compute the ISO datetime for that reminder. If the user says something vague like "later" or "soon" with no specific time, set reminder_time to null and needs_time_clarification to true.
 
 Return ONLY valid JSON:
 {
-    "watered_plant_names": ["Tulip", "Monstera"],
+    "watered_plant_names": ["Tulip"],
     "plant_notes": [{"plant_name": "Monstera", "note": "observation"}],
     "reminders": [{"description": "what to do", "reminder_time": "ISO datetime or null", "needs_time_clarification": false}],
     "summary": "brief summary"
@@ -68,9 +74,19 @@ Return ONLY valid JSON:
 
     console.log('LLM result - watered_plant_names:', result.watered_plant_names, 'reminders:', result.reminders?.length);
 
-    // Helper: find plant by name fuzzy match
-    const findPlant = (name) => plants.find(p => p.name.toLowerCase() === name.toLowerCase()) ||
-        plants.find(p => p.name.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(p.name.toLowerCase()));
+    // Helper: find plant by name, nickname, or scientific name (fuzzy)
+    const findPlant = (name) => {
+        const n = name.toLowerCase();
+        return plants.find(p =>
+            p.name?.toLowerCase() === n ||
+            p.nickname?.toLowerCase() === n ||
+            p.scientific_name?.toLowerCase() === n
+        ) || plants.find(p =>
+            p.name?.toLowerCase().includes(n) || n.includes(p.name?.toLowerCase()) ||
+            p.nickname?.toLowerCase().includes(n) || n.includes(p.nickname?.toLowerCase()) ||
+            p.scientific_name?.toLowerCase().includes(n) || n.includes(p.scientific_name?.toLowerCase())
+        );
+    };
 
     // Check if any reminder needs time clarification before proceeding
     const pendingReminders = (result.reminders || []).filter(r => r.needs_time_clarification);
@@ -86,8 +102,26 @@ Return ONLY valid JSON:
     try {
         const today = new Date().toISOString().split('T')[0];
 
-        for (const plantName of result.watered_plant_names || []) {
-            const plant = findPlant(plantName);
+        // Expand ALL / LOCATION special tokens into real plant lists
+        let wateredNames = result.watered_plant_names || [];
+        let plantsToWater = [];
+        for (const token of wateredNames) {
+            if (token === 'ALL') {
+                plantsToWater.push(...plants);
+            } else if (token.startsWith('LOCATION:')) {
+                const loc = token.replace('LOCATION:', '').trim().toLowerCase();
+                plantsToWater.push(...plants.filter(p => p.location?.toLowerCase().includes(loc)));
+            } else {
+                const found = findPlant(token);
+                if (found) plantsToWater.push(found);
+                else console.warn('Plant name not matched:', token, '| available:', plants.map(p => p.name));
+            }
+        }
+        // Deduplicate
+        const seen = new Set();
+        plantsToWater = plantsToWater.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+
+        for (const plant of plantsToWater) {
             if (plant) {
                 console.log('Logging watering for plant:', plant.name, plant.id);
                 await base44.asServiceRole.entities.WateringLog.create({
@@ -104,8 +138,6 @@ Return ONLY valid JSON:
                     status: 'healthy'
                 });
                 console.log('Plant updated:', plant.name, 'next watering:', nextWatering.toISOString().split('T')[0]);
-            } else {
-                console.warn('Plant name not matched:', plantName, '| available:', plants.map(p => p.name));
             }
         }
 
@@ -145,7 +177,7 @@ Return ONLY valid JSON:
     return Response.json({
         success: true,
         transcript,
-        watered_count: result.watered_plant_names?.length || 0,
+        watered_count: plantsToWater?.length || 0,
         notes_count: result.plant_notes?.length || 0,
         reminder_count: (result.reminders || []).filter(r => r.reminder_time).length,
         summary: result.summary

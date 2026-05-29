@@ -38,8 +38,8 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
         recorder.onstop = async () => {
           const mimeType = recorder.mimeType || 'audio/webm';
           const audioBlob = new Blob(chunks, { type: mimeType });
-          await processAudio(audioBlob, mimeType);
           stream.getTracks().forEach(track => track.stop());
+          await processAudio(audioBlob, mimeType);
         };
 
         recorder.start();
@@ -67,6 +67,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
 
   const processAudio = async (audioBlob, mimeType = 'audio/webm') => {
     setIsProcessing(true);
+    setInputMessage("🎙️ Transcribing...");
     try {
       const ext = (mimeType.includes('mp4') || mimeType.includes('aac')) ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
       const filename = 'recording.' + ext;
@@ -75,9 +76,12 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
 
       const transcribeResponse = await base44.functions.invoke("transcribeAudio", { file_url, filename });
       const transcript = transcribeResponse.data.transcript;
+      // Optimistic: show transcript immediately before processing
+      setInputMessage(transcript);
       await submitTranscript(transcript);
     } catch (error) {
       console.error("Error processing audio:", error);
+      setInputMessage("");
       toast.error("Failed to process audio: " + error.message);
     } finally {
       setIsProcessing(false);
