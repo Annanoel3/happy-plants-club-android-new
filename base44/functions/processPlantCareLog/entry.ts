@@ -81,10 +81,14 @@ Return ONLY valid JSON with no markdown:
             });
             const nextWatering = new Date();
             nextWatering.setDate(nextWatering.getDate() + (plant.water_frequency_days || 7));
+            try {
             await base44.asServiceRole.entities.Plant.update(plantId, {
                 last_watered: today,
                 next_watering_due: nextWatering.toISOString().split('T')[0]
             });
+            } catch (updateErr) {
+              console.log('Plant.update skipped (no permission):', updateErr.message);
+            }
         }
     }
 
@@ -96,9 +100,13 @@ Return ONLY valid JSON with no markdown:
             const updatedNotes = currentNotes
                 ? `${currentNotes}\n\n[${timestamp}] ${plantNote.note}`
                 : `[${timestamp}] ${plantNote.note}`;
+            try {
             await base44.asServiceRole.entities.Plant.update(plantNote.plant_id, {
                 notes: updatedNotes
             });
+            } catch (updateErr) {
+              console.log('Plant.update (notes) skipped:', updateErr.message);
+            }
         }
     }
 
