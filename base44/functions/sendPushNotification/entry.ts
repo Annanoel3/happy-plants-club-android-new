@@ -47,8 +47,8 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         app_id: ONESIGNAL_APP_ID,
-        include_aliases: { external_id: [target_email] },
-        target_channel: 'push',
+                include_external_user_ids: [String(target_email)],
+                channel_for_external_user_ids: 'push',
         headings: { en: title },
         contents: { en: message },
         url: deeplink || undefined, // optional
