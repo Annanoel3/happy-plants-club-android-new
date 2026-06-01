@@ -1,0 +1,31 @@
+{
+  "name": "WateringLog",
+  "type": "object",
+  "properties": {
+    "plant_id": {
+      "type": "string"
+    },
+    "plant_name": {
+      "type": "string"
+    },
+    "watered_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "voice",
+        "manual",
+        "bulk"
+      ]
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "plant_id",
+    "watered_date"
+  ]
+}

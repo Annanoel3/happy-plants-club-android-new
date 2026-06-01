@@ -1,0 +1,44 @@
+{
+  "name": "GameEvent",
+  "type": "object",
+  "properties": {
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "drought",
+        "heatwave",
+        "frost",
+        "hurricane",
+        "tornado",
+        "blizzard",
+        "flood"
+      ],
+      "description": "Type of weather event"
+    },
+    "event_date": {
+      "type": "string",
+      "format": "date",
+      "description": "When the event occurred"
+    },
+    "affected_plant_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs of plants affected by this event"
+    },
+    "resolved": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the user has resolved this event"
+    },
+    "message": {
+      "type": "string",
+      "description": "Message to display to the user"
+    }
+  },
+  "required": [
+    "event_type",
+    "event_date"
+  ]
+}

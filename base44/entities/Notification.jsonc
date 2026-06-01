@@ -1,0 +1,47 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email of user who receives the notification"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "follow_approved",
+        "follow_request",
+        "like",
+        "comment"
+      ],
+      "description": "Type of notification"
+    },
+    "message": {
+      "type": "string",
+      "description": "Notification message"
+    },
+    "from_user_email": {
+      "type": "string",
+      "description": "Email of user who triggered the notification"
+    },
+    "from_user_name": {
+      "type": "string"
+    },
+    "from_user_handle": {
+      "type": "string"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false
+    },
+    "dismissed": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "user_email",
+    "type",
+    "message"
+  ]
+}

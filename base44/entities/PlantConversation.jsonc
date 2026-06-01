@@ -1,0 +1,25 @@
+{
+  "name": "PlantConversation",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string"
+    },
+    "plant_id": {
+      "type": "string"
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Image URL uploaded during conversation"
+    }
+  },
+  "required": [
+    "user_email"
+  ]
+}

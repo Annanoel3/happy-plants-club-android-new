@@ -34,5 +34,10 @@
     "profile_picture": {
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "quiet_hours_start",
+    "quiet_hours_end",
+    "profile_picture"
+  ]
 }

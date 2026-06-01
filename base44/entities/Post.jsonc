@@ -1,0 +1,35 @@
+{
+  "name": "Post",
+  "type": "object",
+  "properties": {
+    "content": {
+      "type": "string",
+      "description": "The post content"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Optional image attached to post"
+    },
+    "plant_id": {
+      "type": "string",
+      "description": "Optional plant this post is about"
+    },
+    "plant_name": {
+      "type": "string",
+      "description": "Name of the plant if attached"
+    },
+    "likes_count": {
+      "type": "number",
+      "default": 0
+    },
+    "author_email": {
+      "type": "string"
+    },
+    "author_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "content"
+  ]
+}

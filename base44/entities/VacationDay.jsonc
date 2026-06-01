@@ -1,0 +1,30 @@
+{
+  "name": "VacationDay",
+  "type": "object",
+  "properties": {
+    "start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notes for house sitter"
+    },
+    "custom_instructions": {
+      "type": "string",
+      "description": "Custom instructions for pets, A/C, trash days, etc."
+    },
+    "plant_notes": {
+      "type": "object",
+      "description": "Plant-specific notes keyed by plant_id"
+    }
+  },
+  "required": [
+    "start_date",
+    "end_date"
+  ]
+}

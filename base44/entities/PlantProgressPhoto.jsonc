@@ -1,0 +1,27 @@
+{
+  "name": "PlantProgressPhoto",
+  "type": "object",
+  "properties": {
+    "plant_id": {
+      "type": "string"
+    },
+    "plant_name": {
+      "type": "string"
+    },
+    "image_url": {
+      "type": "string"
+    },
+    "photo_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "plant_id",
+    "image_url",
+    "photo_date"
+  ]
+}

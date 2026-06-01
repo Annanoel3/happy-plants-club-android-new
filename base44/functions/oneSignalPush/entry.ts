@@ -21,8 +21,8 @@ Deno.serve(async (req) => {
 
         const payload = {
             app_id: appId.trim(),
-            include_aliases: { external_id: [targetEmail] },
-            target_channel: 'push',
+                    include_external_user_ids: [String(targetEmail)],
+                    channel_for_external_user_ids: 'push',
             headings: { en: title },
             contents: { en: message },
             data: data || {}
