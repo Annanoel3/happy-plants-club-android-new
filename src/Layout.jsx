@@ -25,6 +25,7 @@ import NotificationPopup from "@/components/NotificationPopup";
 import OneSignalSetup from "@/components/OneSignalSetup";
 import ThemeMode from "@/components/ThemeMode";
 import PermissionsCheck from "@/components/PermissionsCheck";
+import AdManager from './components/shared/AdManager';
 
 function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
@@ -373,6 +374,7 @@ export default function Layout({ children, currentPageName }) {
     <SidebarProvider>
       <ThemeMode />
       <OneSignalSetup user={user} />
+      <AdManager />
       <NotificationPopup user={user} />
       <PermissionsCheck user={user} />
       <LayoutContent children={children} currentPageName={currentPageName} />
