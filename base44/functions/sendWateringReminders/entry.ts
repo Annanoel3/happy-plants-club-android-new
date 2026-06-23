@@ -95,39 +95,38 @@ Deno.serve(async (req) => {
             }
             
             const notificationIds = [];
-            const scheduleHours = [8, 10, 12, 14, 16, 18, 20];
             
-            for (const hour of scheduleHours) {
-                const sendTimeUTC = getScheduledSendTime(hour, today, userTimezone);
-                const diffSeconds = Math.floor((sendTimeUTC - now) / 1000);
-                
-                // Only schedule future notifications (at least 2 min from now)
-                if (diffSeconds < 120) continue;
-                
-                const osPayload = {
-                    app_id: appId.trim(),
-                    include_player_ids: targetUser.onesignal_player_ids,
-                    headings: { en: '💧 Plant Care Reminder' },
-                    contents: { en: `${notificationText} today! 🌱` },
-                    data: { type: 'care_reminder', plant_count: plantCount, reminder_count: reminderCount, date: today },
-                    send_after: sendTimeUTC.toUTCString()
-                };
-                
-                const osResponse = await fetch("https://onesignal.com/api/v1/notifications", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Basic ${rest.trim()}`
-                    },
-                    body: JSON.stringify(osPayload)
-                });
-                
-                const osResult = await osResponse.json();
-                console.log(`Scheduled ${hour}:00 CT for ${userEmail}: id=${osResult.id}, errors=${JSON.stringify(osResult.errors)}`);
-                
-                if (osResult.id) {
-                    notificationIds.push(osResult.id);
-                }
+            // Send a single notification at 8am user local time
+            const sendTimeUTC = getScheduledSendTime(8, today, userTimezone);
+            const diffSeconds = Math.floor((sendTimeUTC - now) / 1000);
+            
+            // If 8am already passed, send immediately; otherwise schedule it
+            const osPayload = {
+                app_id: appId.trim(),
+                include_player_ids: targetUser.onesignal_player_ids,
+                headings: { en: '💧 Plant Care Reminder' },
+                contents: { en: `${notificationText} today! 🌱` },
+                data: { type: 'care_reminder', plant_count: plantCount, reminder_count: reminderCount, date: today },
+            };
+            
+            if (diffSeconds > 120) {
+                osPayload.send_after = sendTimeUTC.toUTCString();
+            }
+            
+            const osResponse = await fetch("https://onesignal.com/api/v1/notifications", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Basic ${rest.trim()}`
+                },
+                body: JSON.stringify(osPayload)
+            });
+            
+            const osResult = await osResponse.json();
+            console.log(`Scheduled 8:00 local for ${userEmail}: id=${osResult.id}, errors=${JSON.stringify(osResult.errors)}`);
+            
+            if (osResult.id) {
+                notificationIds.push(osResult.id);
             }
             
             if (reminder) {
