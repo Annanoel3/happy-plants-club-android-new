@@ -66,9 +66,6 @@ export default function Feed() {
           </CardHeader>
           <CardContent className="pb-12 space-y-4">
             <p className={`text-base ${getSecondaryTextColor()}`}>
-              🚀 <span className="font-semibold">Open Beta</span> — Now available on the Play Store for all users
-            </p>
-            <p className={`text-base ${getSecondaryTextColor()}`}>
               📖 Coming soon, the Community tab will include:
             </p>
             <ul className={`text-left space-y-2 max-w-sm mx-auto ${getSecondaryTextColor()}`}>
