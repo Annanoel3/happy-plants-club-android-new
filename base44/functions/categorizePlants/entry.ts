@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
   const plantNames = plantList.map(p => p.display);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4o",
     messages: [
       {
         role: "system",
