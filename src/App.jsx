@@ -13,6 +13,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import TermsAndConditions from '@/pages/TermsAndConditions';
 import DeleteAccount from '@/pages/DeleteAccount.jsx';
+import SharedGardenView from '@/pages/SharedGardenView';
 
 // Sentry loaded via CDN in index.html
 const Sentry = window.Sentry;
@@ -80,6 +81,7 @@ function App() {
         <Router>
           <NavigationTracker />
           <Routes>
+            <Route path="/SharedGardenView/:shareToken" element={<SharedGardenView />} />
             <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
             <Route path="/TermsAndConditions" element={<TermsAndConditions />} />
             <Route path="/DeleteAccount" element={<LayoutWrapper currentPageName="DeleteAccount"><DeleteAccount /></LayoutWrapper>} />

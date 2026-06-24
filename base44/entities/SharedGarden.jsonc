@@ -1,0 +1,33 @@
+{
+  "name": "SharedGarden",
+  "type": "object",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "description": "Email of the garden owner"
+    },
+    "owner_name": {
+      "type": "string"
+    },
+    "share_token": {
+      "type": "string",
+      "description": "Unique token for the public link"
+    },
+    "public_name": {
+      "type": "string",
+      "description": "Name displayed on the public garden page"
+    },
+    "public_description": {
+      "type": "string",
+      "description": "Description of the garden"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "owner_email",
+    "share_token"
+  ]
+}
