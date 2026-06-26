@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X, CheckSquare, LayoutGrid, Layers, Wand2 } from "lucide-react";
 import { categorizePlants } from "@/functions/categorizePlants";
 import SortFilterBar from "@/components/SortFilterBar";
+import AddCategoryModal from "@/components/AddCategoryModal";
 
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
 import QuickLogModal from "@/components/QuickLogModal";
@@ -29,6 +30,7 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('garden_sortBy') || null);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('garden_viewMode') || 'stack');
   const [showQuickLog, setShowQuickLog] = useState(false);
+  const [showAddCategory, setShowAddCategory] = useState(false);
 
   useEffect(() => {
     checkAuthentication();
@@ -474,6 +476,12 @@ export default function Dashboard() {
               >
                 <Mic className="w-3 h-3" /> Quick Log
               </button>
+              <button
+                onClick={() => setShowAddCategory(true)}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 ${getThemedClasses()} ${getTextColor()}`}
+              >
+                <Plus className="w-3 h-3" /> Category
+              </button>
             </div>
           </div>
 
@@ -693,6 +701,13 @@ export default function Dashboard() {
           />
         )}
       </AnimatePresence>
+
+      <AddCategoryModal
+        isOpen={showAddCategory}
+        onClose={() => setShowAddCategory(false)}
+        user={user}
+        theme={theme}
+      />
     </>
   );
 }

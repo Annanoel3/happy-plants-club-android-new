@@ -24,24 +24,7 @@
     },
     "plant_type": {
       "type": "string",
-      "enum": [
-        "Orchid",
-        "Succulent",
-        "Cactus",
-        "Tropical",
-        "Tree",
-        "Shrub",
-        "Herb",
-        "Vegetable",
-        "Fruit",
-        "Fern",
-        "Vine",
-        "Grass",
-        "Aquatic",
-        "Bulb",
-        "Other"
-      ],
-      "description": "General plant type / category"
+      "description": "General plant type / category (built-in or custom)"
     },
     "care_instructions": {
       "type": "object",
