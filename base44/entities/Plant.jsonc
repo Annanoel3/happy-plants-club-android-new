@@ -24,7 +24,19 @@
     },
     "plant_type": {
       "type": "string",
-      "description": "General plant type / category (built-in or custom)"
+      "enum": [
+        "Needs Attention",
+        "Flowers",
+        "Vegetables",
+        "Herbs",
+        "Trees & Shrubs",
+        "Houseplants",
+        "Succulents & Cacti",
+        "Seedlings",
+        "Perennials",
+        "Annuals"
+      ],
+      "description": "Plant category"
     },
     "care_instructions": {
       "type": "object",
