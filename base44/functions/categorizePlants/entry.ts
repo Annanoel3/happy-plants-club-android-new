@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
 
   // Get plants without a plant_type
   const allPlants = await base44.entities.Plant.filter({ created_by: user.email });
-  const uncategorized = allPlants.filter(p => !p.plant_type?.trim() || p.plant_type === 'Other');
+  const uncategorized = allPlants.filter(p => !p.plant_type?.trim() || !PLANT_TYPES.includes(p.plant_type));
 
   if (uncategorized.length === 0) {
     return Response.json({ updated: 0, message: 'All plants already categorized' });
