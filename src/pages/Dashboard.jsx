@@ -438,9 +438,9 @@ export default function Dashboard() {
 
   // Check if there are plants needing water today
   const plantsNeedingWaterToday = plantsList.filter(plant => {
-    if (!plant?.next_watering_due) return false;
-    const today = new Date().toISOString().split('T')[0];
-    return plant.next_watering_due.startsWith(today); // Use startsWith for full date string
+  if (!plant?.next_watering_due) return false;
+  const today = new Date().toISOString().split('T')[0];
+  return plant.next_watering_due <= today; // Include overdue plants
   });
 
   const showWateringReminder = todayReminder && 

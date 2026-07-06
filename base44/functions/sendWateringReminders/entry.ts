@@ -85,6 +85,23 @@ Deno.serve(async (req) => {
             const reminderCount = userReminders.length;
             const plantIds = userPlants.map(p => p.id);
             
+            // Create/update the DailyWateringReminder record BEFORE sending the notification.
+            // This acts as a lock so concurrent runs don't send duplicate notifications.
+            if (reminder) {
+                await base44.asServiceRole.entities.DailyWateringReminder.update(reminder.id, {
+                    plants_needing_water: plantIds,
+                    scheduled_notification_ids: ['pending']
+                });
+            } else {
+                reminder = await base44.asServiceRole.entities.DailyWateringReminder.create({
+                    user_email: userEmail,
+                    reminder_date: today,
+                    dismissed: false,
+                    plants_needing_water: plantIds,
+                    scheduled_notification_ids: ['pending']
+                });
+            }
+            
             let notificationText;
             if (plantCount > 0 && reminderCount > 0) {
                 notificationText = `${plantCount} plant${plantCount === 1 ? '' : 's'} + ${reminderCount} reminder${reminderCount === 1 ? '' : 's'}`;
@@ -129,20 +146,11 @@ Deno.serve(async (req) => {
                 notificationIds.push(osResult.id);
             }
             
-            if (reminder) {
-                await base44.asServiceRole.entities.DailyWateringReminder.update(reminder.id, {
-                    plants_needing_water: plantIds,
-                    scheduled_notification_ids: notificationIds
-                });
-            } else {
-                await base44.asServiceRole.entities.DailyWateringReminder.create({
-                    user_email: userEmail,
-                    reminder_date: today,
-                    dismissed: false,
-                    plants_needing_water: plantIds,
-                    scheduled_notification_ids: notificationIds
-                });
-            }
+            // Update with the real notification ID (or clear placeholder on failure)
+            await base44.asServiceRole.entities.DailyWateringReminder.update(reminder.id, {
+                plants_needing_water: plantIds,
+                scheduled_notification_ids: notificationIds
+            });
             
             if (notificationIds.length > 0) scheduledCount++;
         }
