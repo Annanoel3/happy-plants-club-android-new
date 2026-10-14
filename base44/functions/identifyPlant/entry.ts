@@ -5,8 +5,8 @@ const openai = new OpenAI({
     apiKey: Deno.env.get("OPENAI_API_KEY"),
 });
 
-// Pl@ntNet does the identification when PLANTNET_API_KEY is set; the LLM then
-// only confirms it and writes care info. Without the key we fall back to the LLM.
+const MODEL = "gpt-6-astra";
+
 async function identifyWithPlantNet(imageUrl) {
     const key = Deno.env.get("PLANTNET_API_KEY");
     if (!key) return null;
@@ -14,7 +14,6 @@ async function identifyWithPlantNet(imageUrl) {
         const url = `https://my-api.plantnet.org/v2/identify/all?images=${encodeURIComponent(imageUrl)}&organs=auto&lang=en&no-reject=true&api-key=${encodeURIComponent(key)}`;
         let res = await fetch(url);
         if (res.status >= 500) {
-            // Pl@ntNet occasionally throws a 500 - one retry before giving up
             await new Promise(r => setTimeout(r, 1500));
             res = await fetch(url);
         }
@@ -27,48 +26,116 @@ async function identifyWithPlantNet(imageUrl) {
         if (results.length === 0) return null;
         const toMatch = (r) => ({
             scientific_name: r?.species?.scientificNameWithoutAuthor || '',
-            genus: r?.species?.genus?.scientificNameWithoutAuthor || '',
             family: r?.species?.family?.scientificNameWithoutAuthor || '',
             common_names: Array.isArray(r?.species?.commonNames) ? r.species.commonNames : [],
             score: typeof r?.score === 'number' ? r.score : 0,
         });
-        const top = toMatch(results[0]);
-        const alternatives = results.slice(1, 4).map(toMatch).filter(a => a.scientific_name);
-        if (!top.scientific_name) return null;
-        return { top, alternatives };
+        const list = results.slice(0, 4).map(toMatch).filter(c => c.scientific_name);
+        return list.length ? list : null;
     } catch (e) {
         console.warn('[PlantNet] failed:', e?.message || e);
         return null;
     }
 }
 
-function confidenceFromScore(score) {
-    if (score >= 0.5) return 'high';
-    if (score >= 0.2) return 'medium';
-    return 'low';
+const BOTANIST = `You are a working botanist who identifies plants from photos for a living. You specialise in succulents, cacti, caudiciforms and houseplants - the plants people actually keep in pots - as well as garden plants.
+
+Method, always in this order:
+1. Describe what is physically in the photo before naming anything: growth form (rosette, columnar, globular, caudex/fat stem, jointed segments, vine, shrub), stem surface (smooth, ribbed, tubercled/warty, spiny), leaf shape, thickness, colour, edges, any flowers, and the pot and substrate.
+2. Decide the family, then the genus, then COMMIT to the single most likely species, cultivar or hybrid. Give the name a nursery would print on the tag. Express doubt through the confidence field and the alternatives list, never by refusing to name a species.
+3. Check the name against the photo: every signature feature of that species must actually be visible. A famous name that does not match what you can see is wrong.
+4. If the photo shows SEVERAL different plants (a mixed bowl, a propagation tray, a shelf), identify the single most prominent plant, say in identification_notes that it is a mixed planting and what else is in it, and set confidence no higher than medium.
+5. A rooted cutting, seedling or leafless caudex gets confidence low or medium, never high.
+
+Lookalikes that get confused in real collections - check these before answering:
+- Euphorbia bupleurifolia (pine cone plant) is ONE tall cone-shaped stem covered in neat pine-cone scales with a leaf tuft on top. Lumpy, egg-shaped, grey-brown tubercled bodies that branch into a cluster with small leaf tufts are the hybrid Euphorbia x japonica (bupleurifolia x susannae), sometimes sold as "Cocklebur". Do not call a lumpy cluster a pine cone plant.
+- Crassula 'Buddha's Temple' has flat, square-stacked, powdery grey leaves in a tight column. Anything with bulbous stems or spines is not it.
+- Dark purple, ribbed, globular cactus with chin-like bumps under the spine clusters and no wool = Gymnocalycium (often G. mihanovichii), not Lobivia/Echinopsis.
+- Clusters of small finger-like stems covered in tubercles with tiny star-shaped spine clusters = Mammillaria gracilis (thimble cactus); ribbed finger stems with bristly white spines = Echinopsis chamaecereus (peanut cactus). Rebutia is round, not finger-shaped.
+- Plump egg-shaped pale blue-green leaves on a short stem = Pachyphytum oviferum (moonstones). Graptopetalum amethystinum is similar but pink-lavender and more pointed.
+- Grey-blue pointed rosettes that go leggy with aerial roots = Graptopetalum paraguayense (ghost plant) or a Graptosedum hybrid, not a Sedum species from Europe.
+- Stemless rosettes = Echeveria; rosettes on visible woody stems = Aeonium. Aeonium haworthii (pale green, red edges) and A. arboreum are the common ones; obscure Aeonium species are rarely in home collections.
+- A cylindrical smooth green segment with a few spine spots is an opuntia-type cutting: Austrocylindropuntia subulata (Eve's needle) is the common one. "Baculellum"/Tephrocactus segments are egg-shaped and grey with papery spines.
+- Small magenta Dendrobium flowers on a thin spike from a small plant = Dendrobium kingianum, far more common than rare Dendrobium species.
+- Fat white/grey caudex with big serrated fleshy leaves = Cyphostemma juttae. Smooth green rounded caudex with thin vining stems = Adenia glauca. Swollen trunk with glossy oval leaves = Adenium (desert rose).
+- Prefer the common, widely sold species over a rare one when both fit the photo equally well.`;
+
+const JSON_ID_ONLY = `Return ONLY JSON:
+{
+  "name": "common name - no parentheses, no hedging words",
+  "scientific_name": "genus and species, or the hybrid/cultivar name if that is the real identity",
+  "confidence": "high" | "medium" | "low",
+  "what_i_see": "two sentences describing the visible features",
+  "reasoning": "one or two sentences on why this name and not the closest lookalike",
+  "alternatives": [ { "name": "common name", "scientific_name": "scientific name" } ]
+}`;
+
+const JSON_FULL = `Return ONLY JSON:
+{
+  "name": "common name - no parentheses, no hedging words",
+  "scientific_name": "genus and species, or the hybrid/cultivar name if that is the real identity",
+  "confidence": "high" | "medium" | "low",
+  "identification_notes": "one or two sentences: the features that settle it, and anything the owner should know (mixed planting, cutting, lookalike ruled out)",
+  "plantnet_agreement": true | false | null,
+  "alternatives": [ { "name": "common name", "scientific_name": "scientific name" } ],
+  "hybrid_name": "cultivar/hybrid name or null",
+  "is_hybrid_uncertain": boolean,
+  "growth_habit": "climber" | "trailer" | "crawler" | "upright" | "bushy",
+  "plant_size": "Seedling" | "Small" | "Medium" | "Large" | "Mature",
+  "care_instructions": {
+    "watering": "detailed watering instructions",
+    "sunlight": "sunlight requirements",
+    "soil": "soil preferences",
+    "humidity": "humidity needs",
+    "temperature": "temperature range",
+    "fertilizing": "fertilizing schedule",
+    "tips": "MUST include: climate-specific and environment-specific care tips. Explain how the location, pot type, sun exposure, substrate and plant size affect the watering frequency you calculated. Include toxicity to pets and people.",
+    "growth_optimization": "Growth tips if applicable"
+  },
+  "water_frequency_days": number (BE REALISTIC - consider hot climate, pot type, sun exposure, plant size. Austin summer outdoor medium plant in terracotta might need water every 3-4 days!)
+}`;
+
+function imageMessage(imageUrl, text) {
+    return {
+        role: "user",
+        content: [
+            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+            { type: "text", text }
+        ]
+    };
 }
 
-function plantNetBrief(pn) {
-    const list = [pn.top, ...pn.alternatives].map((c, i) =>
-        `${i + 1}. ${c.scientific_name} (family ${c.family || 'unknown'}) - score ${c.score.toFixed(2)}${c.common_names.length ? ' - common names: ' + c.common_names.slice(0, 3).join(', ') : ''}`
-    ).join('\n');
-    return `A dedicated plant-identification model (Pl@ntNet) has analysed this exact photo. Its candidates, best first:
-${list}
+async function askJson(systemPrompt, imageUrl, userText, maxTokens) {
+    const response = await openai.chat.completions.create({
+        model: MODEL,
+        messages: [{ role: "system", content: systemPrompt }, imageMessage(imageUrl, userText)],
+        response_format: { type: "json_object" },
+        max_completion_tokens: maxTokens
+    });
+    return JSON.parse(response.choices[0].message.content);
+}
 
-YOUR JOB IS TO CHECK THIS, NOT TO RUBBER-STAMP IT AND NOT TO IGNORE IT. Pl@ntNet is strong on wild and garden plants and weaker on cultivated succulents, cacti and rare houseplants, and a score below 0.20 means it is mostly guessing.
-Do this, in order:
-a) Describe what is actually in the photo (growth form, stem, leaves, spines, flowers, pot).
-b) For each candidate above, name one or two visible features that support it and any visible feature that contradicts it. Think about whether the candidate is even the right family and growth form - an orchid, a cactus and a rosette succulent cannot be confused if you look.
-c) Decide: pick the candidate the photo actually supports, or, if none of them fit, give your own identification. To override a candidate with a score of 0.50 or higher you must cite a concrete visible contradiction in identification_notes. To reject all candidates with scores under 0.20 you need no special reason, just say what the photo shows instead.
-d) Set confidence from your own judgement: high only when the visible features clearly match one species, medium when genus is sure but species is a best guess, low when even the genus is uncertain.
-Set plantnet_agreement to true if your final answer is one of the candidates, false if you overrode them, and explain in identification_notes. Put the candidates you did not pick in alternatives.
-Then write the care instructions for the plant you settled on.`;
+function describePlantNet(pn) {
+    if (!pn) return 'Pl@ntNet: unavailable for this photo.';
+    return 'Pl@ntNet candidates (best first):\n' + pn.map((c, i) =>
+        `${i + 1}. ${c.scientific_name} (family ${c.family || 'unknown'}) - score ${c.score.toFixed(2)}${c.common_names.length ? ' - common names: ' + c.common_names.slice(0, 3).join(', ') : ''}`
+    ).join('\n') + '\nPl@ntNet is strong on wild and garden plants and weak on cultivated succulents, cacti and caudiciforms; a score under 0.20 means it is guessing.';
+}
+
+function describeBlind(blind) {
+    if (!blind) return 'Independent botanist opinion: unavailable.';
+    const alts = (blind.alternatives || []).map(a => `${a.scientific_name}`).join(', ') || 'none';
+    return `Independent botanist opinion (made WITHOUT seeing Pl@ntNet):
+- ${blind.scientific_name} ("${blind.name}"), confidence ${blind.confidence}
+- What they saw: ${blind.what_i_see || ''}
+- Reasoning: ${blind.reasoning || ''}
+- Their alternatives: ${alts}`;
 }
 
 Deno.serve(async (req) => {
     const rid = Math.random().toString(36).slice(2, 7);
-    console.log('🌱 identifyPlant function called');
-    
+    console.log(`[${rid}] 🌱 identifyPlant function called`);
+
     try {
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
@@ -127,23 +194,33 @@ Deno.serve(async (req) => {
             }
         }
 
-        const pn = await identifyWithPlantNet(image_url);
-        if (pn) {
-            console.log(`[${rid}] 🌿 PlantNet candidates:`, [pn.top, ...pn.alternatives].map(c => `${c.scientific_name} ${c.score.toFixed(2)}`).join(' | '));
-        } else {
-            console.log(`[${rid}] 🌿 PlantNet unavailable (no key, no plant detected, or error) - using LLM identification`);
-        }
+        // Steps 1 and 2 run in parallel and independently.
+        const [pn, blind] = await Promise.all([
+            identifyWithPlantNet(image_url),
+            askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, image_url, "Identify this plant following the method. Return the JSON.", 1200).catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; })
+        ]);
+        console.log(`[${rid}] 🌿 PlantNet:`, pn ? pn.map(c => `${c.scientific_name} ${c.score.toFixed(2)}`).join(' | ') : 'none');
+        console.log(`[${rid}] 🌿 Blind LLM:`, blind ? `${blind.scientific_name} (${blind.confidence})` : 'none');
 
-        const systemPrompt = `You are a working botanist who identifies plants from photos for a living, with expertise in plant care across different climates and environments. You are careful, and you would rather give a correct genus than a wrong species.
+        const judgePrompt = `${BOTANIST}
 
-HOW TO IDENTIFY (do this before anything else):
-1. First describe to yourself exactly what you can see: growth form (rosette, columnar, caudex/bulb-like stems, vine, shrub), stem texture (smooth, warty, spiny, tubercled), leaf shape, size, color, arrangement, flowers if any, pot and substrate.
-2. Work from family to genus to species, then COMMIT to the single most likely species, cultivar or hybrid. Give the name a real botanist would put on the label. Show your uncertainty through the confidence field and the alternatives list, never by withholding the species.
-3. Do not reach for a popular or "famous" plant name because it is the first thing that comes to mind. Check that its signature features are present in the photo. A name that does not match what is visible is worse than a less famous name that does.
-4. Fall back to genus only (scientific_name "Euphorbia sp.", name "Euphorbia", no parentheses, no hedging words) in the rare case where the photo truly cannot support any species - for example a seedling, a cutting, or a plant with no distinguishing features visible. Most houseplant and succulent photos CAN be named to species; a genus-only answer should be the exception, not the default.
-5. Care advice must be for the plant you actually identified. If the plant has toxic sap, spines, or is poisonous to pets or people, say so clearly in tips.
+You are now the JUDGE. Two independent identifications of this photo were made:
 
-${pn ? plantNetBrief(pn) + '\n\n' : ''}${contextStr}
+${describePlantNet(pn)}
+
+${describeBlind(blind)}
+
+Settle the identification:
+a) Look at the photo yourself and check each candidate against the visible features and the lookalike list.
+b) If both opinions agree, confirm it unless the photo plainly contradicts them.
+c) If they disagree, the photo decides. Pl@ntNet wins on wild/garden plants it scores 0.50+. The botanist wins on succulents, cacti and caudiciforms unless Pl@ntNet scored 0.50+ and the photo supports it. A Pl@ntNet score under 0.20 carries no weight on its own.
+d) You may override both if the photo clearly shows something else - say why in identification_notes.
+e) Set plantnet_agreement true if your final answer is one of Pl@ntNet's candidates, false if Pl@ntNet gave candidates and you chose otherwise, null if Pl@ntNet was unavailable.
+f) Confidence: high only when the visible features clearly match one species; medium when genus is certain but species is a best guess, or the photo is a mixed planting; low for cuttings, seedlings and leafless plants.
+
+Then assess the plant's size/maturity (Seedling, Small, Medium, Large, or Mature) and write personalised care instructions.
+
+${contextStr}
 
 CRITICAL: Calculate watering frequency considering ALL these factors:
 - Climate/location (hot climates like Austin, TX need MORE frequent watering)
@@ -157,87 +234,30 @@ CRITICAL: Calculate watering frequency considering ALL these factors:
 
 For context: In hot climates like Austin, Texas (90-100°F summers), most indoor plants need watering every 5-7 days, outdoor plants every 3-5 days or even daily for full sun plants.
 
-From the image, assess the plant's size/maturity level (Seedling, Small, Medium, Large, or Mature).
+${JSON_FULL}`;
 
-IMPORTANT: In the care_instructions.tips field, explain HOW you calculated the watering frequency based on ALL the environmental factors provided. Be specific about what factors increased or decreased the frequency.
+        const parsed = await askJson(judgePrompt, image_url, "Judge the identification, assess size/maturity, and write the personalised care information. Return the JSON.", 4000);
 
-Return ONLY valid JSON:
-{
-    "name": "common name - never use parentheses or hedging words",
-    "scientific_name": "genus and species, or genus followed by sp. if unsure, or the hybrid/cultivar name if that is the real identity",
-    "hybrid_name": "cultivar/hybrid name or null",
-    "is_hybrid_uncertain": boolean,
-    "confidence": "high" | "medium" | "low",
-    "identification_notes": "one or two sentences on the features that led to this ID and what would confirm it",
-    "plantnet_agreement": true | false | null,
-    "alternatives": [ { "name": "common name", "scientific_name": "scientific name" } ],
-    "growth_habit": "climber" | "trailer" | "crawler" | "upright" | "bushy",
-    "plant_size": "Seedling" | "Small" | "Medium" | "Large" | "Mature",
-    "care_instructions": {
-        "watering": "Detailed watering instructions considering ALL factors above",
-        "sunlight": "Light requirements",
-        "soil": "Soil preferences",
-        "humidity": "Humidity needs",
-        "temperature": "Temperature range",
-        "fertilizing": "Fertilizing schedule",
-        "tips": "MUST include: Climate-specific and environment-specific care tips. Explain how the location (${user_location}), pot type (${pot_type}), sun exposure (${sun_exposure}), substrate (${substrate_type}), and plant size affect the watering frequency you calculated.",
-        "growth_optimization": "Growth tips if applicable"
-    },
-    "water_frequency_days": number (BE REALISTIC - consider hot climate, pot type, sun exposure, plant size. Austin summer outdoor medium plant in terracotta might need water every 3-4 days!)
-}`;
-
-        const response = await openai.chat.completions.create({
-            model: "gpt-6-astra",
-            messages: [
-                {
-                    role: "system",
-                    content: systemPrompt
-                },
-                {
-                    role: "user",
-                    content: [
-                        {
-                            type: "image_url",
-                            image_url: { url: image_url, detail: "high" }
-                        },
-                        {
-                            type: "text",
-                            text: pn
-                                ? "Confirm the Pl@ntNet identification against the photo, assess its size/maturity, and provide comprehensive, personalized care instructions in the exact JSON format."
-                                : "Identify this plant following the HOW TO IDENTIFY steps, assess its size/maturity, and provide comprehensive, personalized care instructions in the exact JSON format."
-                        }
-                    ]
-                }
-            ],
-            response_format: { type: "json_object" }
-        });
-
-        console.log('✅ OpenAI response received');
-        const parsed = JSON.parse(response.choices[0].message.content);
-        // Keep the extra identification fields out of plantData so they are never written into the Plant record
         const { confidence, identification_notes, alternatives, plantnet_agreement, ...plantData } = parsed;
         console.log(`[${rid}] 🌿 Final:`, plantData.name, '|', plantData.scientific_name, '| confidence:', confidence, '| agrees with PlantNet:', plantnet_agreement);
-        console.log('📏 Plant size:', plantData.plant_size);
-        console.log('💧 Watering frequency:', plantData.water_frequency_days, 'days');
+        console.log(`[${rid}] 📏 Plant size:`, plantData.plant_size, '| 💧 Watering frequency:', plantData.water_frequency_days, 'days');
 
         return Response.json({
             success: true,
             plantData,
             identification: {
-                source: pn ? 'plantnet' : 'llm',
-                plantnet_top: pn ? pn.top.scientific_name : null,
+                source: pn ? 'plantnet+llm' : 'llm',
+                plantnet_top: pn ? pn[0].scientific_name : null,
+                plantnet_score: pn ? pn[0].score : null,
+                blind_llm: blind ? blind.scientific_name : null,
                 plantnet_agreement: pn ? (plantnet_agreement ?? null) : null,
-                confidence: confidence || (pn ? confidenceFromScore(pn.top.score) : null),
-                score: pn ? pn.top.score : null,
+                confidence: confidence || null,
                 notes: identification_notes || null,
                 alternatives: Array.isArray(alternatives) ? alternatives : []
             }
         });
     } catch (error) {
-        console.error('❌ Error in identifyPlant:', error);
-        return Response.json({ 
-            success: false,
-            error: error.message 
-        }, { status: 500 });
+        console.error(`[${rid}] ❌ Error in identifyPlant:`, error);
+        return Response.json({ success: false, error: error.message }, { status: 500 });
     }
 });
