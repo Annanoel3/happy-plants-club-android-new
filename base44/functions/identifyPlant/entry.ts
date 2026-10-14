@@ -66,7 +66,14 @@ Deno.serve(async (req) => {
             }
         }
 
-        const systemPrompt = `You are a professional botanist with expertise in plant care across different climates and environments.
+        const systemPrompt = `You are a working botanist who identifies plants from photos for a living, with expertise in plant care across different climates and environments. You are careful, and you would rather give a correct genus than a wrong species.
+
+HOW TO IDENTIFY (do this before anything else):
+1. First describe to yourself exactly what you can see: growth form (rosette, columnar, caudex/bulb-like stems, vine, shrub), stem texture (smooth, warty, spiny, tubercled), leaf shape, size, color, arrangement, flowers if any, pot and substrate.
+2. Work from family to genus to species. Only name a species, cultivar or hybrid when the visible features actually match it.
+3. Do not reach for a popular or "famous" plant name because it is the first thing that comes to mind. Check that its signature features are present in the photo. A name that does not match what is visible is worse than a genus-level answer.
+4. If you cannot get past genus, say so: put the genus in scientific_name (e.g. "Euphorbia sp.") and use a plain common name like "Euphorbia (species unclear)".
+5. Care advice must be for the plant you actually identified. If the plant has toxic sap, spines, or is poisonous to pets or people, say so clearly in tips.
 
 ${contextStr}
 
@@ -88,10 +95,13 @@ IMPORTANT: In the care_instructions.tips field, explain HOW you calculated the w
 
 Return ONLY valid JSON:
 {
-    "name": "common name only - no parentheses or hedging words like 'likely'",
-    "scientific_name": "genus species",
+    "name": "common name - no parentheses unless you are flagging that the species is unclear",
+    "scientific_name": "genus and species, or genus followed by sp. if unsure, or the hybrid/cultivar name if that is the real identity",
     "hybrid_name": "cultivar/hybrid name or null",
     "is_hybrid_uncertain": boolean,
+    "confidence": "high" | "medium" | "low",
+    "identification_notes": "one or two sentences on the features that led to this ID and what would confirm it",
+    "alternatives": [ { "name": "common name", "scientific_name": "scientific name" } ],
     "growth_habit": "climber" | "trailer" | "crawler" | "upright" | "bushy",
     "plant_size": "Seedling" | "Small" | "Medium" | "Large" | "Mature",
     "care_instructions": {
@@ -119,11 +129,11 @@ Return ONLY valid JSON:
                     content: [
                         {
                             type: "image_url",
-                            image_url: { url: image_url }
+                            image_url: { url: image_url, detail: "high" }
                         },
                         {
                             type: "text",
-                            text: "Identify this plant, assess its size/maturity, and provide comprehensive, personalized care instructions in the exact JSON format."
+                            text: "Identify this plant following the HOW TO IDENTIFY steps, assess its size/maturity, and provide comprehensive, personalized care instructions in the exact JSON format."
                         }
                     ]
                 }
@@ -132,12 +142,22 @@ Return ONLY valid JSON:
         });
 
         console.log('✅ OpenAI response received');
-        const plantData = JSON.parse(response.choices[0].message.content);
-        console.log('🌿 Plant identified:', plantData.name);
+        const parsed = JSON.parse(response.choices[0].message.content);
+        // Keep the extra identification fields out of plantData so they are never written into the Plant record
+        const { confidence, identification_notes, alternatives, ...plantData } = parsed;
+        console.log('🌿 Plant identified:', plantData.name, '| confidence:', confidence);
         console.log('📏 Plant size:', plantData.plant_size);
         console.log('💧 Watering frequency:', plantData.water_frequency_days, 'days');
 
-        return Response.json({ success: true, plantData });
+        return Response.json({
+            success: true,
+            plantData,
+            identification: {
+                confidence: confidence || null,
+                notes: identification_notes || null,
+                alternatives: Array.isArray(alternatives) ? alternatives : []
+            }
+        });
     } catch (error) {
         console.error('❌ Error in identifyPlant:', error);
         return Response.json({ 
