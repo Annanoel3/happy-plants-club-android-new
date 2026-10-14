@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
 
         // Use AI for more nuanced moderation
         const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
+            model: "gpt-6-luna",
             messages: [
                 {
                     role: "system",

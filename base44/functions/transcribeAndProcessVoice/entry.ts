@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
     const transcription = await openai.audio.transcriptions.create({
         file: audioFile,
-        model: "whisper-1",
+        model: "gpt-transcribe",
     });
 
     const transcript = transcription.text;
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     const plantsList = plants.map(p => `${p.name} (ID: ${p.id})`).join(', ');
 
     const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-6-luna",
         messages: [
             {
                 role: "system",

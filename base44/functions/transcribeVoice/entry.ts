@@ -52,8 +52,8 @@ Deno.serve(async (req) => {
 
         const transcription = await openai.audio.transcriptions.create({
             file: file,
-            model: "whisper-1",
-            language: "en",
+            model: "gpt-transcribe",
+            languages: ["en"],
         });
 
         console.log('✅ Transcription complete:', transcription.text);

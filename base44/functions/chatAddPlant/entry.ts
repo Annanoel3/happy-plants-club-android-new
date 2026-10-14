@@ -119,7 +119,7 @@ If you don't have all information yet, respond with plain text (NO JSON) asking 
 
         // Get AI response
         const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
+            model: "gpt-6-luna",
             messages: messages,
         });
 

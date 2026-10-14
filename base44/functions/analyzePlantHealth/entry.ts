@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
         console.log('📸 Image URL:', image_url);
 
         const response = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: "gpt-6-luna",
             messages: [
                 {
                     role: "system",
@@ -60,7 +60,7 @@ Keep your response to 3-4 short paragraphs max.`
                     ]
                 }
             ],
-            max_tokens: 500
+            max_completion_tokens: 500
         });
 
         console.log('✅ Health analysis complete');

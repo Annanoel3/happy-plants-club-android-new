@@ -66,7 +66,7 @@ Answer questions about this specific plant, provide care tips, troubleshoot prob
         ];
 
         const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
+            model: "gpt-6-luna",
             messages: messages,
         });
 

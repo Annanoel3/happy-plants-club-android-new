@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     const localDateTimeStr = `${year}-${month}-${day}T${timePart}`;
 
     const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-6-luna",
         messages: [
             {
                 role: "system",

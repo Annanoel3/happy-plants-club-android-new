@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
     const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
     const audioFile = new File([bytes], safeFilename, { type });
-    const transcription = await openai.audio.transcriptions.create({ file: audioFile, model: 'whisper-1' });
+    const transcription = await openai.audio.transcriptions.create({ file: audioFile, model: "gpt-transcribe" });
 
     console.log('Transcript result:', transcription.text);
     return Response.json({ transcript: transcription.text });

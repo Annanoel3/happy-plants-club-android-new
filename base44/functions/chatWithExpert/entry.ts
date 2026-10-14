@@ -88,7 +88,7 @@ ${contextMessage}`;
         ];
 
         const response = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: "gpt-6-luna",
             messages: messages
         });
 
