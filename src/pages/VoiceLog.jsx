@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { transcribeVoice } from "@/functions/transcribeVoice";
 import { processVoiceWatering } from "@/functions/processVoiceWatering";
 import { Capacitor } from "@capacitor/core";
-import { setMicActive } from "@/lib/admob";
+import { setMicActive, showAdForEvent } from "@/lib/admob";
 
 export default function VoiceLog() {
   const navigate = useNavigate();
@@ -158,6 +158,8 @@ export default function VoiceLog() {
       if (data && data.success) {
         setResult(data);
         toast.success(data.notes || 'Logged successfully!');
+        // One ad per watering event (any number of plants in one log = one ad)
+        if ((data.watered_count || 0) > 0) showAdForEvent('water');
       } else {
         console.warn('Unexpected response format:', data);
         toast.error('Could not process the log');
