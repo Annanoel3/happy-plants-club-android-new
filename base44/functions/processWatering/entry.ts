@@ -1,9 +1,22 @@
-import { base44 } from '@/api/base44Client';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-export async function processWatering({ plant_id, notes, watering_date }) {
+// Wrapped as a proper backend function (it previously used a frontend-only import,
+// which stopped every backend function in this app from deploying).
+Deno.serve(async (req) => {
+    try {
+        const body = await req.json();
+        const result = await processWatering(req, body || {});
+        return Response.json(result);
+    } catch (error) {
+        return Response.json({ success: false, error: error?.message || 'Unknown error' }, { status: 500 });
+    }
+});
+
+async function processWatering(req, { plant_id, notes, watering_date }) {
     console.log('🚰 processWatering called with:', { plant_id, notes, watering_date });
     
     try {
+        const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
         
         if (!user) {
