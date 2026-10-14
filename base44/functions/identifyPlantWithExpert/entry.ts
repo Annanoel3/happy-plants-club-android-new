@@ -15,7 +15,12 @@ async function identifyWithPlantNet(imageUrl) {
     if (!key) return null;
     try {
         const url = `https://my-api.plantnet.org/v2/identify/all?images=${encodeURIComponent(imageUrl)}&organs=auto&lang=en&no-reject=true&api-key=${encodeURIComponent(key)}`;
-        const res = await fetch(url);
+        let res = await fetch(url);
+        if (res.status >= 500) {
+            // Pl@ntNet occasionally throws a 500 - one retry before giving up
+            await new Promise(r => setTimeout(r, 1500));
+            res = await fetch(url);
+        }
         if (!res.ok) {
             console.warn('[PlantNet] HTTP', res.status, await res.text().catch(() => ''));
             return null;
@@ -61,6 +66,7 @@ const JSON_SHAPE = `Return ONLY a JSON object in this exact format:
   "scientific_name": "genus and species, or genus followed by sp. if unsure, or the hybrid/cultivar name if that is the real identity",
   "confidence": "high" | "medium" | "low",
   "identification_notes": "one or two sentences on the features that led to this ID and what would confirm it",
+  "plantnet_agreement": true | false | null,
   "alternatives": [ { "name": "common name", "scientific_name": "scientific name" } ],
   "care_instructions": {
     "watering": "detailed watering instructions",
@@ -76,16 +82,24 @@ const JSON_SHAPE = `Return ONLY a JSON object in this exact format:
 alternatives may be an empty array when confidence is high.`;
 
 function plantNetBrief(pn) {
-    const alts = pn.alternatives.map(a => `${a.scientific_name} (score ${a.score.toFixed(2)})`).join(', ') || 'none';
-    const common = pn.top.common_names.length ? pn.top.common_names.slice(0, 3).join(', ') : 'none listed';
-    return `A dedicated plant-identification model (Pl@ntNet) has already analysed this exact photo and returned:
-- Best match: ${pn.top.scientific_name} (family ${pn.top.family || 'unknown'}), score ${pn.top.score.toFixed(2)}, common names: ${common}
-- Other candidates: ${alts}
+    const list = [pn.top, ...pn.alternatives].map((c, i) =>
+        `${i + 1}. ${c.scientific_name} (family ${c.family || 'unknown'}) - score ${c.score.toFixed(2)}${c.common_names.length ? ' - common names: ' + c.common_names.slice(0, 3).join(', ') : ''}`
+    ).join('\n');
+    return `A dedicated plant-identification model (Pl@ntNet) has analysed this exact photo. Its candidates, best first:
+${list}
 
-Use the Pl@ntNet best match as the identification. Only override it if the photo plainly contradicts it (wrong growth form, wrong organ type), and if you do, say why in identification_notes. Pick the best common name for "name" (Pl@ntNet's common names are a good source; if none fit, use the genus or a plain descriptive name). Set confidence from the Pl@ntNet score: 0.5 and above is high, 0.2 to 0.5 is medium, below 0.2 is low. Put the other candidates in alternatives. Then write the care instructions for that plant.`;
+YOUR JOB IS TO CHECK THIS, NOT TO RUBBER-STAMP IT AND NOT TO IGNORE IT. Pl@ntNet is strong on wild and garden plants and weaker on cultivated succulents, cacti and rare houseplants, and a score below 0.20 means it is mostly guessing.
+Do this, in order:
+a) Describe what is actually in the photo (growth form, stem, leaves, spines, flowers, pot).
+b) For each candidate above, name one or two visible features that support it and any visible feature that contradicts it. Think about whether the candidate is even the right family and growth form - an orchid, a cactus and a rosette succulent cannot be confused if you look.
+c) Decide: pick the candidate the photo actually supports, or, if none of them fit, give your own identification. To override a candidate with a score of 0.50 or higher you must cite a concrete visible contradiction in identification_notes. To reject all candidates with scores under 0.20 you need no special reason, just say what the photo shows instead.
+d) Set confidence from your own judgement: high only when the visible features clearly match one species, medium when genus is sure but species is a best guess, low when even the genus is uncertain.
+Set plantnet_agreement to true if your final answer is one of the candidates, false if you overrode them, and explain in identification_notes. Put the candidates you did not pick in alternatives.
+Then write the care instructions for the plant you settled on.`;
 }
 
 Deno.serve(async (req) => {
+    const rid = Math.random().toString(36).slice(2, 7);
     try {
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
@@ -104,9 +118,9 @@ Deno.serve(async (req) => {
 
         const pn = await identifyWithPlantNet(image_url);
         if (pn) {
-            console.log('🌿 PlantNet top match:', pn.top.scientific_name, '| score:', pn.top.score.toFixed(2));
+            console.log(`[${rid}] 🌿 PlantNet candidates:`, [pn.top, ...pn.alternatives].map(c => `${c.scientific_name} ${c.score.toFixed(2)}`).join(' | '));
         } else {
-            console.log('🌿 PlantNet unavailable (no key, no plant detected, or error) - using LLM identification');
+            console.log(`[${rid}] 🌿 PlantNet unavailable (no key, no plant detected, or error) - using LLM identification`);
         }
 
         const systemPrompt = pn
@@ -148,14 +162,16 @@ Deno.serve(async (req) => {
         // Keep plantData to the fields the Plant entity already stores; the extra
         // identification fields ride alongside so the UI can show them later
         // without them being written into the Plant record.
-        const { confidence, identification_notes, alternatives, ...plantData } = parsed;
-        console.log('🌿 Identified:', plantData.name, '|', plantData.scientific_name, '| confidence:', confidence);
+        const { confidence, identification_notes, alternatives, plantnet_agreement, ...plantData } = parsed;
+        console.log(`[${rid}] 🌿 Final:`, plantData.name, '|', plantData.scientific_name, '| confidence:', confidence, '| agrees with PlantNet:', plantnet_agreement);
 
         return Response.json({
             success: true,
             plantData,
             identification: {
                 source: pn ? 'plantnet' : 'llm',
+                plantnet_top: pn ? pn.top.scientific_name : null,
+                plantnet_agreement: pn ? (plantnet_agreement ?? null) : null,
                 confidence: confidence || (pn ? confidenceFromScore(pn.top.score) : null),
                 score: pn ? pn.top.score : null,
                 notes: identification_notes || null,
