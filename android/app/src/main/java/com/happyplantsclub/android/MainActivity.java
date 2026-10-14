@@ -13,7 +13,10 @@ import android.webkit.WebViewClient;
 import android.net.Uri;
 import android.util.Log;
 
+import androidx.activity.OnBackPressedCallback;
+
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebViewClient;
 
 public class MainActivity extends BridgeActivity {
 
@@ -34,6 +37,26 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NotifyBridge.class);
         super.onCreate(savedInstanceState);
         setupInAppNavigation();
+        setupBackButton();
+    }
+
+    /**
+     * Hardware/gesture back: step back through the app's own history instead of
+     * closing the app. On the first screen, send the app to the background
+     * (like pressing Home) rather than killing it, so it reopens where it was.
+     */
+    private void setupBackButton() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                WebView webView = getBridge().getWebView();
+                if (webView != null && webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    moveTaskToBack(true);
+                }
+            }
+        });
     }
 
     private boolean isInAppDomain(String url) {
@@ -124,22 +147,19 @@ public class MainActivity extends BridgeActivity {
             }
         });
 
-        webView.setWebViewClient(new WebViewClient() {
+        // Extend Capacitor's own client instead of replacing it. A plain WebViewClient
+        // here drops Capacitor's request interception, which is what injects the native
+        // bridge into the page - without it window.Capacitor.isNativePlatform() is false
+        // and native plugins (AdMob, NotifyBridge, voice recorder) never get called.
+        webView.setWebViewClient(new BridgeWebViewClient(getBridge()) {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
                 Log.d(TAG, "shouldOverrideUrlLoading: " + url);
                 if (isInAppDomain(url)) {
-                    return false;
+                    return false; // keep app + Google sign-in pages inside the WebView
                 }
-                return false;
-            }
-
-            @Override
-            @SuppressWarnings("deprecation")
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                Log.d(TAG, "shouldOverrideUrlLoading (legacy): " + url);
-                return false;
+                return super.shouldOverrideUrlLoading(view, request); // let Capacitor open outside links externally
             }
         });
     }
