@@ -49,6 +49,8 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'No image_url provided' }, { status: 400 });
         }
 
+        console.log('🌱 identifyPlantWithExpert called for', image_url);
+
         const response = await openai.chat.completions.create({
             model: "gpt-6-astra",
             messages: [
@@ -83,6 +85,7 @@ Deno.serve(async (req) => {
         // identification fields ride alongside so the UI can show them later
         // without them being written into the Plant record.
         const { confidence, identification_notes, alternatives, ...plantData } = parsed;
+        console.log('🌿 Identified:', plantData.name, '|', plantData.scientific_name, '| confidence:', confidence);
 
         return Response.json({
             success: true,
