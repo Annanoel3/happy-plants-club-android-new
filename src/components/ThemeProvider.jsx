@@ -10,6 +10,7 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     localStorage.setItem('theme', theme);
     document.documentElement.setAttribute('data-theme', theme);
+    window.dispatchEvent(new Event('hp-theme-change'));
   }, [theme]);
 
   return (
