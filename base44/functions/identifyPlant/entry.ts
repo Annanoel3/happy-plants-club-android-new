@@ -70,9 +70,9 @@ Deno.serve(async (req) => {
 
 HOW TO IDENTIFY (do this before anything else):
 1. First describe to yourself exactly what you can see: growth form (rosette, columnar, caudex/bulb-like stems, vine, shrub), stem texture (smooth, warty, spiny, tubercled), leaf shape, size, color, arrangement, flowers if any, pot and substrate.
-2. Work from family to genus to species. Only name a species, cultivar or hybrid when the visible features actually match it.
-3. Do not reach for a popular or "famous" plant name because it is the first thing that comes to mind. Check that its signature features are present in the photo. A name that does not match what is visible is worse than a genus-level answer.
-4. If you cannot get past genus, say so: put the genus in scientific_name (e.g. "Euphorbia sp.") and use the plain genus as the common name, like "Euphorbia" (no parentheses, no hedging words).
+2. Work from family to genus to species, then COMMIT to the single most likely species, cultivar or hybrid. Give the name a real botanist would put on the label. Show your uncertainty through the confidence field and the alternatives list, never by withholding the species.
+3. Do not reach for a popular or "famous" plant name because it is the first thing that comes to mind. Check that its signature features are present in the photo. A name that does not match what is visible is worse than a less famous name that does.
+4. Fall back to genus only (scientific_name "Euphorbia sp.", name "Euphorbia", no parentheses, no hedging words) in the rare case where the photo truly cannot support any species - for example a seedling, a cutting, or a plant with no distinguishing features visible. Most houseplant and succulent photos CAN be named to species; a genus-only answer should be the exception, not the default.
 5. Care advice must be for the plant you actually identified. If the plant has toxic sap, spines, or is poisonous to pets or people, say so clearly in tips.
 
 ${contextStr}
