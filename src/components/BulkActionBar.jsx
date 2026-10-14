@@ -4,6 +4,7 @@ import {
   Droplets, Trash2, MapPin, Heart, AlertTriangle, X, ChevronDown, Plus, Check
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { showAdForEvent } from "@/lib/admob";
 
 const ENVIRONMENT_OPTIONS = [
   "Indoor", "Outdoor", "Balcony", "Patio", "Greenhouse", "Window Sill", "Office"
@@ -61,6 +62,8 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
     }));
     setLoading(null);
     onDone();
+    // Bulk watering = one ad
+    showAdForEvent('water');
   };
 
   const handleSetLocation = async (location, environment) => {
