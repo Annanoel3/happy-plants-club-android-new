@@ -27,6 +27,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { chatWithPlant } from "@/functions/chatWithPlant";
+import { showAdForEvent } from "@/lib/admob";
 
 export default function PlantDetail() {
   const navigate = useNavigate();
@@ -346,6 +347,9 @@ export default function PlantDetail() {
       if (data?.tier_changed) {
         toast.success(`🏆 You reached ${data.new_tier}!`);
       }
+
+      // One interstitial per watering (fire-and-forget)
+      showAdForEvent('water');
     },
     onError: (error) => {
       console.error('❌ Watering failed:', error);
