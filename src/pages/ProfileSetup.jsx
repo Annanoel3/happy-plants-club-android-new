@@ -33,11 +33,11 @@ export default function ProfileSetup() {
     
     handleThemeChange();
     window.addEventListener('storage', handleThemeChange);
-    const interval = setInterval(handleThemeChange, 100);
+    window.addEventListener('hp-theme-change', handleThemeChange); // was a 100ms poll
     
     return () => {
       window.removeEventListener('storage', handleThemeChange);
-      clearInterval(interval);
+      window.removeEventListener('hp-theme-change', handleThemeChange);
     };
   }, []);
 
