@@ -137,6 +137,26 @@ const PlantListRow = React.memo(function PlantListRow({ plant, wateringReminders
   );
 });
 
+// Shows a gradient until the photo is fully decoded, then fades it in (no partial painting)
+function FadeImage({ src, alt, gradientIndex }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <>
+      <div className={`absolute inset-0 bg-gradient-to-br ${getGradient(gradientIndex)}`} />
+      <img
+        src={src}
+        alt={alt}
+        decoding="async"
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          (img.decode ? img.decode() : Promise.resolve()).catch(() => {}).then(() => setLoaded(true));
+        }}
+        className={`absolute inset-0 w-full h-full object-cover brightness-90 transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+      />
+    </>
+  );
+}
+
 function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick, gradientIndex }) {
   const navigate = useNavigate();
   const watering = getWateringStatus(plant, wateringRemindersEnabled);
@@ -158,10 +178,11 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
 
   return (
     <motion.div
-      className="absolute left-0 right-0"
-      animate={{ top: stackOffset }}
-      transition={{ type: "spring", stiffness: 300, damping: 32, mass: 0.8 }}
-      style={{ zIndex: index + 1 }}
+      className="absolute left-0 right-0 top-0"
+      initial={false}
+      animate={{ y: stackOffset }}
+      transition={{ type: "tween", ease: [0.25, 0.8, 0.25, 1], duration: 0.35 }}
+      style={{ zIndex: index + 1, willChange: 'transform' }}
     >
       <motion.div
         style={{
@@ -176,13 +197,7 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
       >
         {/* Background */}
         {plant.image_url ? (
-          <img
-            src={plant.image_url}
-            alt={displayName}
-            loading="lazy"
-            decoding="async"
-            className={`absolute inset-0 w-full h-full object-cover brightness-90`}
-          />
+          <FadeImage src={plant.image_url} alt={displayName} gradientIndex={gradientIndex} />
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${getGradient(gradientIndex)}`} />
         )}
@@ -213,7 +228,7 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
           </p>
           {plant.pinned && <Pin className="w-3.5 h-3.5 text-pink-300 drop-shadow flex-shrink-0" />}
           {watering && (
-            <span className={`flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-sm flex items-center gap-1 shadow-md ${watering.color}`}>
+            <span className={`flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md ${watering.color}`}>
               {(watering.status === 'today' || watering.status === 'overdue') && <Droplets className="w-3 h-3" />}
               {watering.status === 'wilted' && <AlertCircle className="w-3 h-3" />}
               {watering.text}
@@ -349,8 +364,9 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
         /* Stack mode: wallet card stack */
         <motion.div
           className="relative"
+          initial={false}
           animate={{ height: stackHeight }}
-          transition={{ type: "spring", stiffness: 260, damping: 32 }}
+          transition={{ type: "tween", ease: [0.25, 0.8, 0.25, 1], duration: 0.35 }}
         >
           {plants.map((plant, index) => (
             <PlantCard
