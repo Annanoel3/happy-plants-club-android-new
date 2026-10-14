@@ -107,7 +107,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="mx-4 mb-2 rounded-2xl overflow-hidden bg-gray-900/98 backdrop-blur-md border border-white/10 shadow-2xl"
+            className="mx-4 mb-2 rounded-2xl overflow-hidden bg-gray-900 border border-white/10 shadow-2xl"
           >
             <p className="text-white/50 text-xs font-bold px-4 pt-3 pb-2 uppercase tracking-widest">Move to location</p>
 
@@ -195,7 +195,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="mx-4 mb-2 rounded-2xl overflow-hidden bg-gray-900/98 backdrop-blur-md border border-white/10 shadow-2xl"
+            className="mx-4 mb-2 rounded-2xl overflow-hidden bg-gray-900 border border-white/10 shadow-2xl"
           >
             <p className="text-white/50 text-xs font-bold px-4 pt-3 pb-2 uppercase tracking-widest">Mark plants as</p>
             {[
@@ -223,7 +223,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
       </AnimatePresence>
 
       {/* Main action bar */}
-      <div className="mx-3 mb-4 rounded-2xl bg-gray-900/98 backdrop-blur-md border border-white/10 shadow-2xl overflow-hidden">
+      <div className="mx-3 mb-4 rounded-2xl bg-gray-900 border border-white/10 shadow-2xl overflow-hidden">
         {/* Count header */}
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
           <span className="text-white font-bold text-sm">
@@ -289,7 +289,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
         <button
           onClick={handleDelete}
           disabled={count === 0 || loading === 'delete'}
-          className="w-full flex items-center justify-center gap-2 py-3 text-sm font-bold text-red-400 border-t border-white/10 disabled:opacity-30 hover:bg-red-500/10 transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-3 text-sm font-bold text-red-400 border-t border-white/10 disabled:opacity-50 hover:bg-red-500/10 transition-colors"
         >
           <Trash2 className="w-4 h-4" />
           {loading === 'delete' ? 'Deleting...' : `Delete ${count > 0 ? count : ''} Selected`}
@@ -304,13 +304,13 @@ function ActionBtn({ icon, label, color, loading, disabled, onClick }) {
     <button
       onClick={onClick}
       disabled={disabled || loading}
-      className={`flex flex-col items-center justify-center gap-1 py-3.5 px-2 hover:bg-white/8 transition-colors disabled:opacity-30 ${color}`}
+      className={`flex flex-col items-center justify-center gap-1 py-3.5 px-2 hover:bg-white/10 transition-colors disabled:opacity-50 ${color}`}
     >
       {loading
         ? <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
         : icon
       }
-      <span className="text-[10px] font-bold text-white/70 leading-tight text-center">{label}</span>
+      <span className="text-xs font-bold text-white leading-tight text-center">{label}</span>
     </button>
   );
 }

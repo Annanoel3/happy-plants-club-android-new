@@ -88,7 +88,7 @@ IMPORTANT: In the care_instructions.tips field, explain HOW you calculated the w
 
 Return ONLY valid JSON:
 {
-    "name": "common name",
+    "name": "common name only - no parentheses or hedging words like 'likely'",
     "scientific_name": "genus species",
     "hybrid_name": "cultivar/hybrid name or null",
     "is_hybrid_uncertain": boolean,

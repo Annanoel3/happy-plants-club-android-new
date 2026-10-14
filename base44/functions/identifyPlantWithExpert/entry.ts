@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
                             type: "text",
                             text: `Identify this plant and provide comprehensive care information. Return ONLY a JSON object in this exact format:
 {
-  "name": "common name",
+  "name": "common name only - no parentheses or hedging words like 'likely'",
   "scientific_name": "scientific name",
   "care_instructions": {
     "watering": "detailed watering instructions",
