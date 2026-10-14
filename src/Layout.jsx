@@ -48,6 +48,8 @@ function LayoutContent({ children, currentPageName }) {
   useEffect(() => {
     localStorage.setItem('theme', theme);
     document.documentElement.setAttribute('data-theme', theme);
+    // Tell every mounted page/component the theme changed (replaces their old 100ms polling)
+    window.dispatchEvent(new Event('hp-theme-change'));
   }, [theme]);
 
   const checkAuth = async () => {
