@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
             type: 'audio/webm' 
         });
 
-        console.log('🔄 Sending to OpenAI Whisper API...');
+        console.log('🔄 Sending to OpenAI transcription API (gpt-transcribe)...');
 
         const transcription = await openai.audio.transcriptions.create({
             file: file,
