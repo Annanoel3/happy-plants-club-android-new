@@ -5,7 +5,7 @@ import { X, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Capacitor } from "@capacitor/core";
-import { setMicActive } from "@/lib/admob";
+import { setMicActive, showAdForEvent } from "@/lib/admob";
 
 export default function QuickLogModal({ isOpen, onClose, theme }) {
   const queryClient = useQueryClient();
@@ -104,6 +104,8 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
        queryClient.invalidateQueries({ queryKey: ['plants'] });
        setInputMessage("");
        onClose();
+       // One ad per watering event (any number of plants in one log = one ad)
+       if ((data?.watered_count || 0) > 0) showAdForEvent('water');
      }
   };
 
