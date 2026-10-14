@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
         }
 
         const response = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: "gpt-6-astra",
             messages: [
                 {
                     role: "user",
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
                 }
             ],
             response_format: { type: "json_object" },
-            max_tokens: 1000
+            max_completion_tokens: 4000
         });
 
         let plantData;

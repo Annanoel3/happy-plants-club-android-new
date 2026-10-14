@@ -1,4 +1,3 @@
-
 import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
 import OpenAI from 'npm:openai@4.73.1';
 
@@ -109,7 +108,7 @@ Return ONLY valid JSON:
 }`;
 
         const response = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: "gpt-6-astra",
             messages: [
                 {
                     role: "system",
