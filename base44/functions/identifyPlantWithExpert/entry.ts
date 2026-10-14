@@ -5,11 +5,18 @@ const openai = new OpenAI({
     apiKey: Deno.env.get("OPENAI_API_KEY"),
 });
 
+const MODEL = "gpt-6-astra";
+
 // ---------------------------------------------------------------------------
-// Pl@ntNet: a purpose-built plant identification model. When PLANTNET_API_KEY
-// is set, it proposes candidates and the LLM checks them against the photo, then writes the care info.
-// Without the key (or if Pl@ntNet can't see a plant) we fall back to the LLM.
+// Identification runs as three steps:
+//   1. Pl@ntNet (purpose-built plant classifier) scores the photo.
+//   2. The LLM identifies the photo BLIND - it never sees Pl@ntNet's answer,
+//      so the two opinions are independent.
+//   3. A judge pass sees the photo, both opinions and a lookalike cheat sheet,
+//      settles the name, and writes the care info.
+// Without PLANTNET_API_KEY, steps 2 and 3 still run.
 // ---------------------------------------------------------------------------
+
 async function identifyWithPlantNet(imageUrl) {
     const key = Deno.env.get("PLANTNET_API_KEY");
     if (!key) return null;
@@ -17,7 +24,6 @@ async function identifyWithPlantNet(imageUrl) {
         const url = `https://my-api.plantnet.org/v2/identify/all?images=${encodeURIComponent(imageUrl)}&organs=auto&lang=en&no-reject=true&api-key=${encodeURIComponent(key)}`;
         let res = await fetch(url);
         if (res.status >= 500) {
-            // Pl@ntNet occasionally throws a 500 - one retry before giving up
             await new Promise(r => setTimeout(r, 1500));
             res = await fetch(url);
         }
@@ -30,42 +36,56 @@ async function identifyWithPlantNet(imageUrl) {
         if (results.length === 0) return null;
         const toMatch = (r) => ({
             scientific_name: r?.species?.scientificNameWithoutAuthor || '',
-            genus: r?.species?.genus?.scientificNameWithoutAuthor || '',
             family: r?.species?.family?.scientificNameWithoutAuthor || '',
             common_names: Array.isArray(r?.species?.commonNames) ? r.species.commonNames : [],
             score: typeof r?.score === 'number' ? r.score : 0,
         });
-        const top = toMatch(results[0]);
-        const alternatives = results.slice(1, 4).map(toMatch).filter(a => a.scientific_name);
-        if (!top.scientific_name) return null;
-        return { top, alternatives };
+        const list = results.slice(0, 4).map(toMatch).filter(c => c.scientific_name);
+        return list.length ? list : null;
     } catch (e) {
         console.warn('[PlantNet] failed:', e?.message || e);
         return null;
     }
 }
 
-function confidenceFromScore(score) {
-    if (score >= 0.5) return 'high';
-    if (score >= 0.2) return 'medium';
-    return 'low';
-}
+const BOTANIST = `You are a working botanist who identifies plants from photos for a living. You specialise in succulents, cacti, caudiciforms and houseplants - the plants people actually keep in pots - as well as garden plants.
 
-const BASE_PROMPT = `You are a working botanist who identifies plants from photos for a living. You are careful, and you would rather give a correct genus than a wrong species.
+Method, always in this order:
+1. Describe what is physically in the photo before naming anything: growth form (rosette, columnar, globular, caudex/fat stem, jointed segments, vine, shrub), stem surface (smooth, ribbed, tubercled/warty, spiny), leaf shape, thickness, colour, edges, any flowers, and the pot and substrate.
+2. Decide the family, then the genus, then COMMIT to the single most likely species, cultivar or hybrid. Give the name a nursery would print on the tag. Express doubt through the confidence field and the alternatives list, never by refusing to name a species.
+3. Check the name against the photo: every signature feature of that species must actually be visible. A famous name that does not match what you can see is wrong.
+4. If the photo shows SEVERAL different plants (a mixed bowl, a propagation tray, a shelf), identify the single most prominent plant, say in identification_notes that it is a mixed planting and what else is in it, and set confidence no higher than medium.
+5. A rooted cutting, seedling or leafless caudex gets confidence low or medium, never high.
 
-How to identify:
-1. First describe to yourself exactly what you can see: growth form (rosette, columnar, caudex/bulb-like stems, vine, shrub), stem texture (smooth, warty, spiny, tubercled), leaf shape, size, color, arrangement, flowers if any, pot and substrate.
-2. Work from family to genus to species, then COMMIT to the single most likely species, cultivar or hybrid. Give the name a real botanist would put on the label. If two or more plants fit, pick the best match and list the others as alternatives. Show your uncertainty through the confidence field and the alternatives list, never by withholding the species.
-3. Do not reach for a popular or "famous" plant name because it is the first thing that comes to mind. Check that its signature features are present in the photo. A name that does not match what is visible is worse than a less famous name that does.
-4. Fall back to genus only (scientific_name "Euphorbia sp.", name "Euphorbia", no parentheses, no hedging words) in the rare case where the photo truly cannot support any species - for example a seedling, a cutting, or a plant with no distinguishing features visible. Most houseplant and succulent photos CAN be named to species; a genus-only answer should be the exception, not the default.
-5. Care advice must be for the plant you actually identified. If the plant has toxic sap, spines, or is poisonous to pets or people, say so clearly in tips.`;
+Lookalikes that get confused in real collections - check these before answering:
+- Euphorbia bupleurifolia (pine cone plant) is ONE tall cone-shaped stem covered in neat pine-cone scales with a leaf tuft on top. Lumpy, egg-shaped, grey-brown tubercled bodies that branch into a cluster with small leaf tufts are the hybrid Euphorbia x japonica (bupleurifolia x susannae), sometimes sold as "Cocklebur". Do not call a lumpy cluster a pine cone plant.
+- Crassula 'Buddha's Temple' has flat, square-stacked, powdery grey leaves in a tight column. Anything with bulbous stems or spines is not it.
+- Dark purple, ribbed, globular cactus with chin-like bumps under the spine clusters and no wool = Gymnocalycium (often G. mihanovichii), not Lobivia/Echinopsis.
+- Clusters of small finger-like stems covered in tubercles with tiny star-shaped spine clusters = Mammillaria gracilis (thimble cactus); ribbed finger stems with bristly white spines = Echinopsis chamaecereus (peanut cactus). Rebutia is round, not finger-shaped.
+- Plump egg-shaped pale blue-green leaves on a short stem = Pachyphytum oviferum (moonstones). Graptopetalum amethystinum is similar but pink-lavender and more pointed.
+- Grey-blue pointed rosettes that go leggy with aerial roots = Graptopetalum paraguayense (ghost plant) or a Graptosedum hybrid, not a Sedum species from Europe.
+- Stemless rosettes = Echeveria; rosettes on visible woody stems = Aeonium. Aeonium haworthii (pale green, red edges) and A. arboreum are the common ones; obscure Aeonium species are rarely in home collections.
+- A cylindrical smooth green segment with a few spine spots is an opuntia-type cutting: Austrocylindropuntia subulata (Eve's needle) is the common one. "Baculellum"/Tephrocactus segments are egg-shaped and grey with papery spines.
+- Small magenta Dendrobium flowers on a thin spike from a small plant = Dendrobium kingianum, far more common than rare Dendrobium species.
+- Fat white/grey caudex with big serrated fleshy leaves = Cyphostemma juttae. Smooth green rounded caudex with thin vining stems = Adenia glauca. Swollen trunk with glossy oval leaves = Adenium (desert rose).
+- Prefer the common, widely sold species over a rare one when both fit the photo equally well.`;
 
-const JSON_SHAPE = `Return ONLY a JSON object in this exact format:
+const JSON_ID_ONLY = `Return ONLY JSON:
 {
-  "name": "common name - never use parentheses or hedging words",
-  "scientific_name": "genus and species, or genus followed by sp. if unsure, or the hybrid/cultivar name if that is the real identity",
+  "name": "common name - no parentheses, no hedging words",
+  "scientific_name": "genus and species, or the hybrid/cultivar name if that is the real identity",
   "confidence": "high" | "medium" | "low",
-  "identification_notes": "one or two sentences on the features that led to this ID and what would confirm it",
+  "what_i_see": "two sentences describing the visible features",
+  "reasoning": "one or two sentences on why this name and not the closest lookalike",
+  "alternatives": [ { "name": "common name", "scientific_name": "scientific name" } ]
+}`;
+
+const JSON_FULL = `Return ONLY JSON:
+{
+  "name": "common name - no parentheses, no hedging words",
+  "scientific_name": "genus and species, or the hybrid/cultivar name if that is the real identity",
+  "confidence": "high" | "medium" | "low",
+  "identification_notes": "one or two sentences: the features that settle it, and anything the owner should know (mixed planting, cutting, lookalike ruled out)",
   "plantnet_agreement": true | false | null,
   "alternatives": [ { "name": "common name", "scientific_name": "scientific name" } ],
   "care_instructions": {
@@ -75,27 +95,46 @@ const JSON_SHAPE = `Return ONLY a JSON object in this exact format:
     "humidity": "humidity needs",
     "temperature": "temperature range",
     "fertilizing": "fertilizing schedule",
-    "tips": "care tips and warnings, including toxicity"
+    "tips": "care tips and warnings, including toxicity to pets and people"
   },
   "water_frequency_days": number
+}`;
+
+function imageMessage(imageUrl, text) {
+    return {
+        role: "user",
+        content: [
+            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+            { type: "text", text }
+        ]
+    };
 }
-alternatives may be an empty array when confidence is high.`;
 
-function plantNetBrief(pn) {
-    const list = [pn.top, ...pn.alternatives].map((c, i) =>
+async function askJson(systemPrompt, imageUrl, userText, maxTokens) {
+    const response = await openai.chat.completions.create({
+        model: MODEL,
+        messages: [{ role: "system", content: systemPrompt }, imageMessage(imageUrl, userText)],
+        response_format: { type: "json_object" },
+        max_completion_tokens: maxTokens
+    });
+    return JSON.parse(response.choices[0].message.content);
+}
+
+function describePlantNet(pn) {
+    if (!pn) return 'Pl@ntNet: unavailable for this photo.';
+    return 'Pl@ntNet candidates (best first):\n' + pn.map((c, i) =>
         `${i + 1}. ${c.scientific_name} (family ${c.family || 'unknown'}) - score ${c.score.toFixed(2)}${c.common_names.length ? ' - common names: ' + c.common_names.slice(0, 3).join(', ') : ''}`
-    ).join('\n');
-    return `A dedicated plant-identification model (Pl@ntNet) has analysed this exact photo. Its candidates, best first:
-${list}
+    ).join('\n') + '\nPl@ntNet is strong on wild and garden plants and weak on cultivated succulents, cacti and caudiciforms; a score under 0.20 means it is guessing.';
+}
 
-YOUR JOB IS TO CHECK THIS, NOT TO RUBBER-STAMP IT AND NOT TO IGNORE IT. Pl@ntNet is strong on wild and garden plants and weaker on cultivated succulents, cacti and rare houseplants, and a score below 0.20 means it is mostly guessing.
-Do this, in order:
-a) Describe what is actually in the photo (growth form, stem, leaves, spines, flowers, pot).
-b) For each candidate above, name one or two visible features that support it and any visible feature that contradicts it. Think about whether the candidate is even the right family and growth form - an orchid, a cactus and a rosette succulent cannot be confused if you look.
-c) Decide: pick the candidate the photo actually supports, or, if none of them fit, give your own identification. To override a candidate with a score of 0.50 or higher you must cite a concrete visible contradiction in identification_notes. To reject all candidates with scores under 0.20 you need no special reason, just say what the photo shows instead.
-d) Set confidence from your own judgement: high only when the visible features clearly match one species, medium when genus is sure but species is a best guess, low when even the genus is uncertain.
-Set plantnet_agreement to true if your final answer is one of the candidates, false if you overrode them, and explain in identification_notes. Put the candidates you did not pick in alternatives.
-Then write the care instructions for the plant you settled on.`;
+function describeBlind(blind) {
+    if (!blind) return 'Independent botanist opinion: unavailable.';
+    const alts = (blind.alternatives || []).map(a => `${a.scientific_name}`).join(', ') || 'none';
+    return `Independent botanist opinion (made WITHOUT seeing Pl@ntNet):
+- ${blind.scientific_name} ("${blind.name}"), confidence ${blind.confidence}
+- What they saw: ${blind.what_i_see || ''}
+- Reasoning: ${blind.reasoning || ''}
+- Their alternatives: ${alts}`;
 }
 
 Deno.serve(async (req) => {
@@ -103,65 +142,43 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
-
-        if (!user) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
         const { image_url } = await req.json();
+        if (!image_url) return Response.json({ error: 'No image_url provided' }, { status: 400 });
 
-        if (!image_url) {
-            return Response.json({ error: 'No image_url provided' }, { status: 400 });
-        }
+        console.log(`[${rid}] 🌱 identifyPlantWithExpert`, image_url);
 
-        console.log('🌱 identifyPlantWithExpert called for', image_url);
+        // Steps 1 and 2 run in parallel and independently.
+        const [pn, blind] = await Promise.all([
+            identifyWithPlantNet(image_url),
+            askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, image_url, "Identify this plant following the method. Return the JSON.", 1200).catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; })
+        ]);
+        console.log(`[${rid}] 🌿 PlantNet:`, pn ? pn.map(c => `${c.scientific_name} ${c.score.toFixed(2)}`).join(' | ') : 'none');
+        console.log(`[${rid}] 🌿 Blind LLM:`, blind ? `${blind.scientific_name} (${blind.confidence})` : 'none');
 
-        const pn = await identifyWithPlantNet(image_url);
-        if (pn) {
-            console.log(`[${rid}] 🌿 PlantNet candidates:`, [pn.top, ...pn.alternatives].map(c => `${c.scientific_name} ${c.score.toFixed(2)}`).join(' | '));
-        } else {
-            console.log(`[${rid}] 🌿 PlantNet unavailable (no key, no plant detected, or error) - using LLM identification`);
-        }
+        // Step 3: judge.
+        const judgePrompt = `${BOTANIST}
 
-        const systemPrompt = pn
-            ? `${BASE_PROMPT}\n\n${plantNetBrief(pn)}\n\n${JSON_SHAPE}`
-            : `${BASE_PROMPT}\n\n${JSON_SHAPE}`;
+You are now the JUDGE. Two independent identifications of this photo were made:
 
-        const response = await openai.chat.completions.create({
-            model: "gpt-6-astra",
-            messages: [
-                { role: "system", content: systemPrompt },
-                {
-                    role: "user",
-                    content: [
-                        {
-                            type: "image_url",
-                            // high detail so small features (spines, tubercles, leaf edges) are visible to the model
-                            image_url: { url: image_url, detail: "high" }
-                        },
-                        {
-                            type: "text",
-                            text: pn
-                                ? "Confirm the Pl@ntNet identification against the photo and write the care information. Return the JSON."
-                                : "Identify this plant following the steps above and return the JSON."
-                        }
-                    ]
-                }
-            ],
-            response_format: { type: "json_object" },
-            max_completion_tokens: 4000
-        });
+${describePlantNet(pn)}
 
-        let parsed;
-        try {
-            parsed = JSON.parse(response.choices[0].message.content);
-        } catch (e) {
-            return Response.json({ success: false, error: 'Could not parse plant data' }, { status: 400 });
-        }
+${describeBlind(blind)}
 
-        // Keep plantData to the fields the Plant entity already stores; the extra
-        // identification fields ride alongside so the UI can show them later
-        // without them being written into the Plant record.
+Settle the identification:
+a) Look at the photo yourself and check each candidate against the visible features and the lookalike list.
+b) If both opinions agree, confirm it unless the photo plainly contradicts them.
+c) If they disagree, the photo decides. Pl@ntNet wins on wild/garden plants it scores 0.50+. The botanist wins on succulents, cacti and caudiciforms unless Pl@ntNet scored 0.50+ and the photo supports it. A Pl@ntNet score under 0.20 carries no weight on its own.
+d) You may override both if the photo clearly shows something else - say why in identification_notes.
+e) Set plantnet_agreement true if your final answer is one of Pl@ntNet's candidates, false if Pl@ntNet gave candidates and you chose otherwise, null if Pl@ntNet was unavailable.
+f) Confidence: high only when the visible features clearly match one species; medium when genus is certain but species is a best guess, or the photo is a mixed planting; low for cuttings, seedlings and leafless plants.
+Then write the care instructions for the plant you settled on.
+
+${JSON_FULL}`;
+
+        const parsed = await askJson(judgePrompt, image_url, "Judge the identification and write the care information. Return the JSON.", 4000);
+
         const { confidence, identification_notes, alternatives, plantnet_agreement, ...plantData } = parsed;
         console.log(`[${rid}] 🌿 Final:`, plantData.name, '|', plantData.scientific_name, '| confidence:', confidence, '| agrees with PlantNet:', plantnet_agreement);
 
@@ -169,17 +186,18 @@ Deno.serve(async (req) => {
             success: true,
             plantData,
             identification: {
-                source: pn ? 'plantnet' : 'llm',
-                plantnet_top: pn ? pn.top.scientific_name : null,
+                source: pn ? 'plantnet+llm' : 'llm',
+                plantnet_top: pn ? pn[0].scientific_name : null,
+                plantnet_score: pn ? pn[0].score : null,
+                blind_llm: blind ? blind.scientific_name : null,
                 plantnet_agreement: pn ? (plantnet_agreement ?? null) : null,
-                confidence: confidence || (pn ? confidenceFromScore(pn.top.score) : null),
-                score: pn ? pn.top.score : null,
+                confidence: confidence || null,
                 notes: identification_notes || null,
                 alternatives: Array.isArray(alternatives) ? alternatives : []
             }
         });
     } catch (error) {
-        console.error('Error in identifyPlantWithExpert:', error.message);
+        console.error(`[${rid}] Error in identifyPlantWithExpert:`, error.message);
         return Response.json({ error: error.message }, { status: 500 });
     }
 });
