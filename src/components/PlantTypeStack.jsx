@@ -12,19 +12,14 @@ function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex }) {
   const needsWater = watering && (watering.status === 'today' || watering.status === 'overdue' || watering.status === 'wilted');
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0 }}
-      whileTap={{ scale: 0.96 }}
+    <div
       onClick={() => navigate(`/PlantDetail?id=${plant.id}`)}
-      className={`relative rounded-2xl overflow-hidden cursor-pointer select-none aspect-square ${needsWater && wateringRemindersEnabled ? 'ring-1 ring-blue-400/60' : ''}`}
+      className={`relative rounded-2xl overflow-hidden cursor-pointer select-none aspect-square active:scale-95 transition-transform ${needsWater && wateringRemindersEnabled ? 'ring-1 ring-blue-400/60' : ''}`}
       style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.28)' }}
     >
       {/* Background */}
       {plant.image_url ? (
-        <img src={plant.image_url} alt={displayName} className="absolute inset-0 w-full h-full object-cover brightness-90" />
+        <img src={plant.image_url} alt={displayName} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover brightness-90" />
       ) : (
         <div className={`absolute inset-0 bg-gradient-to-br ${getGradient(gradientIndex)}`} />
       )}
@@ -58,7 +53,7 @@ function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex }) {
           <p className="text-white/55 text-[9px] italic truncate mt-0.5">{plant.scientific_name}</p>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -94,36 +89,33 @@ function getWateringStatus(plant, wateringRemindersEnabled) {
 }
 
 // Compact list row used in select mode
-function PlantListRow({ plant, wateringRemindersEnabled, isSelected, onToggleSelect, gradientIndex }) {
+const PlantListRow = React.memo(function PlantListRow({ plant, wateringRemindersEnabled, isSelected, onToggleSelect, gradientIndex, themedClasses, textColor, secondaryTextColor }) {
   const watering = getWateringStatus(plant, wateringRemindersEnabled);
   const displayName = plant.nickname || plant.name || 'Unknown Plant';
+  const place = [plant.location, plant.environment].filter(Boolean).join(' · ');
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
+    <div
       onClick={() => onToggleSelect(plant.id)}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer mb-2 border transition-all
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer mb-2 border transition-colors
         ${isSelected
-          ? 'bg-red-500/20 border-red-400/50'
-          : 'bg-white/10 border-white/10'
+          ? 'bg-red-500/20 border-red-400/60'
+          : themedClasses
         }`}
     >
       {/* Thumbnail */}
       <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0">
         {plant.image_url
-          ? <img src={plant.image_url} alt={displayName} className="w-full h-full object-cover" />
+          ? <img src={plant.image_url} alt={displayName} loading="lazy" decoding="async" className="w-full h-full object-cover" />
           : <div className={`w-full h-full bg-gradient-to-br ${getGradient(gradientIndex)}`} />
         }
       </div>
 
       {/* Name + watering */}
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-white text-sm leading-tight truncate">{displayName}</p>
-        {plant.scientific_name && (
-          <p className="text-white/50 text-[11px] italic truncate">{plant.scientific_name}</p>
+        <p className={`font-bold text-sm leading-tight truncate ${textColor}`}>{displayName}</p>
+        {(plant.scientific_name || place) && (
+          <p className={`text-[11px] truncate ${secondaryTextColor}`}>{place || <i>{plant.scientific_name}</i>}</p>
         )}
       </div>
 
@@ -138,12 +130,12 @@ function PlantListRow({ plant, wateringRemindersEnabled, isSelected, onToggleSel
       <div className="flex-shrink-0">
         {isSelected
           ? <CheckCircle2 className="w-5 h-5 text-red-400" />
-          : <Circle className="w-5 h-5 text-white/40" />
+          : <Circle className={`w-5 h-5 opacity-50 ${secondaryTextColor}`} />
         }
       </div>
-    </motion.div>
+    </div>
   );
-}
+});
 
 function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick, gradientIndex }) {
   const navigate = useNavigate();
@@ -187,6 +179,8 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
           <img
             src={plant.image_url}
             alt={displayName}
+            loading="lazy"
+            decoding="async"
             className={`absolute inset-0 w-full h-full object-cover brightness-90`}
           />
         ) : (
@@ -284,7 +278,7 @@ function ScrollReveal({ children, index }) {
       ref={ref}
       initial={{ opacity: 0, y: 28, scale: 0.97 }}
       animate={visible ? { opacity: 1, y: 0, scale: 1 } : {}}
-      transition={{ type: "spring", stiffness: 260, damping: 28, delay: index * 0.06 }}
+      transition={{ type: "spring", stiffness: 260, damping: 28, delay: Math.min(index, 4) * 0.06 }}
     >
       {children}
     </motion.div>
@@ -333,6 +327,9 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
               isSelected={selectedIds?.includes(plant.id)}
               onToggleSelect={onToggleSelect}
               gradientIndex={index}
+              themedClasses={themedClasses}
+              textColor={textColor}
+              secondaryTextColor={secondaryTextColor}
             />
           ))}
         </div>

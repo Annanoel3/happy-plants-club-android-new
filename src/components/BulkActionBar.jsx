@@ -9,18 +9,26 @@ const ENVIRONMENT_OPTIONS = [
   "Indoor", "Outdoor", "Balcony", "Patio", "Greenhouse", "Window Sill", "Office"
 ];
 
-export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel }) {
+export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel, visibleIds = [], onSelectAll }) {
   const [loading, setLoading] = useState(null);
   const [showLocationMenu, setShowLocationMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [newLocationInput, setNewLocationInput] = useState('');
+  const [newLocationEnv, setNewLocationEnv] = useState('Indoor');
   const [showNewLocationInput, setShowNewLocationInput] = useState(false);
 
   const count = selectedIds.length;
   const selectedPlants = allPlants.filter(p => selectedIds.includes(p.id));
+  const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
 
-  // Collect unique existing locations from all plants
-  const existingLocations = [...new Set(allPlants.map(p => p.location).filter(Boolean))];
+  // Unique existing locations, each remembering its indoor/outdoor environment
+  const locationEnv = {};
+  allPlants.forEach(p => {
+    if (p.location && !ENVIRONMENT_OPTIONS.includes(p.location) && !locationEnv[p.location]) {
+      locationEnv[p.location] = p.environment || null;
+    }
+  });
+  const existingLocations = Object.keys(locationEnv);
 
   const runBulkUpdate = async (data, label) => {
     setLoading(label);
@@ -55,10 +63,15 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
     onDone();
   };
 
-  const handleSetLocation = async (location) => {
+  const handleSetLocation = async (location, environment) => {
     setShowLocationMenu(false);
     setShowNewLocationInput(false);
-    await runBulkUpdate({ location }, 'location');
+    await runBulkUpdate(environment ? { location, environment } : { location }, 'location');
+  };
+
+  const handleSetEnvironment = async (environment) => {
+    setShowLocationMenu(false);
+    await runBulkUpdate({ environment }, 'location');
   };
 
   const handleSetStatus = async (status) => {
@@ -102,11 +115,12 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
             {existingLocations.map(loc => (
               <button
                 key={loc}
-                onClick={() => handleSetLocation(loc)}
+                onClick={() => handleSetLocation(loc, locationEnv[loc])}
                 className="w-full text-left px-4 py-3 text-sm font-semibold text-white hover:bg-white/10 transition-colors flex items-center gap-2"
               >
                 <MapPin className="w-4 h-4 text-emerald-400" />
-                {loc}
+                <span className="flex-1">{loc}</span>
+                {locationEnv[loc] && <span className="text-xs text-white/60">{locationEnv[loc]}</span>}
               </button>
             ))}
 
@@ -116,7 +130,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
               {ENVIRONMENT_OPTIONS.map(env => (
                 <button
                   key={env}
-                  onClick={() => handleSetLocation(env)}
+                  onClick={() => handleSetEnvironment(env)}
                   className="text-xs font-bold px-3 py-1.5 rounded-xl bg-white/10 text-white/80 hover:bg-white/20 transition-colors"
                 >
                   {env}
@@ -126,21 +140,34 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
 
             {/* Custom location input */}
             {showNewLocationInput ? (
-              <div className="px-4 pb-3 flex gap-2">
+              <div className="px-4 pb-3">
+              <div className="flex gap-2 mb-2">
+                {['Indoor', 'Outdoor'].map(env => (
+                  <button
+                    key={env}
+                    onClick={() => setNewLocationEnv(env)}
+                    className={`flex-1 text-xs font-bold py-1.5 rounded-xl ${newLocationEnv === env ? 'bg-emerald-600 text-white' : 'bg-white/10 text-white/70'}`}
+                  >
+                    {env}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
                 <input
                   autoFocus
                   value={newLocationInput}
                   onChange={e => setNewLocationInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && newLocationInput.trim() && handleSetLocation(newLocationInput.trim())}
+                  onKeyDown={e => e.key === 'Enter' && newLocationInput.trim() && handleSetLocation(newLocationInput.trim(), newLocationEnv)}
                   placeholder="e.g. Back porch, Bedroom..."
                   className="flex-1 bg-white/10 text-white text-sm px-3 py-2 rounded-xl outline-none placeholder:text-white/30 border border-white/20"
                 />
                 <button
-                  onClick={() => newLocationInput.trim() && handleSetLocation(newLocationInput.trim())}
+                  onClick={() => newLocationInput.trim() && handleSetLocation(newLocationInput.trim(), newLocationEnv)}
                   className="bg-emerald-600 text-white px-3 py-2 rounded-xl"
                 >
                   <Check className="w-4 h-4" />
                 </button>
+              </div>
               </div>
             ) : (
               <button
@@ -202,9 +229,17 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
           <span className="text-white font-bold text-sm">
             {count === 0 ? 'Tap plants to select' : `${count} plant${count !== 1 ? 's' : ''} selected`}
           </span>
-          <button onClick={onCancel} className="text-white/40 hover:text-white/70 transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => onSelectAll?.(allSelected ? [] : visibleIds)}
+              className="text-xs font-bold text-emerald-400 px-2 py-1 rounded-lg bg-white/10"
+            >
+              {allSelected ? 'Deselect All' : 'Select All'}
+            </button>
+            <button onClick={onCancel} className="text-white/60 hover:text-white transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Action buttons */}

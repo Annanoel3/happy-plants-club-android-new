@@ -194,7 +194,7 @@ export default function Dashboard() {
     }
   };
 
-  const plantsList = Array.isArray(plants) ? plants : [];
+  const plantsList = useMemo(() => (Array.isArray(plants) ? plants : []), [plants]);
   const hasUncategorized = plantsList.some(p => !p.plant_type || p.plant_type === 'Other');
 
   // Group by plant type, filtered by search, with sort support
@@ -452,7 +452,7 @@ export default function Dashboard() {
   return (
     <>
       <DailyWeatherPopup />
-      <div className="min-h-screen theme-bg pb-28 overflow-y-auto">
+      <div className={`min-h-screen theme-bg overflow-y-auto ${selectMode ? 'pb-72' : 'pb-28'}`}>
         <div className="max-w-6xl mx-auto px-4 pt-6">
 
           {/* Header: date + title */}
@@ -691,6 +691,8 @@ export default function Dashboard() {
             allPlants={plantsList}
             onDone={handleBulkDone}
             onCancel={toggleSelectMode}
+            visibleIds={groupedPlants.flatMap(([, ps]) => ps.map(p => p.id))}
+            onSelectAll={setSelectedIds}
           />
         )}
         {showQuickLog && (
