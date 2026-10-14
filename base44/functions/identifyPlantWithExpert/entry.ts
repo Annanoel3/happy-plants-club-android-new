@@ -7,7 +7,7 @@ const openai = new OpenAI({
 
 // ---------------------------------------------------------------------------
 // Pl@ntNet: a purpose-built plant identification model. When PLANTNET_API_KEY
-// is set, it does the identification and the LLM only writes the care info.
+// is set, it proposes candidates and the LLM checks them against the photo, then writes the care info.
 // Without the key (or if Pl@ntNet can't see a plant) we fall back to the LLM.
 // ---------------------------------------------------------------------------
 async function identifyWithPlantNet(imageUrl) {
