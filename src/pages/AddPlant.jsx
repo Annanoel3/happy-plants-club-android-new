@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { identifyPlantWithExpert } from "@/functions/identifyPlantWithExpert";
-import { setMicActive } from "@/lib/admob";
+import { setMicActive, showAdForEvent } from "@/lib/admob";
 import { transcribeVoice } from "@/functions/transcribeVoice";
 import { processBulkPlants } from "@/functions/processBulkPlants";
 
@@ -140,6 +140,8 @@ export default function AddPlant() {
 
       if (succeeded.length > 0) {
         toast.success(`Added ${succeeded.length} plant${succeeded.length > 1 ? 's' : ''}! 🌿`);
+        // One ad per add action, however many photos were in it
+        showAdForEvent('add');
       }
       if (failed > 0) {
         toast.error(`${failed} photo${failed > 1 ? 's' : ''} could not be identified`);
@@ -189,7 +191,9 @@ export default function AddPlant() {
       const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
       const { file_url } = await base44.integrations.Core.UploadFile({ file: audioFile });
 
-      const transcriptData = await transcribeVoice({ file_url });
+      const transcriptRes = await transcribeVoice({ file_url });
+      // functions.invoke returns { data }, so unwrap it (the photo path already does this)
+      const transcriptData = transcriptRes?.data ?? transcriptRes;
 
       if (!transcriptData?.transcript) {
         toast.error('Could not transcribe audio');
@@ -197,13 +201,16 @@ export default function AddPlant() {
       }
 
       const area = AREA_OPTIONS.find(a => a.value === selectedArea);
-      const result = await processBulkPlants({
+      const bulkRes = await processBulkPlants({
         plant_names: [transcriptData.transcript],
         ...(area ? { location: area.value, environment: area.environment } : {})
       });
+      const result = bulkRes?.data ?? bulkRes;
 
-      if (result.success) {
+      if (result?.success) {
         toast.success(`Added ${result.count} plant${result.count > 1 ? 's' : ''}! 🌿`);
+        // Bulk add = one ad
+        showAdForEvent('add');
         navigate('/Dashboard');
       } else {
         toast.error('Could not add plants: ' + (result.error || 'Unknown error'));
@@ -225,13 +232,16 @@ export default function AddPlant() {
     try {
       // Pass the raw text — processBulkPlants will extract plant names via AI
       const area = AREA_OPTIONS.find(a => a.value === selectedArea);
-      const result = await processBulkPlants({
+      const bulkRes = await processBulkPlants({
         plant_names: [plantNames.trim()],
         ...(area ? { location: area.value, environment: area.environment } : {})
       });
+      const result = bulkRes?.data ?? bulkRes;
 
-      if (result.success) {
+      if (result?.success) {
         toast.success(`Added ${result.count} plant${result.count > 1 ? 's' : ''}! 🌿`);
+        // Bulk add = one ad
+        showAdForEvent('add');
         navigate('/Dashboard');
       } else {
         toast.error('Could not add plants: ' + (result.error || 'Unknown error'));
