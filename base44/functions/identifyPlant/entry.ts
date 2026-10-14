@@ -72,7 +72,7 @@ HOW TO IDENTIFY (do this before anything else):
 1. First describe to yourself exactly what you can see: growth form (rosette, columnar, caudex/bulb-like stems, vine, shrub), stem texture (smooth, warty, spiny, tubercled), leaf shape, size, color, arrangement, flowers if any, pot and substrate.
 2. Work from family to genus to species. Only name a species, cultivar or hybrid when the visible features actually match it.
 3. Do not reach for a popular or "famous" plant name because it is the first thing that comes to mind. Check that its signature features are present in the photo. A name that does not match what is visible is worse than a genus-level answer.
-4. If you cannot get past genus, say so: put the genus in scientific_name (e.g. "Euphorbia sp.") and use a plain common name like "Euphorbia (species unclear)".
+4. If you cannot get past genus, say so: put the genus in scientific_name (e.g. "Euphorbia sp.") and use the plain genus as the common name, like "Euphorbia" (no parentheses, no hedging words).
 5. Care advice must be for the plant you actually identified. If the plant has toxic sap, spines, or is poisonous to pets or people, say so clearly in tips.
 
 ${contextStr}
@@ -95,7 +95,7 @@ IMPORTANT: In the care_instructions.tips field, explain HOW you calculated the w
 
 Return ONLY valid JSON:
 {
-    "name": "common name - no parentheses unless you are flagging that the species is unclear",
+    "name": "common name - never use parentheses or hedging words",
     "scientific_name": "genus and species, or genus followed by sp. if unsure, or the hybrid/cultivar name if that is the real identity",
     "hybrid_name": "cultivar/hybrid name or null",
     "is_hybrid_uncertain": boolean,

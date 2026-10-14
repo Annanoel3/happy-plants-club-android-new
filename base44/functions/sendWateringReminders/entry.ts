@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
                 reminder_date: today
             });
             
-            const reminder = existingReminders[0];
+            let reminder = existingReminders[0];
             
             if (reminder?.dismissed) continue;
             if (reminder?.scheduled_notification_ids?.length > 0) continue;
