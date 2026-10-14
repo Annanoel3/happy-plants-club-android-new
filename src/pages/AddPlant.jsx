@@ -352,6 +352,7 @@ export default function AddPlant() {
                   <div className="text-left">
                     <h3 className={`text-xl font-bold ${getTextColor()}`}>Take a Photo</h3>
                     <p className={`text-sm ${getSecondaryTextColor()}`}>Use your camera to identify plants</p>
+                    <p className={`text-[11px] mt-1 ${getSecondaryTextColor()}`}>Identification powered by Pl@ntNet</p>
                   </div>
                 </CardContent>
               </Card>
