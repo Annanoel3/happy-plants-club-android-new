@@ -1,11 +1,29 @@
-import { base44 } from '@/api/base44Client';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { jsPDF } from 'npm:jspdf@2.5.1';
 
-export async function generateVacationPDF({ vacation_id }) {
+// Wrapped as a proper backend function (it previously used a frontend-only import,
+// which stopped every backend function in this app from deploying).
+Deno.serve(async (req) => {
+    try {
+        const body = await req.json();
+        const pdfOutput = await generateVacationPDF(req, body || {});
+        return new Response(pdfOutput, {
+            headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': 'attachment; filename="vacation-plant-care.pdf"'
+            }
+        });
+    } catch (error) {
+        return Response.json({ success: false, error: error?.message || 'Unknown error' }, { status: 500 });
+    }
+});
+
+async function generateVacationPDF(req, { vacation_id }) {
     console.log('[PDF Backend] Starting generation for vacation:', vacation_id);
     
     try {
         console.log('[PDF Backend] Authenticating user...');
+        const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
 
         if (!user) {
