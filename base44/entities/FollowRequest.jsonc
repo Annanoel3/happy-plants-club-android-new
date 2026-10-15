@@ -1,33 +1,68 @@
 {
   "name": "FollowRequest",
-  "type": "object",
   "properties": {
     "requester_email": {
-      "type": "string",
-      "description": "Email of user requesting to follow"
-    },
-    "requester_name": {
+      "description": "Email of user requesting to follow",
       "type": "string"
     },
     "requester_handle": {
       "type": "string"
     },
-    "target_email": {
-      "type": "string",
-      "description": "Email of user being followed"
+    "requester_name": {
+      "type": "string"
     },
     "status": {
-      "type": "string",
+      "default": "pending",
       "enum": [
         "pending",
         "approved",
         "denied"
       ],
-      "default": "pending"
+      "type": "string"
+    },
+    "target_email": {
+      "description": "Email of user being followed",
+      "type": "string"
     }
   },
   "required": [
     "requester_email",
     "target_email"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "data.requester_email": "{{user.email}}"
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.requester_email": "{{user.email}}"
+        },
+        {
+          "data.target_email": "{{user.email}}"
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "data.requester_email": "{{user.email}}"
+        },
+        {
+          "data.target_email": "{{user.email}}"
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.requester_email": "{{user.email}}"
+        },
+        {
+          "data.target_email": "{{user.email}}"
+        }
+      ]
+    }
+  },
+  "type": "object"
 }
