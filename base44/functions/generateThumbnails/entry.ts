@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import { Image } from 'https://deno.land/x/imagescript@1.3.0/mod.ts';
+import * as ImageScript from 'npm:imagescript@1.3.0';
+// The npm build is CommonJS; cover both export shapes.
+const Image = (ImageScript as any).Image ?? (ImageScript as any).default?.Image;
 
 // Makes a small card-sized copy (thumbnail_url) of each plant photo that
 // doesn't have one yet. The garden grid was decoding 27 full-size 3-4 MB
