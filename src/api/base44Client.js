@@ -1,5 +1,6 @@
 import { createClient } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
+import { queryClientInstance } from '@/lib/query-client';
 
 const { appId, serverUrl, token, functionsVersion } = appParams;
 
@@ -60,3 +61,45 @@ base44.auth.setToken = (...args) => {
   clearUserCache(); // a new token means a possibly different user
   return rawSetToken(...args);
 };
+
+// ---------------------------------------------------------------------------
+// Auto-refresh cached lists after writes.
+// Screens now keep their data for 30s (see lib/query-client.js) instead of
+// re-downloading everything on every visit. So that an edit never shows stale,
+// any write to an entity below marks the related screen queries for refresh.
+// ---------------------------------------------------------------------------
+const QUERY_KEYS_BY_ENTITY = {
+  Plant: ['plants', 'plant', 'userPlants'],
+  WateringLog: ['wateringLogs'],
+  Reminder: ['reminders', 'remindersWithNotifications'],
+  DailyWateringReminder: ['todayWateringReminder'],
+  GameEvent: ['activeEvents'],
+  PlantProgressPhoto: ['progressPhotos'],
+  VacationDay: ['vacations', 'vacation'],
+  UserPlantCategory: ['customCategories'],
+  Follow: ['following', 'followers', 'followingCount', 'followerCount'],
+  FollowRequest: ['followRequests', 'pendingRequests', 'notifications'],
+  Notification: ['notifications', 'feedNotifications'],
+  Block: ['following', 'followers'],
+};
+const WRITE_METHODS = new Set(['create', 'update', 'delete', 'bulkCreate', 'bulkUpdate', 'updateMany', 'deleteMany', 'upsert']);
+
+const rawEntities = base44.entities;
+base44.entities = new Proxy({}, {
+  get(_, entityName) {
+    const mod = rawEntities[entityName];
+    const keys = QUERY_KEYS_BY_ENTITY[entityName];
+    if (!keys || !mod) return mod;
+    return new Proxy(mod, {
+      get(target, prop) {
+        const fn = target[prop];
+        if (typeof fn !== 'function' || !WRITE_METHODS.has(prop)) return fn;
+        return async (...args) => {
+          const result = await fn.apply(target, args);
+          for (const key of keys) queryClientInstance.invalidateQueries({ queryKey: [key] });
+          return result;
+        };
+      },
+    });
+  },
+});
