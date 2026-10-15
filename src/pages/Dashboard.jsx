@@ -70,6 +70,13 @@ export default function Dashboard() {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
+  // Select (or deselect) a whole group at once: a type section, or every plant in one spot.
+  const selectGroup = (ids, select) => {
+    setSelectedIds(prev => select
+      ? Array.from(new Set([...prev, ...ids]))
+      : prev.filter(x => !ids.includes(x)));
+  };
+
   const handleBulkDone = () => {
     setSelectedIds([]);
     setSelectMode(false);
@@ -687,6 +694,7 @@ export default function Dashboard() {
                 selectMode={selectMode}
                 selectedIds={selectedIds}
                 onToggleSelect={togglePlantSelection}
+                onSelectGroup={selectGroup}
                 stackIndex={i}
                 viewMode={viewMode}
                 showHeader={!(sortBy === 'water_soon' || sortBy === 'date_added')}
@@ -714,6 +722,7 @@ export default function Dashboard() {
             onCancel={toggleSelectMode}
             visibleIds={groupedPlants.flatMap(([, ps]) => ps.map(p => p.id))}
             onSelectAll={setSelectedIds}
+            onSelectGroup={selectGroup}
           />
         )}
         {showQuickLog && (
