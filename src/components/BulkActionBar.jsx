@@ -73,11 +73,13 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
         // Next due date counts from the day it was actually watered, not from today.
         const next = new Date(today + 'T12:00:00');
         next.setDate(next.getDate() + freq);
+        // Logging an OLDER day than the plant's latest watering must not move its
+        // schedule backwards: keep the log, but leave last_watered / next due alone.
+        const isNewest = !plant.last_watered || today >= plant.last_watered;
         return {
           id: plant.id,
-          last_watered: today,
-          next_watering_due: next.toISOString().split('T')[0],
           total_waterings: (plant.total_waterings || 0) + 1,
+          ...(isNewest ? { last_watered: today, next_watering_due: next.toISOString().split('T')[0] } : {}),
         };
       });
       const logRows = selectedPlants.map(plant => ({
