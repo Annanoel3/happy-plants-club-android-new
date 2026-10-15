@@ -679,11 +679,38 @@ export default function Layout({ children, currentPageName }) {
         }
 
         /* Apply theme variables */
+        /* The wallpaper lives on a fixed layer BEHIND the page instead of
+           background-attachment: fixed. On Android WebView, attachment: fixed
+           re-rasterizes the whole image every scroll frame and, together with
+           backdrop-filter on the cards, shows up as a white strobe while scrolling. */
         .theme-bg {
+          background: transparent;
+        }
+        .theme-bg::before {
+          content: '';
+          position: fixed;
+          inset: 0;
+          z-index: -30;
           background: var(--theme-bg);
           background-size: cover;
-          background-attachment: fixed;
+          background-position: center;
+          background-repeat: no-repeat;
+          pointer-events: none;
+          transform: translateZ(0);
         }
+
+        /* Backdrop blur is off app-wide: every card on every page used it, and
+           the GPU re-blurs what's behind each card on every frame. The cards'
+           translucent backgrounds are made a bit more opaque so text stays readable. */
+        [class*="backdrop-blur"] {
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+        }
+        [class*="backdrop-blur"].bg-white\/60 { background-color: rgb(255 255 255 / 0.88) !important; }
+        [class*="backdrop-blur"].bg-black\/40 { background-color: rgb(0 0 0 / 0.68) !important; }
+        [class*="backdrop-blur"].bg-black\/45 { background-color: rgb(0 0 0 / 0.7) !important; }
+        [class*="backdrop-blur"].bg-black\/5  { background-color: rgb(255 255 255 / 0.85) !important; }
+        [class*="backdrop-blur"].bg-white\/10 { background-color: rgb(255 255 255 / 0.3) !important; }
 
 
 
@@ -698,7 +725,6 @@ export default function Layout({ children, currentPageName }) {
         .theme-card {
           background: var(--theme-card-bg);
           border-color: var(--theme-card-border);
-          backdrop-filter: blur(10px);
         }
 
         .theme-input {
@@ -718,7 +744,6 @@ export default function Layout({ children, currentPageName }) {
 
         .sidebar-container {
           background: var(--sidebar-bg) !important;
-          backdrop-filter: blur(10px);
         }
 
         .sidebar-header {
@@ -768,7 +793,6 @@ export default function Layout({ children, currentPageName }) {
 
         .mobile-header {
           background: var(--mobile-header-bg) !important;
-          backdrop-filter: blur(10px);
         }
 
         .mobile-header-text {
