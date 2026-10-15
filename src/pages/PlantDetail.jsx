@@ -276,13 +276,14 @@ export default function PlantDetail() {
       // These four writes/reads don't depend on each other, so they go out together.
       // Previously each one waited for the last (plant -> log -> user -> events), which
       // is why a single watering felt slow on a phone connection.
+      // Logging an older day than the latest watering must not move the schedule backwards.
+      const isNewest = !plantData.last_watered || waterDate >= plantData.last_watered;
       const [, , , events] = await Promise.all([
         base44.entities.Plant.update(plantId, {
-          last_watered: waterDate,
-          next_watering_due: nextWatering.toISOString().split('T')[0],
           total_waterings: newTotalWaterings,
           growth_stage: newGrowthStage,
           status: 'healthy',
+          ...(isNewest ? { last_watered: waterDate, next_watering_due: nextWatering.toISOString().split('T')[0] } : {}),
         }),
         base44.entities.WateringLog.create({
           plant_id: plantId,
