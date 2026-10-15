@@ -1,18 +1,50 @@
 {
   "name": "Follow",
-  "type": "object",
   "properties": {
     "follower_email": {
-      "type": "string",
-      "description": "Email of the user who is following"
+      "description": "Email of the user who is following",
+      "type": "string"
     },
     "following_email": {
-      "type": "string",
-      "description": "Email of the user being followed"
+      "description": "Email of the user being followed",
+      "type": "string"
     }
   },
   "required": [
     "follower_email",
     "following_email"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "data.follower_email": "{{user.email}}"
+        },
+        {
+          "data.following_email": "{{user.email}}"
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.follower_email": "{{user.email}}"
+        },
+        {
+          "data.following_email": "{{user.email}}"
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.follower_email": "{{user.email}}"
+        },
+        {
+          "data.following_email": "{{user.email}}"
+        }
+      ]
+    }
+  },
+  "type": "object"
 }
