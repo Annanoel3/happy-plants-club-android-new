@@ -36,7 +36,7 @@ export default function NotificationPopup() {
       return notifs;
     },
     enabled: !!user && user.profile_private === true,
-    refetchInterval: 10000,
+    refetchInterval: 90000, // was 10s; follow-approval popups don't need near-realtime polling
   });
 
   const dismissMutation = useMutation({
