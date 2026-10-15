@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { usePhotoSource } from "@/components/PhotoSourceSheet";
+import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { Send, Loader2, Sparkles, Camera, Mic, Square, PanelLeft } from "lucide-react";
@@ -26,6 +28,7 @@ export default function PlantChat() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const imageInputRef = useRef(null);
+  const handleImageUploadRef = useRef(null);
   
   const easterEggGifs = [
     'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcWp5dzh5dGJ4dHFyZGRsMzZyMzJwOGJyZGRsMzZyMzJwOGJy/giphy.gif',
@@ -253,6 +256,8 @@ export default function PlantChat() {
     }
     return 'bg-white text-gray-900 border-gray-300';
   };
+
+  const chatPhoto = usePhotoSource((files) => handleImageUploadRef.current?.(asChangeEvent(files)), { title: 'Show the expert a photo' });
 
   if (!user) {
     return (

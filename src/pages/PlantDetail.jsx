@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { usePhotoSource } from "@/components/PhotoSourceSheet";
+import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { localToday, toLocalDateString } from '@/lib/dates';
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -560,6 +562,10 @@ export default function PlantDetail() {
     }
   };
 
+  // Camera-or-gallery sheets for the main photo and progress photos
+  const mainPhoto = usePhotoSource((files) => handleImageUpload(asChangeEvent(files)), { title: 'Plant photo' });
+  const progressPhoto = usePhotoSource((files) => handleProgressPhotoUpload(asChangeEvent(files)), { title: 'Progress photo' });
+
   const getThemedClasses = () => {
     if (theme === 'botanical') return 'bg-green-950/50 backdrop-blur-md border border-green-900/50';
     if (theme === 'kawaii') return 'bg-pink-50/95 backdrop-blur-md border border-pink-200/50';
@@ -726,14 +732,15 @@ export default function PlantDetail() {
                         }`}
                       />
                       <button
-                        onClick={() => imageInputRef.current?.click()}
+                        onClick={mainPhoto.openPicker}
                         disabled={isUploadingImage}
-                        className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="Change photo"
+                        className="absolute bottom-4 right-4 bg-green-600 text-white p-3 rounded-full shadow-lg ring-2 ring-white active:bg-green-700"
                       >
                         {isUploadingImage ? (
-                          <Loader2 className="w-5 h-5 text-green-600 animate-spin" />
+                          <Loader2 className="w-6 h-6 animate-spin" />
                         ) : (
-                          <Camera className="w-5 h-5 text-green-600" />
+                          <Camera className="w-6 h-6" strokeWidth={2.25} />
                         )}
                       </button>
                     </>
@@ -741,7 +748,7 @@ export default function PlantDetail() {
                     <div className="w-full h-full flex flex-col items-center justify-center theme-bg">
                       <Droplets className="w-20 h-20 text-green-300 mb-4" />
                       <button
-                        onClick={() => imageInputRef.current?.click()}
+                        onClick={mainPhoto.openPicker}
                         disabled={isUploadingImage}
                         className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl flex items-center gap-2"
                       >
@@ -759,13 +766,7 @@ export default function PlantDetail() {
                       </button>
                     </div>
                   )}
-                  <input
-                    ref={imageInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
+                  {mainPhoto.sheet}
                   {plant.growth_stage && (
                     <div className="absolute top-4 left-4 text-4xl">
                       {growthEmojis[plant.growth_stage]}
@@ -1055,24 +1056,15 @@ export default function PlantDetail() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className={getTextColor()}>📸 Progress Photos</CardTitle>
-                  <label>
-                    <input
-                      ref={progressImageInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleProgressPhotoUpload}
-                      disabled={isUploadingProgress}
-                    />
-                    <Button
-                      as="span"
-                      disabled={isUploadingProgress}
-                      className="bg-green-600 hover:bg-green-700 cursor-pointer"
-                    >
-                      <Camera className="w-4 h-4 mr-2" />
-                      {isUploadingProgress ? 'Uploading...' : 'Add Photo'}
-                    </Button>
-                  </label>
+                  <Button
+                    onClick={progressPhoto.openPicker}
+                    disabled={isUploadingProgress}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    {isUploadingProgress ? 'Uploading...' : 'Add Photo'}
+                  </Button>
+                  {progressPhoto.sheet}
                 </div>
                 {(progressPhotoNotes || isUploadingProgress) && ( // Show notes input only if there are notes or uploading
                   <Input
