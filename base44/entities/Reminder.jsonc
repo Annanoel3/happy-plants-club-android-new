@@ -1,40 +1,46 @@
 {
   "name": "Reminder",
-  "type": "object",
-  "rls": {
-    "read": true,
-    "write": {
-      "created_by": "{{user.email}}"
-    }
-  },
   "properties": {
+    "completed": {
+      "default": false,
+      "type": "boolean"
+    },
+    "description": {
+      "type": "string"
+    },
+    "due_date": {
+      "format": "date",
+      "type": "string"
+    },
+    "is_recurring": {
+      "default": false,
+      "description": "Whether this reminder repeats",
+      "type": "boolean"
+    },
+    "onesignal_notification_ids": {
+      "description": "OneSignal notification IDs for this recurring reminder batch",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "original_time_phrase": {
+      "description": "User's original time phrase for editing",
+      "type": "string"
+    },
     "plant_id": {
       "type": "string"
     },
     "plant_name": {
       "type": "string"
     },
-    "title": {
+    "recurrence_end_date": {
+      "description": "When recurring reminders should stop",
+      "format": "date",
       "type": "string"
-    },
-    "description": {
-      "type": "string"
-    },
-    "due_date": {
-      "type": "string",
-      "format": "date"
-    },
-    "completed": {
-      "type": "boolean",
-      "default": false
-    },
-    "is_recurring": {
-      "type": "boolean",
-      "default": false,
-      "description": "Whether this reminder repeats"
     },
     "recurrence_type": {
-      "type": "string",
+      "description": "How often the reminder repeats",
       "enum": [
         "daily",
         "weekly",
@@ -42,33 +48,32 @@
         "monthly",
         "every_two_hours"
       ],
-      "description": "How often the reminder repeats"
-    },
-    "recurrence_end_date": {
-      "type": "string",
-      "format": "date",
-      "description": "When recurring reminders should stop"
-    },
-    "onesignal_notification_ids": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "OneSignal notification IDs for this recurring reminder batch"
+      "type": "string"
     },
     "schedule_time": {
-      "type": "string",
+      "description": "Specific time for scheduled notification (first instance)",
       "format": "date-time",
-      "description": "Specific time for scheduled notification (first instance)"
+      "type": "string"
     },
-    "original_time_phrase": {
-      "type": "string",
-      "description": "User's original time phrase for editing"
+    "title": {
+      "type": "string"
     }
   },
   "required": [
     "plant_id",
     "title",
     "due_date"
-  ]
+  ],
+  "rls": {
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    },
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    }
+  },
+  "type": "object"
 }
