@@ -211,6 +211,7 @@ export default function AddPlant() {
 
       const area = AREA_OPTIONS.find(a => a.value === selectedArea);
       const bulkRes = await processBulkPlants({
+        localDate: localToday(),
         plant_names: [transcriptData.transcript],
         ...(area ? { location: area.value, environment: area.environment } : {})
       });
@@ -243,6 +244,7 @@ export default function AddPlant() {
       // Pass the raw text — processBulkPlants will extract plant names via AI
       const area = AREA_OPTIONS.find(a => a.value === selectedArea);
       const bulkRes = await processBulkPlants({
+        localDate: localToday(),
         plant_names: [plantNames.trim()],
         ...(area ? { location: area.value, environment: area.environment } : {})
       });

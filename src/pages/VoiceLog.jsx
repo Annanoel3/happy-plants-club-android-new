@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { localToday } from '@/lib/dates';
 import { refreshPlantData } from '@/lib/query-client';
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -150,7 +151,8 @@ export default function VoiceLog() {
     try {
       console.log('Processing transcript:', text);
       const response = await processVoiceWatering({
-        transcript: text
+        transcript: text,
+        localDate: localToday(), // the user's calendar day, so evening waterings aren't stamped tomorrow (UTC)
       });
       
       console.log('Response:', response);
