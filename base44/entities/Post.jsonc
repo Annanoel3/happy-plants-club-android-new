@@ -1,35 +1,46 @@
 {
   "name": "Post",
-  "type": "object",
   "properties": {
-    "content": {
-      "type": "string",
-      "description": "The post content"
-    },
-    "image_url": {
-      "type": "string",
-      "description": "Optional image attached to post"
-    },
-    "plant_id": {
-      "type": "string",
-      "description": "Optional plant this post is about"
-    },
-    "plant_name": {
-      "type": "string",
-      "description": "Name of the plant if attached"
-    },
-    "likes_count": {
-      "type": "number",
-      "default": 0
-    },
     "author_email": {
       "type": "string"
     },
     "author_name": {
       "type": "string"
+    },
+    "content": {
+      "description": "The post content",
+      "type": "string"
+    },
+    "image_url": {
+      "description": "Optional image attached to post",
+      "type": "string"
+    },
+    "likes_count": {
+      "default": 0,
+      "type": "number"
+    },
+    "plant_id": {
+      "description": "Optional plant this post is about",
+      "type": "string"
+    },
+    "plant_name": {
+      "description": "Name of the plant if attached",
+      "type": "string"
     }
   },
   "required": [
     "content"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "data.author_email": "{{user.email}}"
+    },
+    "delete": {
+      "data.author_email": "{{user.email}}"
+    },
+    "update": {
+      "data.author_email": "{{user.email}}"
+    }
+  },
+  "type": "object"
 }
