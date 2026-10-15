@@ -83,10 +83,6 @@ Deno.serve(async (req) => {
             if (reminder?.dismissed) continue;
             if (reminder?.scheduled_notification_ids?.length > 0) continue;
             
-            if (!targetUser?.onesignal_player_ids?.length) {
-                console.log('No player IDs for user:', userEmail);
-                continue;
-            }
             
             const plantCount = userPlants.length;
             const reminderCount = userReminders.length;
@@ -127,7 +123,7 @@ Deno.serve(async (req) => {
             // If 8am already passed, send immediately; otherwise schedule it
             const osPayload = {
                 app_id: appId.trim(),
-                include_player_ids: targetUser.onesignal_player_ids,
+                include_aliases: { external_id: [userEmail] }, target_channel: 'push',
                 headings: { en: '💧 Plant Care Reminder' },
                 contents: { en: `${notificationText} today! 🌱` },
                 data: { type: 'care_reminder', plant_count: plantCount, reminder_count: reminderCount, date: today },
@@ -137,6 +133,8 @@ Deno.serve(async (req) => {
                 osPayload.send_after = sendTimeUTC.toUTCString();
             }
             
+            let osResult: any = {};
+            try {
             const osResponse = await fetch("https://api.onesignal.com/notifications", {
                 method: "POST",
                 headers: {
@@ -146,7 +144,10 @@ Deno.serve(async (req) => {
                 body: JSON.stringify(osPayload)
             });
             
-            const osResult = await osResponse.json();
+            osResult = await osResponse.json();
+            } catch (sendErr) {
+                console.error('OneSignal send failed for', userEmail, sendErr);
+            }
             console.log(`Scheduled 8:00 local for ${userEmail}: id=${osResult.id}, errors=${JSON.stringify(osResult.errors)}`);
             
             if (osResult.id) {

@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
                 // Send push notification via OneSignal
                 const payload = {
                     app_id: ONESIGNAL_APP_ID,
-                    include_player_ids: playerIds,
+                    include_aliases: { external_id: [user.email] }, target_channel: 'push',
                     headings: { en: "🌿 Today's Plant Weather" },
                     contents: { en: cleanMessage },
                     url: `${Deno.env.get('APP_URL') || 'https://happyplants.base44.app'}/?weather=1`,

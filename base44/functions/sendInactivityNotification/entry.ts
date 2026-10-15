@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
             try {
                 const osPayload = {
                     app_id: appId.trim(),
-                    include_player_ids: user.onesignal_player_ids,
+                    include_aliases: { external_id: [user.email] }, target_channel: 'push',
                     headings: { en: '👋 Welcome Back' },
                     contents: { en: message },
                     data: { type: 'inactivity', days: daysInactive }
