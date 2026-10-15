@@ -60,7 +60,7 @@ export default function SearchPage() {
       });
     },
     enabled: !!user,
-    refetchInterval: 10000,
+    refetchInterval: 60000, // was 10s; the list is also invalidated right after accept/decline
   });
 
   const { data: following = [] } = useQuery({
