@@ -1,5 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// Internal-call token: only our own backend functions can call push senders.
+// Derived from an existing secret, so there's nothing extra to configure.
+async function internalToken(): Promise<string> {
+    const key = (Deno.env.get('ONESIGNAL_REST_API_KEY') || '').trim();
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key + '|hp-internal-v1'));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+
 // OneSignal auth: new keys (os_v2_...) use "Key", legacy keys use "Basic".
 function osAuth(key: string | undefined | null): string {
     const k = (key || '').trim();
@@ -17,6 +26,9 @@ Deno.serve(async (req) => {
             payload = JSON.parse(bodyText);
         } catch (parseError) {
             return Response.json({ success: false, error: 'Invalid JSON in request body', details: parseError.message }, { status: 400 });
+        }
+        if (payload?._internal !== await internalToken()) {
+            return Response.json({ success: false, error: 'Forbidden' }, { status: 403 });
         }
 
         const appId = Deno.env.get("ONESIGNAL_APP_ID")?.trim();

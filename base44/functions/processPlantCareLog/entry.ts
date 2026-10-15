@@ -1,6 +1,15 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.25";
 import OpenAI from "npm:openai";
 
+// Internal-call token: only our own backend functions can call push senders.
+// Derived from an existing secret, so there's nothing extra to configure.
+async function internalToken(): Promise<string> {
+    const key = (Deno.env.get('ONESIGNAL_REST_API_KEY') || '').trim();
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key + '|hp-internal-v1'));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+
 function extractJSON(str) {
     const cleaned = str.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
     const start = cleaned.indexOf('{');
@@ -290,7 +299,7 @@ Return ONLY valid JSON:
                          for (const schedTime of scheduleTimesForDay) {
                              const delayMin = Math.max(0, Math.floor((schedTime.getTime() - Date.now()) / (60 * 1000)));
                              try {
-                                 const res = await base44.asServiceRole.functions.invoke('schedulePush', {
+                                 const res = await base44.asServiceRole.functions.invoke('schedulePush', { _internal: await internalToken(),
                                      toUserExternalId: user.email,
                                      title: '🔔 ' + reminder.description,
                                      body: 'Time to ' + reminder.description.toLowerCase(),
@@ -313,7 +322,7 @@ Return ONLY valid JSON:
                      } else {
                          // Single notification
                          try {
-                             const schedulePushResult = await base44.asServiceRole.functions.invoke('schedulePush', {
+                             const schedulePushResult = await base44.asServiceRole.functions.invoke('schedulePush', { _internal: await internalToken(),
                                  toUserExternalId: user.email,
                                  title: '🔔 ' + reminder.description,
                                  body: 'Time to ' + reminder.description.toLowerCase(),

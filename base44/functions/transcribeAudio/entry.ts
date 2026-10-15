@@ -4,7 +4,9 @@ import OpenAI from "npm:openai";
 
 Deno.serve(async (req) => {
   try {
-    await createClientFromRequest(req);
+    const base44 = createClientFromRequest(req);
+    const me = await base44.auth.me().catch(() => null);
+    if (!me) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     const { file_url, filename } = await req.json();
 
     if (!file_url) {

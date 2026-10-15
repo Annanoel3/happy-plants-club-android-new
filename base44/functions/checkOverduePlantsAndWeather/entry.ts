@@ -1,5 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
 
+// Internal-call token: only our own backend functions can call push senders.
+// Derived from an existing secret, so there's nothing extra to configure.
+async function internalToken(): Promise<string> {
+    const key = (Deno.env.get('ONESIGNAL_REST_API_KEY') || '').trim();
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key + '|hp-internal-v1'));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+
 Deno.serve(async (req) => {
     try {
         const CRON_SECRET = Deno.env.get('CRON_SECRET');
@@ -30,7 +39,7 @@ Deno.serve(async (req) => {
                 wiltedCount++;
                 
                 try {
-                    await base44.asServiceRole.functions.invoke('sendNotification', {
+                    await base44.asServiceRole.functions.invoke('sendNotification', { _internal: await internalToken(),
                         toUserEmail: plant.created_by,
                         title: `⚠️ Plant Alert: ${plant.name}`,
                         body: `${plant.name} hasn't been watered in 3+ days and may be wilting`,

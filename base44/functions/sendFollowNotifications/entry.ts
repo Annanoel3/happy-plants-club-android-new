@@ -1,5 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
 
+// Internal-call token: only our own backend functions can call push senders.
+// Derived from an existing secret, so there's nothing extra to configure.
+async function internalToken(): Promise<string> {
+    const key = (Deno.env.get('ONESIGNAL_REST_API_KEY') || '').trim();
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key + '|hp-internal-v1'));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+
 Deno.serve(async (req) => {
     try {
         const CRON_SECRET = Deno.env.get('CRON_SECRET');
@@ -29,7 +38,7 @@ Deno.serve(async (req) => {
                     continue;
                 }
                 
-                await base44.asServiceRole.functions.invoke('sendNotification', {
+                await base44.asServiceRole.functions.invoke('sendNotification', { _internal: await internalToken(),
                     toUserEmail: request.target_email,
                     title: `👤 New Follow Request`,
                     body: `${request.requester_name || request.requester_email} wants to follow you`,
@@ -57,7 +66,7 @@ Deno.serve(async (req) => {
                 }
                 
                 const followerUsers = await base44.entities.User.filter({ email: follow.follower_email });
-                await base44.asServiceRole.functions.invoke('sendNotification', {
+                await base44.asServiceRole.functions.invoke('sendNotification', { _internal: await internalToken(),
                     toUserEmail: follow.following_email,
                     title: `👥 New Follower`,
                     body: `${followerUsers[0]?.full_name || follow.follower_email} started following you`,
