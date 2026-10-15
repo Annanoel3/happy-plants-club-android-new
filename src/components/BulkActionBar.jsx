@@ -25,7 +25,8 @@ const ENVIRONMENT_OPTIONS = [
   "Indoor", "Outdoor", "Balcony", "Patio", "Greenhouse", "Window Sill", "Office"
 ];
 
-export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel, visibleIds = [], onSelectAll }) {
+export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel, visibleIds = [], onSelectAll, onSelectGroup }) {
+  const [showSpotPicker, setShowSpotPicker] = useState(false);
   const [loading, setLoading] = useState(null);
   const [showLocationMenu, setShowLocationMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -48,6 +49,14 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
     }
   });
   const existingLocations = Object.keys(locationEnv);
+
+  // Plants grouped by spot, for "select everything in the kitchen"
+  const plantsBySpot = {};
+  allPlants.forEach(p => {
+    const spot = p.location || 'No spot set';
+    (plantsBySpot[spot] ||= []).push(p.id);
+  });
+  const spots = Object.entries(plantsBySpot).sort(([a], [b]) => a.localeCompare(b));
 
   const runBulkUpdate = async (data, label) => {
     setLoading(label);
@@ -235,6 +244,41 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
         )}
       </AnimatePresence>
 
+      {/* Spot picker: select every plant in one location */}
+      <AnimatePresence>
+        {showSpotPicker && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="mx-4 mb-2 rounded-2xl overflow-hidden bg-gray-900 border border-white/10 shadow-2xl max-h-[50vh] overflow-y-auto"
+          >
+            <p className="text-white/50 text-xs font-bold px-4 pt-3 pb-2 uppercase tracking-widest">Select everything in…</p>
+            {spots.map(([spot, ids]) => {
+              const allIn = ids.every(id => selectedIds.includes(id));
+              return (
+                <button
+                  key={spot}
+                  onClick={() => onSelectGroup?.(ids, !allIn)}
+                  className="w-full text-left px-4 py-3 text-sm font-semibold text-white hover:bg-white/10 transition-colors flex items-center gap-2"
+                >
+                  <MapPin className={`w-4 h-4 ${allIn ? 'text-emerald-400' : 'text-white/40'}`} />
+                  <span className="flex-1">{spot}</span>
+                  <span className="text-xs text-white/60">{ids.length}</span>
+                  {allIn && <Check className="w-4 h-4 text-emerald-400" />}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setShowSpotPicker(false)}
+              className="w-full py-3 text-sm text-white/40 border-t border-white/10"
+            >
+              Done
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Water submenu: today, yesterday, or any past date */}
       <AnimatePresence>
         {showWaterMenu && (
@@ -332,7 +376,13 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
           <span className="text-white font-bold text-sm">
             {count === 0 ? 'Tap plants to select' : `${count} plant${count !== 1 ? 's' : ''} selected`}
           </span>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setShowLocationMenu(false); setShowStatusMenu(false); setShowWaterMenu(false); setShowSpotPicker(v => !v); }}
+              className={`text-xs font-bold px-2 py-1 rounded-lg ${showSpotPicker ? 'bg-emerald-600 text-white' : 'bg-white/10 text-emerald-400'}`}
+            >
+              By Spot
+            </button>
             <button
               onClick={() => onSelectAll?.(allSelected ? [] : visibleIds)}
               className="text-xs font-bold text-emerald-400 px-2 py-1 rounded-lg bg-white/10"
