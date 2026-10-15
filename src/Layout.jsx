@@ -171,7 +171,8 @@ function LayoutContent({ children, currentPageName }) {
       return requests;
     },
     enabled: !!user,
-    refetchInterval: 30000,
+    // Was every 30s. Follow requests are rare; refetch on app focus + every 2 min is plenty.
+    refetchInterval: 120000,
   });
 
   const { data: feedNotifications = [] } = useQuery({
@@ -186,7 +187,8 @@ function LayoutContent({ children, currentPageName }) {
       return notifs;
     },
     enabled: !!user,
-    refetchInterval: 15000,
+    // Was every 15s (the single busiest poll in the app). Badge count only; 2 min + focus refetch.
+    refetchInterval: 120000,
   });
 
   const navigationItems = [
