@@ -136,8 +136,8 @@ export default function Dashboard() {
     initialData: [],
     enabled: authChecked && !!user && !!user.location,
     retry: 1,
-    staleTime: 0,
-    refetchOnMount: true,
+    // No staleTime: 0 here any more: the garden list is kept for 30s between visits,
+    // and every Plant write refreshes it automatically (api/base44Client.js).
   });
 
   // Safety net: any plant photo without a card-sized copy gets one made in the
@@ -193,8 +193,7 @@ export default function Dashboard() {
       return reminders[0] || null;
     },
     enabled: !!user,
-    refetchInterval: 60000, // Check every minute
-    staleTime: 0, // Always consider this data stale
+    refetchInterval: 300000, // was every minute; the daily reminder is created once a day by a scheduled job
   });
 
   const dismissWateringReminder = async (status) => {
