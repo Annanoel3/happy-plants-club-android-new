@@ -250,7 +250,8 @@ export default function PlantDetail() {
         grewThisWatering = true;
       }
 
-      const nextWatering = new Date(waterDate);
+      // Noon local, not new Date('YYYY-MM-DD') which is UTC midnight = the evening BEFORE in the US.
+      const nextWatering = new Date(waterDate + 'T12:00:00');
       nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
 
       // Update user stats
