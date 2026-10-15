@@ -5,6 +5,21 @@ import {
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { showAdForEvent } from "@/lib/admob";
+import { toast } from "sonner";
+
+// One request for the whole selection. Base44's PUT /bulk applies every change
+// or none; if that route ever refuses, fall back to one request per plant.
+// Before this, 20 selected plants meant 20 simultaneous requests from the phone
+// (and 40 for watering), and a single failure left the spinner on forever.
+async function bulkUpdatePlants(rows) {
+  if (rows.length === 0) return;
+  try {
+    await base44.entities.Plant.bulkUpdate(rows);
+  } catch (e) {
+    console.warn('[bulk] bulkUpdate failed, falling back to per-plant updates:', e?.message || e);
+    await Promise.all(rows.map(({ id, ...data }) => base44.entities.Plant.update(id, data)));
+  }
+}
 
 const ENVIRONMENT_OPTIONS = [
   "Indoor", "Outdoor", "Balcony", "Patio", "Greenhouse", "Window Sill", "Office"
@@ -33,37 +48,51 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
 
   const runBulkUpdate = async (data, label) => {
     setLoading(label);
-    await Promise.all(selectedIds.map(id => base44.entities.Plant.update(id, data)));
-    setLoading(null);
-    onDone();
+    try {
+      await bulkUpdatePlants(selectedIds.map(id => ({ id, ...data })));
+      onDone();
+    } catch (e) {
+      console.error('[bulk] update failed:', e);
+      toast.error("Couldn't update those plants. Please try again.");
+    } finally {
+      setLoading(null);
+    }
   };
 
   const handleWaterAll = async () => {
     setLoading('water');
     const today = new Date().toISOString().split('T')[0];
-    await Promise.all(selectedPlants.map(plant => {
-      const freq = plant.water_frequency_days || 7;
-      const next = new Date();
-      next.setDate(next.getDate() + freq);
-      const nextStr = next.toISOString().split('T')[0];
-      return Promise.all([
-        base44.entities.Plant.update(plant.id, {
+    try {
+      const plantRows = selectedPlants.map(plant => {
+        const freq = plant.water_frequency_days || 7;
+        const next = new Date();
+        next.setDate(next.getDate() + freq);
+        return {
+          id: plant.id,
           last_watered: today,
-          next_watering_due: nextStr,
+          next_watering_due: next.toISOString().split('T')[0],
           total_waterings: (plant.total_waterings || 0) + 1,
-        }),
-        base44.entities.WateringLog.create({
-          plant_id: plant.id,
-          plant_name: plant.nickname || plant.name,
-          watered_date: today,
-          method: 'bulk',
-        }),
+        };
+      });
+      const logRows = selectedPlants.map(plant => ({
+        plant_id: plant.id,
+        plant_name: plant.nickname || plant.name,
+        watered_date: today,
+        method: 'bulk',
+      }));
+      await Promise.all([
+        bulkUpdatePlants(plantRows),
+        base44.entities.WateringLog.bulkCreate(logRows),
       ]);
-    }));
-    setLoading(null);
-    onDone();
-    // Bulk watering = one ad
-    showAdForEvent('water');
+      onDone();
+      // Bulk watering = one ad
+      showAdForEvent('water');
+    } catch (e) {
+      console.error('[bulk] watering failed:', e);
+      toast.error("Couldn't log those waterings. Please try again.");
+    } finally {
+      setLoading(null);
+    }
   };
 
   const handleSetLocation = async (location, environment) => {
@@ -84,9 +113,16 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
 
   const handleDelete = async () => {
     setLoading('delete');
-    await Promise.all(selectedIds.map(id => base44.entities.Plant.delete(id)));
-    setLoading(null);
-    onDone();
+    try {
+      await Promise.all(selectedIds.map(id => base44.entities.Plant.delete(id)));
+      onDone();
+    } catch (e) {
+      console.error('[bulk] delete failed:', e);
+      toast.error("Couldn't delete all of those plants. Please try again.");
+      onDone(); // refresh so whatever did get deleted disappears
+    } finally {
+      setLoading(null);
+    }
   };
 
   const handlePinToggle = async () => {
