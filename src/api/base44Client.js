@@ -26,6 +26,7 @@ let userFetchedAt = 0;
 const rawMe = base44.auth.me.bind(base44.auth);
 const rawUpdateMe = base44.auth.updateMe.bind(base44.auth);
 const rawLogout = base44.auth.logout.bind(base44.auth);
+const rawSetToken = base44.auth.setToken.bind(base44.auth);
 
 export function clearUserCache() {
   userPromise = null;
@@ -53,4 +54,9 @@ base44.auth.updateMe = async (data) => {
 base44.auth.logout = (...args) => {
   clearUserCache();
   return rawLogout(...args);
+};
+
+base44.auth.setToken = (...args) => {
+  clearUserCache(); // a new token means a possibly different user
+  return rawSetToken(...args);
 };
