@@ -1,6 +1,5 @@
 {
   "name": "Like",
-  "type": "object",
   "properties": {
     "post_id": {
       "type": "string"
@@ -12,5 +11,17 @@
   "required": [
     "post_id",
     "user_email"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "data.user_email": "{{user.email}}"
+    },
+    "delete": {
+      "data.user_email": "{{user.email}}"
+    },
+    "update": {
+      "data.user_email": "{{user.email}}"
+    }
+  },
+  "type": "object"
 }
