@@ -1,33 +1,44 @@
 {
   "name": "SharedGarden",
-  "type": "object",
   "properties": {
+    "is_active": {
+      "default": true,
+      "type": "boolean"
+    },
     "owner_email": {
-      "type": "string",
-      "description": "Email of the garden owner"
+      "description": "Email of the garden owner",
+      "type": "string"
     },
     "owner_name": {
       "type": "string"
     },
-    "share_token": {
-      "type": "string",
-      "description": "Unique token for the public link"
+    "public_description": {
+      "description": "Description of the garden",
+      "type": "string"
     },
     "public_name": {
-      "type": "string",
-      "description": "Name displayed on the public garden page"
+      "description": "Name displayed on the public garden page",
+      "type": "string"
     },
-    "public_description": {
-      "type": "string",
-      "description": "Description of the garden"
-    },
-    "is_active": {
-      "type": "boolean",
-      "default": true
+    "share_token": {
+      "description": "Unique token for the public link",
+      "type": "string"
     }
   },
   "required": [
     "owner_email",
     "share_token"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "update": {
+      "data.owner_email": "{{user.email}}"
+    }
+  },
+  "type": "object"
 }
