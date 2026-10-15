@@ -46,10 +46,11 @@ async function makeThumb(url: string): Promise<Uint8Array> {
     let img = await Image.decode(bytes);
     const scale = MAX_SIDE / Math.max(img.width, img.height);
     if (scale < 1) img = img.resize(Math.round(img.width * scale), Math.round(img.height * scale));
-    // EXIF orientation -> rotation (phones write 6 for portrait shots)
+    // EXIF orientation -> rotation (phones write 6 for portrait shots).
+    // ImageScript's rotate() turns counter-clockwise, so 6 (needs 90° clockwise) is rotate(270).
     if (orient === 3) img = img.rotate(180);
-    else if (orient === 6) img = img.rotate(90);
-    else if (orient === 8) img = img.rotate(270);
+    else if (orient === 6) img = img.rotate(270);
+    else if (orient === 8) img = img.rotate(90);
     return await img.encodeJPEG(QUALITY);
 }
 
