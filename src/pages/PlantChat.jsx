@@ -93,6 +93,7 @@ export default function PlantChat() {
       setIsUploadingImage(false);
     }
   };
+  handleImageUploadRef.current = handleImageUpload;
 
   const handleVoiceRecord = async () => {
     if (!isRecording) {
@@ -358,37 +359,33 @@ export default function PlantChat() {
              </div>
            )}
            <div className="flex gap-2">
-             <input
-               ref={imageInputRef}
-               type="file"
-               accept="image/*"
-               onChange={handleImageUpload}
-               className="hidden"
-             />
+             {chatPhoto.sheet}
+             {/* Solid buttons with white icons: the old outline buttons took the
+                 card's translucent color and the icon nearly vanished on most themes. */}
              <Button
-               variant="outline"
                size="icon"
-               onClick={() => imageInputRef.current?.click()}
+               onClick={chatPhoto.openPicker}
                disabled={isUploadingImage}
-               className={`${getThemedClasses()}`}
+               aria-label="Add a photo"
+               className="bg-green-600 hover:bg-green-700 text-white shrink-0"
              >
                {isUploadingImage ? (
-                 <Loader2 className="w-4 h-4 animate-spin" />
+                 <Loader2 className="w-5 h-5 animate-spin" />
                ) : (
-                 <Camera className="w-4 h-4" />
+                 <Camera className="w-5 h-5" strokeWidth={2.25} />
                )}
              </Button>
              <Button
-               variant="outline"
                size="icon"
                onClick={handleVoiceRecord}
                disabled={isProcessing}
-               className={`${getThemedClasses()} ${isRecording ? 'animate-pulse' : ''}`}
+               aria-label={isRecording ? 'Stop recording' : 'Record a question'}
+               className={`shrink-0 text-white ${isRecording ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-blue-600 hover:bg-blue-700'}`}
              >
                {isRecording ? (
-                 <Square className="w-4 h-4 text-red-500" />
+                 <Square className="w-5 h-5" fill="currentColor" />
                ) : (
-                 <Mic className="w-4 h-4" />
+                 <Mic className="w-5 h-5" strokeWidth={2.25} />
                )}
              </Button>
              <Input
