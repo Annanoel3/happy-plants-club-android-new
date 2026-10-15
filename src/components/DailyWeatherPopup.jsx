@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { localToday, toLocalDateString } from '@/lib/dates';
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Cloud, X } from "lucide-react";
@@ -111,7 +112,7 @@ export default function DailyWeatherPopup() {
   };
 
   const checkAndShowWeather = async (forceShow = false) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = localToday();
     const lastShown = localStorage.getItem('lastWeatherShown');
 
     if (!forceShow && lastShown === today) {

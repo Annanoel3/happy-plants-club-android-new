@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { localToday, toLocalDateString } from '@/lib/dates';
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -42,7 +43,7 @@ export default function PlantDetail() {
 
   const [showWaterDialog, setShowWaterDialog] = useState(false);
   const [wateringNotes, setWateringNotes] = useState("");
-  const [wateringDate, setWateringDate] = useState(new Date().toISOString().split('T')[0]);
+  const [wateringDate, setWateringDate] = useState(localToday());
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editData, setEditData] = useState({});
   const [showReminderDialog, setShowReminderDialog] = useState(false);
@@ -221,7 +222,7 @@ export default function PlantDetail() {
       console.log('🚰 Starting watering mutation...');
       
       // Direct implementation instead of calling external function
-      const waterDate = wateringDate || new Date().toISOString().split('T')[0];
+      const waterDate = wateringDate || localToday();
       
       // Use the plant this page already loaded instead of re-fetching it (one less round trip).
       // It is refetched after every watering via invalidateQueries(['plant']), so it's current.
@@ -283,7 +284,7 @@ export default function PlantDetail() {
           total_waterings: newTotalWaterings,
           growth_stage: newGrowthStage,
           status: 'healthy',
-          ...(isNewest ? { last_watered: waterDate, next_watering_due: nextWatering.toISOString().split('T')[0] } : {}),
+          ...(isNewest ? { last_watered: waterDate, next_watering_due: toLocalDateString(nextWatering) } : {}),
         }),
         base44.entities.WateringLog.create({
           plant_id: plantId,
@@ -337,7 +338,7 @@ export default function PlantDetail() {
       
       // Clear the form
       setWateringNotes("");
-      setWateringDate(new Date().toISOString().split('T')[0]);
+      setWateringDate(localToday());
 
       // Then show success messages
       if (data?.grew) {
@@ -410,7 +411,7 @@ export default function PlantDetail() {
         plant_id: plantId,
         plant_name: plant.name,
         image_url,
-        photo_date: new Date().toISOString().split('T')[0],
+        photo_date: localToday(),
         notes
       });
     },
@@ -1146,7 +1147,7 @@ export default function PlantDetail() {
                 type="date"
                 value={wateringDate}
                 onChange={(e) => setWateringDate(e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
+                max={localToday()}
                 className="theme-input"
               />
               <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>

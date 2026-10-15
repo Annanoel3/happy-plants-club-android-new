@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { localToday, toLocalDateString } from '@/lib/dates';
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Droplets, Trash2, MapPin, Heart, AlertTriangle, X, ChevronDown, Plus, Check
@@ -31,7 +32,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
   const [showLocationMenu, setShowLocationMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showWaterMenu, setShowWaterMenu] = useState(false);
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localToday();
   const [waterDate, setWaterDate] = useState(todayStr);
   const [newLocationInput, setNewLocationInput] = useState('');
   const [newLocationEnv, setNewLocationEnv] = useState('Indoor');
@@ -88,7 +89,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
         return {
           id: plant.id,
           total_waterings: (plant.total_waterings || 0) + 1,
-          ...(isNewest ? { last_watered: today, next_watering_due: next.toISOString().split('T')[0] } : {}),
+          ...(isNewest ? { last_watered: today, next_watering_due: toLocalDateString(next) } : {}),
         };
       });
       const logRows = selectedPlants.map(plant => ({
@@ -299,7 +300,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
               <button
                 onClick={() => {
                   const d = new Date(); d.setDate(d.getDate() - 1);
-                  handleWaterAll(d.toISOString().split('T')[0]);
+                  handleWaterAll(toLocalDateString(d));
                 }}
                 className="flex-1 text-sm font-bold py-2.5 rounded-xl bg-white/10 text-white"
               >

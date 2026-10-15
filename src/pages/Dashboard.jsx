@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
+import { localToday, toLocalDateString } from '@/lib/dates';
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -192,7 +193,7 @@ export default function Dashboard() {
     queryKey: ['todayWateringReminder', user?.email],
     queryFn: async () => {
       if (!user?.email) return null; // Ensure user is available before fetching
-      const today = new Date().toISOString().split('T')[0];
+      const today = localToday();
       const reminders = await base44.entities.DailyWateringReminder.filter({
         user_email: user.email,
         reminder_date: today
@@ -466,7 +467,7 @@ export default function Dashboard() {
   // Check if there are plants needing water today
   const plantsNeedingWaterToday = plantsList.filter(plant => {
   if (!plant?.next_watering_due) return false;
-  const today = new Date().toISOString().split('T')[0];
+  const today = localToday();
   return plant.next_watering_due <= today; // Include overdue plants
   });
 

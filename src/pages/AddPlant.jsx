@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { localToday, toLocalDateString } from '@/lib/dates';
 import { refreshPlantData } from '@/lib/query-client';
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
@@ -114,7 +115,7 @@ export default function AddPlant() {
 
     setIsProcessing(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = localToday();
       const area = AREA_OPTIONS.find(a => a.value === selectedArea);
 
       const results = await Promise.allSettled(
@@ -136,7 +137,7 @@ export default function AddPlant() {
             image_url: file_url,
             ...(thumbUpload?.file_url ? { thumbnail_url: thumbUpload.file_url } : {}),
             last_watered: today,
-            next_watering_due: nextWatering.toISOString().split('T')[0],
+            next_watering_due: toLocalDateString(nextWatering),
             ...(area ? { location: area.value, environment: area.environment } : {})
           });
           return plantData.name;
