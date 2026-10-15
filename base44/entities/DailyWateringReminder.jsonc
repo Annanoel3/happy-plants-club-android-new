@@ -1,43 +1,57 @@
 {
   "name": "DailyWateringReminder",
-  "type": "object",
   "properties": {
-    "user_email": {
-      "type": "string",
-      "description": "User's email"
-    },
-    "reminder_date": {
-      "type": "string",
-      "format": "date",
-      "description": "Date of this reminder"
+    "dismissed": {
+      "default": false,
+      "description": "Whether user dismissed the reminder for today",
+      "type": "boolean"
     },
     "last_notification_sent": {
-      "type": "string",
+      "description": "When the last notification was sent",
       "format": "date-time",
-      "description": "When the last notification was sent"
-    },
-    "dismissed": {
-      "type": "boolean",
-      "default": false,
-      "description": "Whether user dismissed the reminder for today"
+      "type": "string"
     },
     "plants_needing_water": {
-      "type": "array",
+      "description": "IDs of plants that need watering",
       "items": {
         "type": "string"
       },
-      "description": "IDs of plants that need watering"
+      "type": "array"
+    },
+    "reminder_date": {
+      "description": "Date of this reminder",
+      "format": "date",
+      "type": "string"
     },
     "scheduled_notification_ids": {
-      "type": "array",
+      "description": "OneSignal notification IDs scheduled for today",
       "items": {
         "type": "string"
       },
-      "description": "OneSignal notification IDs scheduled for today"
+      "type": "array"
+    },
+    "user_email": {
+      "description": "User's email",
+      "type": "string"
     }
   },
   "required": [
     "user_email",
     "reminder_date"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "data.user_email": "{{user.email}}"
+    },
+    "delete": {
+      "data.user_email": "{{user.email}}"
+    },
+    "read": {
+      "data.user_email": "{{user.email}}"
+    },
+    "update": {
+      "data.user_email": "{{user.email}}"
+    }
+  },
+  "type": "object"
 }
