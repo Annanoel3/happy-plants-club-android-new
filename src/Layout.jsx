@@ -512,7 +512,7 @@ export default function Layout({ children, currentPageName }) {
 
         /* Valentine's Theme */
         [data-theme="valentines"] {
-          --theme-bg: url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/0d07f459d_2ChatGPTImageOct15202504_16_09PM.png') center center / cover no-repeat fixed;
+          --theme-bg: url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e7e07bd0e33d2da3f22dbf/0d07f459d_2ChatGPTImageOct15202504_16_09PM.png') center center / cover no-repeat;
           --theme-text: #d81b60;
           --theme-text-secondary: #ec407a;
           --theme-card-bg: rgba(255, 255, 255, 0.95);
