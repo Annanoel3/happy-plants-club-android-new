@@ -4,23 +4,14 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         
-        // Try to get from body first (when called from cron job)
-        let location;
-        let userEmail;
-        
-        try {
-            const body = await req.json();
-            location = body.location;
-            userEmail = body.userEmail;
-        } catch (e) {
-            // If no body, try to get from authenticated user
-            const user = await base44.auth.me();
-            if (!user) {
-                return Response.json({ error: 'Unauthorized' }, { status: 401 });
-            }
-            location = user.location;
-            userEmail = user.email;
+        // Signed-in user only (the in-app weather popup). The daily push builds its
+        // own message in sendDailyWeather, so no caller needs to pass someone else's email.
+        const user = await base44.auth.me().catch(() => null);
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        const location = user.location;
+        const userEmail = user.email;
 
         if (!location) {
             return Response.json({ 
