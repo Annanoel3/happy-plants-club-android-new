@@ -404,7 +404,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
             color="text-blue-400"
             loading={loading === 'water'}
             disabled={count === 0}
-            onClick={() => { setShowLocationMenu(false); setShowStatusMenu(false); setShowWaterMenu(v => !v); }}
+            onClick={() => { setShowSpotPicker(false); setShowLocationMenu(false); setShowStatusMenu(false); setShowWaterMenu(v => !v); }}
           />
 
           {/* Location */}
@@ -414,7 +414,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
             color="text-emerald-400"
             loading={loading === 'location'}
             disabled={count === 0}
-            onClick={() => { setShowStatusMenu(false); setShowWaterMenu(false); setShowLocationMenu(v => !v); }}
+            onClick={() => { setShowSpotPicker(false); setShowStatusMenu(false); setShowWaterMenu(false); setShowLocationMenu(v => !v); }}
           />
 
           {/* Status */}
@@ -424,7 +424,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
             color="text-amber-400"
             loading={loading === 'status'}
             disabled={count === 0}
-            onClick={() => { setShowLocationMenu(false); setShowWaterMenu(false); setShowStatusMenu(v => !v); }}
+            onClick={() => { setShowSpotPicker(false); setShowLocationMenu(false); setShowWaterMenu(false); setShowStatusMenu(v => !v); }}
           />
 
           {/* Pin */}
