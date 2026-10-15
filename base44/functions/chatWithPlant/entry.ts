@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
             }
         } else {
             // Create new conversation
-            const newConv = await base44.asServiceRole.entities.PlantConversation.create({
+            const newConv = await base44.entities.PlantConversation.create({
                 user_email: user.email,
                 plant_id: plant_id,
                 messages: []
@@ -78,7 +78,7 @@ Answer questions about this specific plant, provide care tips, troubleshoot prob
             { role: 'assistant', content: aiResponse }
         );
 
-        await base44.asServiceRole.entities.PlantConversation.update(convId, {
+        await base44.entities.PlantConversation.update(convId, {
             messages: conversationHistory
         });
 

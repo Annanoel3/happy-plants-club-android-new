@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
             }
         } else {
             // Create new conversation
-            const newConv = await base44.asServiceRole.entities.PlantConversation.create({
+            const newConv = await base44.entities.PlantConversation.create({
                 user_email: user.email,
                 plant_id: null, // null = general expert chat
                 messages: []
@@ -101,7 +101,7 @@ ${contextMessage}`;
             { role: 'assistant', content: reply }
         );
 
-        await base44.asServiceRole.entities.PlantConversation.update(convId, {
+        await base44.entities.PlantConversation.update(convId, {
             messages: conversationHistory
         });
 

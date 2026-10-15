@@ -148,7 +148,7 @@ Return ONLY valid JSON:
         for (const plant of plantsToWater) {
             if (plant) {
                 console.log('Logging watering for plant:', plant.name, plant.id);
-                await base44.asServiceRole.entities.WateringLog.create({
+                await base44.entities.WateringLog.create({
                     plant_id: plant.id,
                     plant_name: plant.name,
                     watered_date: today,
@@ -255,7 +255,7 @@ Return ONLY valid JSON:
                      console.log('Scheduling reminder:', reminder.description, 'phrase:', reminder.reminder_time_phrase, 'computed time:', reminderDateTime.toISOString(), 'delay:', delayMinutes, 'minutes', 'recurrence:', reminder.recurrence_type);
 
                      // Create the reminder record
-                     const reminderRecord = await base44.asServiceRole.entities.Reminder.create({
+                     const reminderRecord = await base44.entities.Reminder.create({
                          plant_id: 'general',
                          plant_name: 'General',
                          title: reminder.description,
@@ -305,7 +305,7 @@ Return ONLY valid JSON:
 
                          // Update reminder with all notification IDs
                          if (notificationIds.length > 0) {
-                             await base44.asServiceRole.entities.Reminder.update(reminderRecord.id, {
+                             await base44.entities.Reminder.update(reminderRecord.id, {
                                  onesignal_notification_ids: notificationIds
                              });
                              console.log('✅ Recurring reminder scheduled with', notificationIds.length, 'notifications');
@@ -322,7 +322,7 @@ Return ONLY valid JSON:
                              });
 
                              if (schedulePushResult?.notificationId) {
-                                 await base44.asServiceRole.entities.Reminder.update(reminderRecord.id, {
+                                 await base44.entities.Reminder.update(reminderRecord.id, {
                                      onesignal_notification_ids: [schedulePushResult.notificationId]
                                  });
                                  console.log('✅ Reminder scheduled with notification ID:', schedulePushResult.notificationId);

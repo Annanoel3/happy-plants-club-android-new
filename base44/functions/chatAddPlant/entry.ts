@@ -160,7 +160,7 @@ If you don't have all information yet, respond with plain text (NO JSON) asking 
         // Save conversation
         let savedConversationId = conversation_id;
         if (!conversationData) {
-            const newConv = await base44.asServiceRole.entities.PlantConversation.create({
+            const newConv = await base44.entities.PlantConversation.create({
                 user_email: user.email,
                 messages: conversationHistory,
                 plant_id: null,
@@ -168,7 +168,7 @@ If you don't have all information yet, respond with plain text (NO JSON) asking 
             });
             savedConversationId = newConv.id;
         } else {
-            await base44.asServiceRole.entities.PlantConversation.update(conversation_id, {
+            await base44.entities.PlantConversation.update(conversation_id, {
                 messages: conversationHistory,
                 image_url: savedImageUrl
             });
@@ -181,7 +181,7 @@ If you don't have all information yet, respond with plain text (NO JSON) asking 
             const nextWatering = new Date(today + 'T12:00:00Z');
             nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
 
-            const newPlant = await base44.asServiceRole.entities.Plant.create({
+            const newPlant = await base44.entities.Plant.create({
                 name: plantData.name,
                 scientific_name: plantData.scientific_name || '',
                 hybrid_name: plantData.hybrid_name || null,
@@ -201,7 +201,7 @@ If you don't have all information yet, respond with plain text (NO JSON) asking 
                 image_url: savedImageUrl || ''
             });
 
-            await base44.asServiceRole.entities.PlantConversation.update(savedConversationId, {
+            await base44.entities.PlantConversation.update(savedConversationId, {
                 plant_id: newPlant.id
             });
 

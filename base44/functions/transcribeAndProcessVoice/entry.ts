@@ -91,7 +91,7 @@ Return ONLY valid JSON:
     for (const plantId of result.watered_plant_ids || []) {
         const plant = plants.find(p => p.id === plantId);
         if (plant) {
-            await base44.asServiceRole.entities.WateringLog.create({
+            await base44.entities.WateringLog.create({
                 plant_id: plantId,
                 plant_name: plant.name,
                 watered_date: today,
@@ -99,7 +99,7 @@ Return ONLY valid JSON:
             });
             const nextWatering = new Date(today + 'T12:00:00Z');
             nextWatering.setDate(nextWatering.getDate() + (plant.water_frequency_days || 7));
-            await base44.asServiceRole.entities.Plant.update(plantId, {
+            await base44.entities.Plant.update(plantId, {
                 last_watered: today,
                 next_watering_due: nextWatering.toISOString().split('T')[0]
             });
@@ -114,7 +114,7 @@ Return ONLY valid JSON:
             const updatedNotes = currentNotes
                 ? `${currentNotes}\n\n[${timestamp}] ${plantNote.note}`
                 : `[${timestamp}] ${plantNote.note}`;
-            await base44.asServiceRole.entities.Plant.update(plantNote.plant_id, {
+            await base44.entities.Plant.update(plantNote.plant_id, {
                 notes: updatedNotes
             });
         }

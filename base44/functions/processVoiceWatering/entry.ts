@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
         for (const plantId of wateredIds) {
             const plant = plants.find(p => p.id === plantId);
             if (plant) {
-                await base44.asServiceRole.entities.WateringLog.create({
+                await base44.entities.WateringLog.create({
                     plant_id: plantId,
                     plant_name: plant.name,
                     watered_date: today,
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
                 const nextWatering = new Date(today + 'T12:00:00Z');
                 nextWatering.setDate(nextWatering.getDate() + (plant.water_frequency_days || 7));
                 
-                await base44.asServiceRole.entities.Plant.update(plantId, {
+                await base44.entities.Plant.update(plantId, {
                     last_watered: today,
                     next_watering_due: nextWatering.toISOString().split('T')[0]
                 });
@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
         const reminders = (result.reminders || []).filter(r => r.title && r.due_date);
         for (const reminder of reminders) {
             try {
-                await base44.asServiceRole.entities.Reminder.create({
+                await base44.entities.Reminder.create({
                     plant_id: reminder.plant_id || null,
                     plant_name: reminder.plant_name || 'General',
                     title: reminder.title,
