@@ -1,25 +1,57 @@
 {
   "name": "PlantConversation",
-  "type": "object",
   "properties": {
-    "user_email": {
+    "image_url": {
+      "description": "Image URL uploaded during conversation",
       "type": "string"
+    },
+    "messages": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
     },
     "plant_id": {
       "type": "string"
     },
-    "messages": {
-      "type": "array",
-      "items": {
-        "type": "object"
-      }
-    },
-    "image_url": {
-      "type": "string",
-      "description": "Image URL uploaded during conversation"
+    "user_email": {
+      "type": "string"
     }
   },
   "required": [
     "user_email"
-  ]
+  ],
+  "rls": {
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.user_email": "{{user.email}}"
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.user_email": "{{user.email}}"
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.user_email": "{{user.email}}"
+        }
+      ]
+    }
+  },
+  "type": "object"
 }
