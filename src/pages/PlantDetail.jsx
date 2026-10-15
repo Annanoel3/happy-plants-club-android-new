@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { chatWithPlant } from "@/functions/chatWithPlant";
 import { showAdForEvent } from "@/lib/admob";
+import { prepareImageForUpload } from "@/lib/imageResize";
 
 export default function PlantDetail() {
   const navigate = useNavigate();
@@ -512,10 +513,15 @@ export default function PlantDetail() {
 
     setIsUploadingImage(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const { main, thumb } = await prepareImageForUpload(file);
+      const [{ file_url }, thumbUpload] = await Promise.all([
+        base44.integrations.Core.UploadFile({ file: main }),
+        thumb ? base44.integrations.Core.UploadFile({ file: thumb }).catch(() => null) : Promise.resolve(null),
+      ]);
 
       await base44.entities.Plant.update(plantId, {
-        image_url: file_url
+        image_url: file_url,
+        thumbnail_url: thumbUpload?.file_url || null
       });
 
       queryClient.invalidateQueries(['plant']);
@@ -534,7 +540,8 @@ export default function PlantDetail() {
 
     setIsUploadingProgress(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const { main } = await prepareImageForUpload(file, { mainSide: 1200 });
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: main });
       await uploadProgressPhotoMutation.mutateAsync({
         image_url: file_url,
         notes: progressPhotoNotes
