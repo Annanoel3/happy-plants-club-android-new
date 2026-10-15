@@ -1,7 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import * as ImageScript from 'npm:imagescript@1.3.0';
-// The npm build is CommonJS; cover both export shapes.
-const Image = (ImageScript as any).Image ?? (ImageScript as any).default?.Image;
+import jpeg from 'npm:jpeg-js@0.4.4';
+// jpeg-js is pure JavaScript (no native binaries), which is what Base44's
+// function bundler needs. ImageScript's deno.land build loaded as undefined
+// here and its npm build ships .node binaries the bundler rejects.
 
 // Makes a small card-sized copy (thumbnail_url) of each plant photo that
 // doesn't have one yet. The garden grid was decoding 27 full-size 3-4 MB
@@ -40,20 +41,63 @@ function exifOrientation(bytes: Uint8Array): number {
     return 1;
 }
 
+type Raw = { width: number; height: number; data: Uint8Array }; // RGBA
+
+// Area-average downscale (box filter). Plenty of quality for a 720px card image.
+function downscale(src: Raw, w: number, h: number): Raw {
+    const out = new Uint8Array(w * h * 4);
+    const sx = src.width / w, sy = src.height / h;
+    for (let y = 0; y < h; y++) {
+        const y0 = Math.floor(y * sy), y1 = Math.max(y0 + 1, Math.floor((y + 1) * sy));
+        for (let x = 0; x < w; x++) {
+            const x0 = Math.floor(x * sx), x1 = Math.max(x0 + 1, Math.floor((x + 1) * sx));
+            let r = 0, g = 0, b = 0, n = 0;
+            for (let yy = y0; yy < y1; yy++) {
+                let p = (yy * src.width + x0) * 4;
+                for (let xx = x0; xx < x1; xx++, p += 4) { r += src.data[p]; g += src.data[p + 1]; b += src.data[p + 2]; n++; }
+            }
+            const o = (y * w + x) * 4;
+            out[o] = r / n; out[o + 1] = g / n; out[o + 2] = b / n; out[o + 3] = 255;
+        }
+    }
+    return { width: w, height: h, data: out };
+}
+
+// Rotate clockwise by 90, 180 or 270 degrees.
+function rotateCW(src: Raw, deg: 90 | 180 | 270): Raw {
+    const { width: w, height: h, data } = src;
+    const swap = deg !== 180;
+    const W = swap ? h : w, H = swap ? w : h;
+    const out = new Uint8Array(W * H * 4);
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let nx: number, ny: number;
+            if (deg === 90) { nx = h - 1 - y; ny = x; }
+            else if (deg === 180) { nx = w - 1 - x; ny = h - 1 - y; }
+            else { nx = y; ny = w - 1 - x; }
+            const s = (y * w + x) * 4, d = (ny * W + nx) * 4;
+            out[d] = data[s]; out[d + 1] = data[s + 1]; out[d + 2] = data[s + 2]; out[d + 3] = 255;
+        }
+    }
+    return { width: W, height: H, data: out };
+}
+
 async function makeThumb(url: string): Promise<Uint8Array> {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`fetch ${res.status}`);
     const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes[0] !== 0xFF || bytes[1] !== 0xD8) throw new Error('not a JPEG');
     const orient = exifOrientation(bytes);
-    let img = await Image.decode(bytes);
+    const decoded = jpeg.decode(bytes, { useTArray: true, formatAsRGBA: true, maxMemoryUsageInMB: 1024, maxResolutionInMP: 60 });
+    let img: Raw = { width: decoded.width, height: decoded.height, data: decoded.data };
     const scale = MAX_SIDE / Math.max(img.width, img.height);
-    if (scale < 1) img = img.resize(Math.round(img.width * scale), Math.round(img.height * scale));
-    // EXIF orientation -> rotation (phones write 6 for portrait shots).
-    // ImageScript's rotate() turns counter-clockwise, so 6 (needs 90° clockwise) is rotate(270).
-    if (orient === 3) img = img.rotate(180);
-    else if (orient === 6) img = img.rotate(270);
-    else if (orient === 8) img = img.rotate(90);
-    return await img.encodeJPEG(QUALITY);
+    if (scale < 1) img = downscale(img, Math.max(1, Math.round(img.width * scale)), Math.max(1, Math.round(img.height * scale)));
+    // EXIF orientation -> rotation (phones write 6 for portrait shots, which needs 90° clockwise).
+    if (orient === 3) img = rotateCW(img, 180);
+    else if (orient === 6) img = rotateCW(img, 90);
+    else if (orient === 8) img = rotateCW(img, 270);
+    const enc = jpeg.encode({ width: img.width, height: img.height, data: img.data }, QUALITY);
+    return new Uint8Array(enc.data);
 }
 
 Deno.serve(async (req) => {
