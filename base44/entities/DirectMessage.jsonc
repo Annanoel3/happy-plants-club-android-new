@@ -1,12 +1,12 @@
 {
   "name": "DirectMessage",
-  "type": "object",
   "properties": {
-    "sender_email": {
+    "content": {
       "type": "string"
     },
-    "sender_name": {
-      "type": "string"
+    "read": {
+      "default": false,
+      "type": "boolean"
     },
     "receiver_email": {
       "type": "string"
@@ -14,17 +14,45 @@
     "receiver_name": {
       "type": "string"
     },
-    "content": {
+    "sender_email": {
       "type": "string"
     },
-    "read": {
-      "type": "boolean",
-      "default": false
+    "sender_name": {
+      "type": "string"
     }
   },
   "required": [
     "sender_email",
     "receiver_email",
     "content"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "data.sender_email": "{{user.email}}"
+    },
+    "delete": {
+      "data.sender_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.sender_email": "{{user.email}}"
+        },
+        {
+          "data.receiver_email": "{{user.email}}"
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.sender_email": "{{user.email}}"
+        },
+        {
+          "data.receiver_email": "{{user.email}}"
+        }
+      ]
+    }
+  },
+  "type": "object"
 }
