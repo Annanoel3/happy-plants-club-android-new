@@ -246,9 +246,8 @@ export default function Dashboard() {
     // For water_soon and location sorts — flatten, sort, then skip grouping
     if (sortBy === 'water_soon') {
       const sorted = [...filtered].sort((a, b) => {
-        const daysA = a.next_watering_due ? Math.ceil((new Date(a.next_watering_due) - new Date()) / 86400000) : 9999;
-        const daysB = b.next_watering_due ? Math.ceil((new Date(b.next_watering_due) - new Date()) / 86400000) : 9999;
-        return daysA - daysB;
+        // Sort by the due date string itself (YYYY-MM-DD sorts correctly); no time-of-day math.
+        return (a.next_watering_due || '9999') .localeCompare(b.next_watering_due || '9999');
       });
       return [["By Watering Schedule", sorted]];
     }

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { format, parseISO, differenceInDays } from "date-fns";
+import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import { toast } from "sonner";
 import PlantHealthCheck from "@/components/PlantHealthCheck";
 import {
@@ -634,7 +634,7 @@ export default function PlantDetail() {
 
     const today = new Date();
     const dueDate = parseISO(plant.next_watering_due);
-    const daysUntil = differenceInDays(dueDate, today);
+    const daysUntil = differenceInCalendarDays(dueDate, today); // calendar days, so 'tomorrow' is 1 all day long
 
     // If it's a light-text theme, use light backgrounds with dark text
     if (isThemeLight(theme)) {

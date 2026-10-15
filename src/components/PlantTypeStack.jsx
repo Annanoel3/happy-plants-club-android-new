@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Droplets, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle, Pin } from "lucide-react";
-import { differenceInDays, parseISO } from "date-fns";
+import { differenceInCalendarDays, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Tile card — compact 2-per-row grid
@@ -80,7 +80,9 @@ function getWateringStatus(plant, wateringRemindersEnabled) {
   if (!wateringRemindersEnabled) return null;
   if (!plant?.next_watering_due) return null;
   try {
-    const daysUntil = differenceInDays(parseISO(plant.next_watering_due), new Date());
+    // Calendar days, not elapsed 24h blocks: differenceInDays truncated 'due tomorrow'
+    // (0.6 of a day away at mid-morning) down to 0 and showed 'Water today' a day early.
+    const daysUntil = differenceInCalendarDays(parseISO(plant.next_watering_due), new Date());
     if (daysUntil < 0) return { status: 'overdue', text: `${Math.abs(daysUntil)}d overdue`, color: 'bg-red-500/90 text-white' };
     if (daysUntil === 0) return { status: 'today', text: 'Water today', color: 'bg-orange-500/90 text-white' };
     if (daysUntil <= 2) return { status: 'soon', text: `${daysUntil}d`, color: 'bg-amber-400/90 text-amber-900' };
