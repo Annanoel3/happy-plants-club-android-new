@@ -367,10 +367,27 @@ export default function Layout({ children, currentPageName }) {
     try {
       const currentUser = await base44.auth.me();
       setUser(currentUser);
+      recordAppOpen(currentUser);
     } catch (error) {
       console.error('Error loading user:', error);
       setUser(null); // Ensure user is null on error
     }
+  };
+
+  // Remember when the person last opened the app and their time zone. The
+  // inactivity nudges and the 8 AM weather/watering pushes depend on these, and
+  // nothing was ever writing them. At most one small write per day.
+  const recordAppOpen = (u) => {
+    if (!u?.email) return;
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const lastOpenDay = u.last_app_open ? String(u.last_app_open).slice(0, 10) : null;
+      const today = new Date().toISOString().slice(0, 10);
+      const patch = {};
+      if (lastOpenDay !== today) patch.last_app_open = new Date().toISOString();
+      if (tz && u.timezone !== tz) patch.timezone = tz;
+      if (Object.keys(patch).length) base44.auth.updateMe(patch).catch(() => {});
+    } catch { /* never block the app on this */ }
   };
 
   return (
