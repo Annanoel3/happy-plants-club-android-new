@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { refreshPlantData } from '@/lib/query-client';
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Trash2, Edit2, Check } from "lucide-react";
@@ -91,6 +92,7 @@ export default function ReminderNotificationManager({ reminder, theme, onRefresh
         userTimezone
       });
       
+      refreshPlantData();
       if (result.data?.needs_clarification) {
         toast.error('Time not clear, please be more specific');
         return;

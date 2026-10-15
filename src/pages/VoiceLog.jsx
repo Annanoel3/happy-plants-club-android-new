@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { refreshPlantData } from '@/lib/query-client';
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { Mic, Square, Loader2, Check, AlertCircle, Keyboard } from "lucide-react";
@@ -154,6 +155,7 @@ export default function VoiceLog() {
       
       console.log('Response:', response);
       const data = response?.data || response;
+      refreshPlantData(); // waterings were written server-side
 
       if (data && data.success) {
         setResult(data);

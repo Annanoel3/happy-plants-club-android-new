@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { refreshPlantData } from '@/lib/query-client';
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { Camera, Image, Mic, Keyboard, Plus, Loader2, MapPin } from "lucide-react";
@@ -213,6 +214,7 @@ export default function AddPlant() {
         ...(area ? { location: area.value, environment: area.environment } : {})
       });
       const result = bulkRes?.data ?? bulkRes;
+      refreshPlantData(); // plants were created server-side
 
       if (result?.success) {
         toast.success(`Added ${result.count} plant${result.count > 1 ? 's' : ''}! 🌿`);
@@ -244,6 +246,7 @@ export default function AddPlant() {
         ...(area ? { location: area.value, environment: area.environment } : {})
       });
       const result = bulkRes?.data ?? bulkRes;
+      refreshPlantData(); // plants were created server-side
 
       if (result?.success) {
         toast.success(`Added ${result.count} plant${result.count > 1 ? 's' : ''}! 🌿`);
