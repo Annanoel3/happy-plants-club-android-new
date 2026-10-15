@@ -1,7 +1,17 @@
 {
   "name": "WateringLog",
-  "type": "object",
   "properties": {
+    "method": {
+      "enum": [
+        "voice",
+        "manual",
+        "bulk"
+      ],
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
     "plant_id": {
       "type": "string"
     },
@@ -9,23 +19,24 @@
       "type": "string"
     },
     "watered_date": {
-      "type": "string",
-      "format": "date"
-    },
-    "method": {
-      "type": "string",
-      "enum": [
-        "voice",
-        "manual",
-        "bulk"
-      ]
-    },
-    "notes": {
+      "format": "date",
       "type": "string"
     }
   },
   "required": [
     "plant_id",
     "watered_date"
-  ]
+  ],
+  "rls": {
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    },
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    }
+  },
+  "type": "object"
 }
