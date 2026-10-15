@@ -706,11 +706,11 @@ export default function Layout({ children, currentPageName }) {
           backdrop-filter: none !important;
           -webkit-backdrop-filter: none !important;
         }
-        [class*="backdrop-blur"].bg-white\/60 { background-color: rgb(255 255 255 / 0.88) !important; }
-        [class*="backdrop-blur"].bg-black\/40 { background-color: rgb(0 0 0 / 0.68) !important; }
-        [class*="backdrop-blur"].bg-black\/45 { background-color: rgb(0 0 0 / 0.7) !important; }
-        [class*="backdrop-blur"].bg-black\/5  { background-color: rgb(255 255 255 / 0.85) !important; }
-        [class*="backdrop-blur"].bg-white\/10 { background-color: rgb(255 255 255 / 0.3) !important; }
+        [class*="backdrop-blur"].bg-white\\/60 { background-color: rgb(255 255 255 / 0.88) !important; }
+        [class*="backdrop-blur"].bg-black\\/40 { background-color: rgb(0 0 0 / 0.68) !important; }
+        [class*="backdrop-blur"].bg-black\\/45 { background-color: rgb(0 0 0 / 0.7) !important; }
+        [class*="backdrop-blur"].bg-black\\/5  { background-color: rgb(255 255 255 / 0.85) !important; }
+        [class*="backdrop-blur"].bg-white\\/10 { background-color: rgb(255 255 255 / 0.3) !important; }
 
 
 
