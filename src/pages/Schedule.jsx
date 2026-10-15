@@ -98,7 +98,7 @@ export default function Schedule() {
       return Array.isArray(result) ? result : [];
     },
     enabled: !!user,
-    initialData: [],
+    placeholderData: [], // (was initialData; that would count as fresh under the 30s staleTime and hide the real data)
   });
 
   const createVacationMutation = useMutation({

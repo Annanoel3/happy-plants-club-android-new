@@ -192,7 +192,7 @@ export default function PlantDetail() {
       }
     },
     enabled: !!plantId,
-    initialData: [],
+    placeholderData: [], // (was initialData; that would count as fresh under the 30s staleTime and hide the real data)
     retry: 1,
   });
 

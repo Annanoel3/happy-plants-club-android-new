@@ -133,7 +133,7 @@ export default function Dashboard() {
         return [];
       }
     },
-    initialData: [],
+    placeholderData: [], // (was initialData; that would count as fresh under the 30s staleTime and hide the real data)
     enabled: authChecked && !!user && !!user.location,
     retry: 1,
     // No staleTime: 0 here any more: the garden list is kept for 30s between visits,
@@ -175,7 +175,7 @@ export default function Dashboard() {
         return [];
       }
     },
-    initialData: [],
+    placeholderData: [], // (was initialData; that would count as fresh under the 30s staleTime and hide the real data)
     enabled: authChecked && !!user && !!user.location,
     retry: 1,
   });
