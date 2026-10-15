@@ -175,21 +175,9 @@ function LayoutContent({ children, currentPageName }) {
     refetchInterval: 120000,
   });
 
-  const { data: feedNotifications = [] } = useQuery({
-    queryKey: ['feedNotifications', user?.email],
-    queryFn: async () => {
-      if (!user) return [];
-      const notifs = await base44.entities.Notification.filter({
-        user_email: user.email,
-        type: ['like', 'comment'],
-        dismissed: false
-      });
-      return notifs;
-    },
-    enabled: !!user,
-    // Was every 15s (the single busiest poll in the app). Badge count only; 2 min + focus refetch.
-    refetchInterval: 120000,
-  });
+  // Community is "Coming Soon" (no posts, likes or comments exist yet), so the
+  // like/comment badge poll is off until it launches. Re-enable with the feature.
+  const feedNotifications = [];
 
   const navigationItems = [
     { title: "My Garden", url: "/Dashboard", icon: Home },
