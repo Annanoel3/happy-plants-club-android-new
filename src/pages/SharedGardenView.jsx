@@ -79,7 +79,7 @@ export default function SharedGardenView() {
           {plants.map((plant) => (
             <Card key={plant.id} className="overflow-hidden hover:shadow-lg transition">
               {plant.image_url && (
-                <img src={plant.image_url} alt={plant.name} className="w-full h-48 object-cover" />
+                <img src={plant.thumbnail_url || plant.image_url} alt={plant.name} className="w-full h-48 object-cover" />
               )}
               <CardHeader>
                 <CardTitle className="text-xl">{plant.name}</CardTitle>

@@ -19,7 +19,7 @@ function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex }) {
     >
       {/* Background */}
       {plant.image_url ? (
-        <img src={plant.image_url} alt={displayName} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover brightness-90" />
+        <img src={plant.thumbnail_url || plant.image_url} alt={displayName} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
       ) : (
         <div className={`absolute inset-0 bg-gradient-to-br ${getGradient(gradientIndex)}`} />
       )}
@@ -106,7 +106,7 @@ const PlantListRow = React.memo(function PlantListRow({ plant, wateringReminders
       {/* Thumbnail */}
       <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0">
         {plant.image_url
-          ? <img src={plant.image_url} alt={displayName} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+          ? <img src={plant.thumbnail_url || plant.image_url} alt={displayName} loading="lazy" decoding="async" className="w-full h-full object-cover" />
           : <div className={`w-full h-full bg-gradient-to-br ${getGradient(gradientIndex)}`} />
         }
       </div>
@@ -146,12 +146,13 @@ function FadeImage({ src, alt, gradientIndex }) {
       <img
         src={src}
         alt={alt}
+        loading="lazy"
         decoding="async"
         onLoad={(e) => {
           const img = e.currentTarget;
           (img.decode ? img.decode() : Promise.resolve()).catch(() => {}).then(() => setLoaded(true));
         }}
-        className={`absolute inset-0 w-full h-full object-cover brightness-90 transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
       />
     </>
   );
@@ -197,7 +198,7 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
       >
         {/* Background */}
         {plant.image_url ? (
-          <FadeImage src={plant.image_url} alt={displayName} gradientIndex={gradientIndex} />
+          <FadeImage src={plant.thumbnail_url || plant.image_url} alt={displayName} gradientIndex={gradientIndex} />
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${getGradient(gradientIndex)}`} />
         )}

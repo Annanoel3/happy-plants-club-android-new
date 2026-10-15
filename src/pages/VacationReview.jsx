@@ -377,7 +377,7 @@ export default function VacationReview() {
                     <div className="flex items-start gap-4">
                       {plant.image_url && (
                         <img
-                          src={plant.image_url}
+                          src={plant.thumbnail_url || plant.image_url}
                           alt={plant.nickname || plant.name}
                           className="w-20 h-20 rounded-lg object-cover"
                         />

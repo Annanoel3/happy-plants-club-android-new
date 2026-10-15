@@ -240,7 +240,7 @@ export default function MyProfile() {
                   <Card key={plant.id} className={`overflow-hidden hover:shadow-lg transition-shadow ${getThemedClasses()}`}>
                     <CardContent className="p-0">
                       {plant.image_url && (
-                        <img src={plant.image_url} alt={displayName} className="w-full h-32 object-cover" />
+                        <img src={plant.thumbnail_url || plant.image_url} alt={displayName} className="w-full h-32 object-cover" />
                       )}
                       <div className="p-3">
                         {plant.nickname && (
