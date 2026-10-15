@@ -140,7 +140,29 @@ export default function Dashboard() {
     refetchOnMount: true,
   });
 
-
+  // Safety net: any plant photo without a card-sized copy gets one made in the
+  // background (covers plants added before thumbnails existed, or via other paths).
+  const thumbJobRef = useRef(false);
+  useEffect(() => {
+    if (!plants?.length || thumbJobRef.current) return;
+    const missing = plants.filter(p => p.image_url && !p.thumbnail_url).length;
+    if (!missing) return;
+    thumbJobRef.current = true;
+    (async () => {
+      try {
+        for (let i = 0; i < 10; i++) {
+          const res = await base44.functions.invoke('generateThumbnails', {});
+          const data = res?.data ?? res;
+          if (!data?.success || !data.remaining) break;
+        }
+        queryClient.invalidateQueries({ queryKey: ['plants'] });
+      } catch (e) {
+        console.warn('[thumbnails] backfill failed:', e?.message || e);
+      } finally {
+        thumbJobRef.current = false;
+      }
+    })();
+  }, [plants]);
 
   const { data: activeEvents = [] } = useQuery({
     queryKey: ['activeEvents', user?.email],
