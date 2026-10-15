@@ -1,5 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+    // Phone app: hover styles only apply on devices that can actually hover.
+    // On touch screens a tapped button no longer stays stuck in its hover look.
+    future: { hoverOnlyWhenSupported: true },
     darkMode: ["class"],
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {

@@ -264,7 +264,7 @@ function LayoutContent({ children, currentPageName }) {
             variant="outline"
             onClick={() => {
               cycleTheme();
-              setOpen(false);
+              setOpenMobile(false);
             }}
             className="w-full justify-start gap-3 mb-3 h-12 sidebar-button rounded-2xl font-semibold"
           >
@@ -289,7 +289,7 @@ function LayoutContent({ children, currentPageName }) {
                 type="button"
                 onClick={() => {
                   navigate('/MyProfile');
-                  setOpen(false);
+                  setOpenMobile(false);
                 }}
                 className="w-full px-3 py-3 text-sm sidebar-user-info rounded-2xl hover:opacity-80 transition-opacity text-left mb-2"
               >
