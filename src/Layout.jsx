@@ -209,7 +209,7 @@ function LayoutContent({ children, currentPageName }) {
   };
 
   return (
-    <div className="min-h-screen flex w-full theme-bg relative">
+    <div className="min-h-screen flex w-full theme-bg hp-wallpaper relative">
       {(theme === 'dark' || theme === 'christmas' || theme === 'newyears' || theme === 'fall' || theme === 'fourthofjuly' || theme === 'halloween') && (
         <div className="fixed inset-0 bg-black/75 -z-20 pointer-events-none"></div>
       )}
@@ -683,10 +683,12 @@ export default function Layout({ children, currentPageName }) {
            background-attachment: fixed. On Android WebView, attachment: fixed
            re-rasterizes the whole image every scroll frame and, together with
            backdrop-filter on the cards, shows up as a white strobe while scrolling. */
+        /* Pages also carry .theme-bg; that is now a no-op so there is exactly ONE
+           wallpaper layer (Layout's) instead of one per page nested in the scroller. */
         .theme-bg {
           background: transparent;
         }
-        .theme-bg::before {
+        .hp-wallpaper::before {
           content: '';
           position: fixed;
           inset: 0;
