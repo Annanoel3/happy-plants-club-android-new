@@ -10,6 +10,7 @@ import { identifyPlantWithExpert } from "@/functions/identifyPlantWithExpert";
 import { setMicActive, showAdForEvent } from "@/lib/admob";
 import { transcribeVoice } from "@/functions/transcribeVoice";
 import { processBulkPlants } from "@/functions/processBulkPlants";
+import { prepareImageForUpload } from "@/lib/imageResize";
 
 const AREA_OPTIONS = [
   { label: "🏠 Living Room",    value: "Living Room",    environment: "Indoor" },
@@ -117,7 +118,12 @@ export default function AddPlant() {
 
       const results = await Promise.allSettled(
         files.map(async (file) => {
-          const { file_url } = await base44.integrations.Core.UploadFile({ file });
+          // Resize on the phone first: ~1600px for identification, ~720px for the garden cards
+          const { main, thumb } = await prepareImageForUpload(file);
+          const [{ file_url }, thumbUpload] = await Promise.all([
+            base44.integrations.Core.UploadFile({ file: main }),
+            thumb ? base44.integrations.Core.UploadFile({ file: thumb }).catch(() => null) : Promise.resolve(null),
+          ]);
           const res = await identifyPlantWithExpert({ image_url: file_url });
           const data = res?.data ?? res;
           if (!data?.success) throw new Error(data?.error || 'Could not identify plant');
@@ -127,6 +133,7 @@ export default function AddPlant() {
           await base44.entities.Plant.create({
             ...plantData,
             image_url: file_url,
+            ...(thumbUpload?.file_url ? { thumbnail_url: thumbUpload.file_url } : {}),
             last_watered: today,
             next_watering_due: nextWatering.toISOString().split('T')[0],
             ...(area ? { location: area.value, environment: area.environment } : {})
