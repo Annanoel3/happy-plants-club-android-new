@@ -23,7 +23,7 @@ export default function DeleteAccount() {
       window.location.reload();
     } catch (error) {
       console.error("Error deleting account:", error);
-      toast.error("Couldn't delete your account. Please try again, or email support@happyplants.club.");
+      toast.error("Couldn't delete your account. Please try again, or email mediocreatbestdev@outlook.com.");
     } finally {
       setIsLoading(false);
     }
