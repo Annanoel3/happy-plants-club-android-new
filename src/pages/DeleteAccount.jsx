@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function DeleteAccount() {
   const navigate = useNavigate();
@@ -13,20 +14,16 @@ export default function DeleteAccount() {
   const handleDeleteAccount = async () => {
     setIsLoading(true);
     try {
-      const user = await base44.auth.me();
-      if (user) {
-        // Delete all user's plants
-        const plants = await base44.entities.Plant.filter({ created_by: user.email });
-        for (const plant of plants) {
-          await base44.entities.Plant.delete(plant.id);
-        }
-      }
-      // Logout
-      await base44.auth.logout();
+      // Deletes the account and everything tied to it on the server
+      // (plants, logs, photos, reminders, messages, follows, push link).
+      const res = await base44.functions.invoke('deleteMyAccount', {});
+      const data = res?.data ?? res;
+      if (!data?.success) throw new Error(data?.error || 'Delete failed');
+      base44.auth.logout();
       window.location.reload();
     } catch (error) {
       console.error("Error deleting account:", error);
-      alert("Failed to delete account. Please contact support.");
+      toast.error("Couldn't delete your account. Please try again, or email support@happyplants.club.");
     } finally {
       setIsLoading(false);
     }
