@@ -1,24 +1,35 @@
 {
   "name": "ChatMessage",
-  "type": "object",
   "properties": {
-    "role": {
-      "type": "string",
-      "enum": [
-        "user",
-        "assistant"
-      ]
-    },
     "content": {
       "type": "string"
     },
+    "role": {
+      "enum": [
+        "user",
+        "assistant"
+      ],
+      "type": "string"
+    },
     "timestamp": {
-      "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "type": "string"
     }
   },
   "required": [
     "role",
     "content"
-  ]
+  ],
+  "rls": {
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    },
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    }
+  },
+  "type": "object"
 }
