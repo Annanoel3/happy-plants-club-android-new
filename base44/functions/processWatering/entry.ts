@@ -1,10 +1,20 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// "Today" in the USER's calendar, not the server's (UTC). The app sends localDate
+// (YYYY-MM-DD) with every request; without it, fall back to the UTC date.
+const __DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function todayFor(body: any): string {
+    const d = body?.localDate;
+    return (typeof d === 'string' && __DATE_RE.test(d)) ? d : new Date().toISOString().split('T')[0];
+}
+
+
 // Wrapped as a proper backend function (it previously used a frontend-only import,
 // which stopped every backend function in this app from deploying).
 Deno.serve(async (req) => {
     try {
         const body = await req.json();
+        const __body = body;
         const result = await processWatering(req, body || {});
         return Response.json(result);
     } catch (error) {
@@ -40,7 +50,7 @@ async function processWatering(req, { plant_id, notes, watering_date }) {
 
         console.log('🌿 Plant found:', plantData.name);
         
-        const waterDate = watering_date || new Date().toISOString().split('T')[0];
+        const waterDate = watering_date || todayFor(__body);
         const newTotalWaterings = (plantData.total_waterings || 0) + 1;
 
         let newGrowthStage = plantData.growth_stage || 'seedling';
@@ -60,7 +70,7 @@ async function processWatering(req, { plant_id, notes, watering_date }) {
             grewThisWatering = true;
         }
 
-        const nextWatering = new Date(waterDate);
+        const nextWatering = new Date(waterDate + 'T12:00:00Z');
         nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
 
         console.log('💧 Updating plant...');
@@ -138,7 +148,7 @@ async function processWatering(req, { plant_id, notes, watering_date }) {
         }
 
         // Cancel scheduled watering notifications for this plant
-        const today = new Date().toISOString().split('T')[0];
+        const today = todayFor(__body);
         const dailyReminders = await base44.entities.DailyWateringReminder.filter({
             user_email: user.email,
             reminder_date: today

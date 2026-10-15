@@ -1,6 +1,15 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.25";
 import OpenAI from "npm:openai";
 
+// "Today" in the USER's calendar, not the server's (UTC). The app sends localDate
+// (YYYY-MM-DD) with every request; without it, fall back to the UTC date.
+const __DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function todayFor(body: any): string {
+    const d = body?.localDate;
+    return (typeof d === 'string' && __DATE_RE.test(d)) ? d : new Date().toISOString().split('T')[0];
+}
+
+
 Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -9,7 +18,8 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { audio_base64, mime_type } = await req.json();
+    const __body = await req.json();
+    const { audio_base64, mime_type } = __body;
 
     const binaryStr = atob(audio_base64);
     const bytes = new Uint8Array(binaryStr.length);
@@ -76,7 +86,7 @@ Return ONLY valid JSON:
     });
 
     const result = JSON.parse(response.choices[0].message.content);
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayFor(__body);
 
     for (const plantId of result.watered_plant_ids || []) {
         const plant = plants.find(p => p.id === plantId);
@@ -87,7 +97,7 @@ Return ONLY valid JSON:
                 watered_date: today,
                 method: 'voice'
             });
-            const nextWatering = new Date();
+            const nextWatering = new Date(today + 'T12:00:00Z');
             nextWatering.setDate(nextWatering.getDate() + (plant.water_frequency_days || 7));
             await base44.asServiceRole.entities.Plant.update(plantId, {
                 last_watered: today,

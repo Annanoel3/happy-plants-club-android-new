@@ -1,6 +1,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import OpenAI from 'npm:openai@4.73.1';
 
+// "Today" in the USER's calendar, not the server's (UTC). The app sends localDate
+// (YYYY-MM-DD) with every request; without it, fall back to the UTC date.
+const __DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function todayFor(body: any): string {
+    const d = body?.localDate;
+    return (typeof d === 'string' && __DATE_RE.test(d)) ? d : new Date().toISOString().split('T')[0];
+}
+
+
 const openai = new OpenAI({
     apiKey: Deno.env.get("OPENAI_API_KEY"),
 });
@@ -14,7 +23,8 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { plant_names, location, environment } = await req.json();
+        const __body = await req.json();
+        const { plant_names, location, environment } = __body;
 
         if (!plant_names || !Array.isArray(plant_names) || plant_names.length === 0) {
             return Response.json({ error: 'No plant names provided' }, { status: 400 });
@@ -67,11 +77,11 @@ Extract only actual plant names. Skip filler words like "I have a", "and", "also
             return Response.json({ success: false, error: 'Could not identify any plants' }, { status: 400 });
         }
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = todayFor(__body);
         const addedPlants = [];
 
         for (const plantData of plantsData) {
-            const nextWatering = new Date();
+            const nextWatering = new Date(today + 'T12:00:00Z');
             nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
 
             const newPlant = await base44.entities.Plant.create({
