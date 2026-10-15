@@ -830,7 +830,6 @@ export default function PlantDetail() {
                         <Edit className="w-5 h-5" strokeWidth={2.25} />
                       </Button>
                       <Button
-                        variant="outline"
                         size="icon"
                         onClick={() => {
                           if (confirm('Are you sure you want to remove this plant?')) {
