@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { usePhotoSource } from "@/components/PhotoSourceSheet";
+import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { base44 } from "@/api/base44Client";
 import { Camera, Image, Heart, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -152,16 +154,28 @@ export default function PlantHealthCheck({ plant }) {
                   id="health-gallery-input"
                 />
                 <div className="flex gap-3 justify-center">
-                  <label htmlFor="health-camera-input">
-                    <Button asChild className="bg-green-600 hover:bg-green-700 cursor-pointer">
-                      <span className="flex items-center gap-2"><Camera className="w-4 h-4" /> Camera</span>
-                    </Button>
-                  </label>
-                  <label htmlFor="health-gallery-input">
-                    <Button asChild variant="outline" className="cursor-pointer">
-                      <span className="flex items-center gap-2"><Image className="w-4 h-4" /> Gallery</span>
-                    </Button>
-                  </label>
+                  <Button
+                    type="button"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={async () => {
+                      try {
+                        const files = await pickPhotos('camera');
+                        if (files.length) handleImageSelect(asChangeEvent(files));
+                      } catch (err) { toast.error(err?.message || 'Could not open the camera'); }
+                    }}
+                  >
+                    <Camera className="w-4 h-4 mr-2" strokeWidth={2.25} /> Camera
+                  </Button>
+                  <Button
+                    type="button"
+                    className="bg-gray-900 hover:bg-black text-white"
+                    onClick={async () => {
+                      const files = await pickPhotos('gallery');
+                      if (files.length) handleImageSelect(asChangeEvent(files));
+                    }}
+                  >
+                    <Image className="w-4 h-4 mr-2" strokeWidth={2.25} /> Gallery
+                  </Button>
                 </div>
               </div>
             ) : (

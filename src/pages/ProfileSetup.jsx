@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { usePhotoSource } from "@/components/PhotoSourceSheet";
+import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { Camera, Sparkles } from "lucide-react";
@@ -19,6 +21,8 @@ export default function ProfileSetup() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const avatarPhoto = usePhotoSource((files) => handleProfilePictureUploadRef.current?.(asChangeEvent(files)), { title: 'Profile picture' });
+  const handleProfilePictureUploadRef = useRef(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   useEffect(() => {
@@ -151,6 +155,7 @@ export default function ProfileSetup() {
       setIsUploading(false);
     }
   };
+  handleProfilePictureUploadRef.current = handleProfilePictureUpload;
 
   const handleSave = async () => {
     if (!handle.trim()) {
@@ -256,8 +261,9 @@ export default function ProfileSetup() {
                   </AvatarFallback>
                 </Avatar>
                 <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute bottom-0 right-0 bg-green-600 text-white p-2 rounded-full shadow-lg hover:bg-green-700"
+                  onClick={avatarPhoto.openPicker}
+                  aria-label="Change profile picture"
+                  className="absolute bottom-0 right-0 bg-green-600 text-white p-2 rounded-full shadow-lg ring-2 ring-white hover:bg-green-700"
                 >
                   {isUploading ? (
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -265,13 +271,7 @@ export default function ProfileSetup() {
                     <Camera className="w-5 h-5" />
                   )}
                 </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProfilePictureUpload}
-                  className="hidden"
-                />
+                {avatarPhoto.sheet}
               </div>
             </div>
 

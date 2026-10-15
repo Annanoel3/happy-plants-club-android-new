@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { usePhotoSource } from "@/components/PhotoSourceSheet";
+import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { localToday, toLocalDateString } from '@/lib/dates';
 import { refreshPlantData } from '@/lib/query-client';
 import { base44 } from "@/api/base44Client";
@@ -356,7 +358,12 @@ export default function AddPlant() {
               onChange={handleImageCapture}
               className="hidden"
             />
-            <button className="w-full cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+            <button className="w-full cursor-pointer" onClick={async () => {
+              try {
+                const files = await pickPhotos('camera');
+                if (files.length) handleImageCapture(asChangeEvent(files));
+              } catch (err) { toast.error(err?.message || 'Could not open the camera'); }
+            }}>
               <Card className={`${getThemedClasses()} hover:scale-[1.02] transition-all`}>
                 <CardContent className="p-6 flex items-center gap-4">
                   <div className="w-16 h-16 bg-green-600 rounded-2xl flex items-center justify-center">
@@ -371,7 +378,10 @@ export default function AddPlant() {
               </Card>
             </button>
 
-            <button className="w-full cursor-pointer" onClick={() => galleryInputRef.current?.click()}>
+            <button className="w-full cursor-pointer" onClick={async () => {
+              const files = await pickPhotos('gallery', { multiple: true });
+              if (files.length) handleImageCapture(asChangeEvent(files));
+            }}>
               <Card className={`${getThemedClasses()} hover:scale-[1.02] transition-all`}>
                 <CardContent className="p-6 flex items-center gap-4">
                   <div className="w-16 h-16 bg-teal-600 rounded-2xl flex items-center justify-center">
