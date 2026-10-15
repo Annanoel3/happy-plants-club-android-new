@@ -301,8 +301,10 @@ function ScrollReveal({ children, index }) {
   );
 }
 
-export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect, stackIndex = 0, viewMode = 'stack', showHeader = true }) {
+export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect, onSelectGroup, stackIndex = 0, viewMode = 'stack', showHeader = true }) {
   const [expanded, setExpanded] = useState(false);
+  const groupIds = plants.map(p => p.id);
+  const allGroupSelected = selectMode && groupIds.length > 0 && groupIds.every(id => selectedIds?.includes(id));
 
   const isOpen = expanded || selectMode;
   const stackHeight = isOpen
@@ -317,7 +319,7 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
       {/* Section header — compact pill style */}
       {showHeader && (
       <button
-        className="flex items-center gap-2 mb-3 px-1"
+        className={`flex items-center gap-2 mb-3 px-1 ${selectMode ? 'w-full' : ''}`}
         onClick={() => !selectMode && viewMode === 'stack' && setExpanded(e => !e)}
       >
         <span className={`text-xs font-bold uppercase tracking-widest ${secondaryTextColor} opacity-70`}>{displayType}</span>
@@ -328,6 +330,15 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
           isOpen
             ? <ChevronUp className={`w-3 h-3 ${secondaryTextColor} opacity-60`} />
             : <ChevronDown className={`w-3 h-3 ${secondaryTextColor} opacity-60`} />
+        )}
+        {selectMode && onSelectGroup && (
+          <span
+            role="button"
+            onClick={(e) => { e.stopPropagation(); onSelectGroup(groupIds, !allGroupSelected); }}
+            className="ml-auto text-[11px] font-bold px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-400"
+          >
+            {allGroupSelected ? 'Deselect all' : 'Select all'}
+          </span>
         )}
       </button>
       )}
