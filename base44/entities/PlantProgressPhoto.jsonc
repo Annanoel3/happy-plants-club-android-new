@@ -1,21 +1,20 @@
 {
   "name": "PlantProgressPhoto",
-  "type": "object",
   "properties": {
+    "image_url": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "photo_date": {
+      "format": "date",
+      "type": "string"
+    },
     "plant_id": {
       "type": "string"
     },
     "plant_name": {
-      "type": "string"
-    },
-    "image_url": {
-      "type": "string"
-    },
-    "photo_date": {
-      "type": "string",
-      "format": "date"
-    },
-    "notes": {
       "type": "string"
     }
   },
@@ -23,5 +22,17 @@
     "plant_id",
     "image_url",
     "photo_date"
-  ]
+  ],
+  "rls": {
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    },
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    }
+  },
+  "type": "object"
 }
