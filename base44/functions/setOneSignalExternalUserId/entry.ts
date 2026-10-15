@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// OneSignal auth: new keys (os_v2_...) use "Key", legacy keys use "Basic".
+function osAuth(key: string | undefined | null): string {
+    const k = (key || '').trim();
+    return k.startsWith('os_v2') ? `Key ${k}` : `Basic ${k}`;
+}
+
+
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
@@ -27,11 +34,11 @@ Deno.serve(async (req) => {
         console.log(`Linking player ${playerId} → external_id: ${externalId}`);
 
         // Use the OneSignal Users API to set the alias on this subscription (player)
-        const response = await fetch(`https://onesignal.com/api/v1/apps/${appId}/users/by/onesignal_id/${playerId}/identity`, {
+        const response = await fetch(`https://api.onesignal.com/apps/${appId}/users/by/onesignal_id/${playerId}/identity`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Basic ${restApiKey}`
+                'Authorization': osAuth(restApiKey)
             },
             body: JSON.stringify({
                 identity: {
@@ -46,11 +53,11 @@ Deno.serve(async (req) => {
         if (!response.ok) {
             // Fallback: try the old players API with external_user_id
             console.log('Identity API failed, trying legacy players API...');
-            const legacyResp = await fetch(`https://onesignal.com/api/v1/players/${playerId}`, {
+            const legacyResp = await fetch(`https://api.onesignal.com/players/${playerId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Basic ${restApiKey}`
+                    'Authorization': osAuth(restApiKey)
                 },
                 body: JSON.stringify({
                     app_id: appId,

@@ -1,3 +1,10 @@
+
+// OneSignal auth: new keys (os_v2_...) use "Key", legacy keys use "Basic".
+function osAuth(key: string | undefined | null): string {
+    const k = (key || '').trim();
+    return k.startsWith('os_v2') ? `Key ${k}` : `Basic ${k}`;
+}
+
 // Temporary diagnostic: looks up a user in OneSignal by external_id (their email),
 // reports their push subscriptions, and optionally sends a test push via include_aliases.
 // Guarded by a one-off header so it can't be used to spam anyone.
@@ -14,7 +21,7 @@ Deno.serve(async (req) => {
     const rest = (Deno.env.get('ONESIGNAL_REST_API_KEY') || '').trim();
     const out: Record<string, unknown> = { appIdSet: !!appId, keySet: !!rest, keyPrefix: rest.slice(0, 6), keyLen: rest.length };
 
-    const auth = rest.startsWith('os_v2') ? `Key ${rest}` : `Basic ${rest}`;
+    const auth = rest.startsWith('os_v2') ? `Key ${rest}` : osAuth(rest);
     out.authStyle = auth.split(' ')[0];
 
     // 1) Who does OneSignal think this email is?
@@ -41,13 +48,12 @@ Deno.serve(async (req) => {
     }
     // 3) Reproduce exactly what the existing functions do, to confirm the failure mode.
     if (body.legacy) {
-        const r = await fetch('https://onesignal.com/api/v1/notifications', {
+        const r = await fetch('https://api.onesignal.com/notifications', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Basic ${rest}` },
+            headers: { 'Content-Type': 'application/json', Authorization: osAuth(rest) },
             body: JSON.stringify({
                 app_id: appId,
-                include_external_user_ids: [email],
-                channel_for_external_user_ids: 'push',
+                include_aliases: { external_id: [email] }, target_channel: 'push',
                 headings: { en: 'legacy test' },
                 contents: { en: 'legacy test' },
             }),

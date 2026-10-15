@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// OneSignal auth: new keys (os_v2_...) use "Key", legacy keys use "Basic".
+function osAuth(key: string | undefined | null): string {
+    const k = (key || '').trim();
+    return k.startsWith('os_v2') ? `Key ${k}` : `Basic ${k}`;
+}
+
+
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req, { serviceRole: true });
@@ -30,10 +37,10 @@ Deno.serve(async (req) => {
             
             for (const notifId of reminder.scheduled_notification_ids) {
                 try {
-                    await fetch(`https://onesignal.com/api/v1/notifications/${notifId}`, {
+                    await fetch(`https://api.onesignal.com/notifications/${notifId}`, {
                         method: 'DELETE',
                         headers: {
-                            'Authorization': `Basic ${onesignalApiKey}`,
+                            'Authorization': osAuth(onesignalApiKey),
                             'Content-Type': 'application/json; charset=utf-8'
                         }
                     });

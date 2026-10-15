@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// OneSignal auth: new keys (os_v2_...) use "Key", legacy keys use "Basic".
+function osAuth(key: string | undefined | null): string {
+    const k = (key || '').trim();
+    return k.startsWith('os_v2') ? `Key ${k}` : `Basic ${k}`;
+}
+
+
 Deno.serve(async (req) => {
     console.log('[schedulePush] ========== FUNCTION START ==========');
     
@@ -31,11 +38,10 @@ Deno.serve(async (req) => {
 
         const notificationPayload = {
             app_id: appId,
-            include_external_user_ids: [String(toUserExternalId)],
+            include_aliases: { external_id: [String(toUserExternalId)] }, target_channel: 'push',
             headings: { en: title },
             contents: { en: messageBody },
             data: data || {},
-            channel_for_external_user_ids: "push",
             // Scheduling
             ...(sendAtISO && { send_after: sendAtISO }),
             ...((minutesFromNow !== undefined && !sendAtISO) && {
@@ -51,11 +57,11 @@ Deno.serve(async (req) => {
 
         console.log('[schedulePush] Sending payload:', JSON.stringify(notificationPayload, null, 2));
 
-        const oneSignalResponse = await fetch("https://onesignal.com/api/v1/notifications", {
+        const oneSignalResponse = await fetch("https://api.onesignal.com/notifications", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Basic ${restApiKey}`
+                'Authorization': osAuth(restApiKey)
             },
             body: JSON.stringify(notificationPayload)
         });

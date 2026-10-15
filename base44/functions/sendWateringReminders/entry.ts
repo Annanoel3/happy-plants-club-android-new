@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// OneSignal auth: new keys (os_v2_...) use "Key", legacy keys use "Basic".
+function osAuth(key: string | undefined | null): string {
+    const k = (key || '').trim();
+    return k.startsWith('os_v2') ? `Key ${k}` : `Basic ${k}`;
+}
+
+
 function getTodayInTimezone(timezone) {
     const now = new Date();
     const parts = new Intl.DateTimeFormat('en-US', {
@@ -130,11 +137,11 @@ Deno.serve(async (req) => {
                 osPayload.send_after = sendTimeUTC.toUTCString();
             }
             
-            const osResponse = await fetch("https://onesignal.com/api/v1/notifications", {
+            const osResponse = await fetch("https://api.onesignal.com/notifications", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization": `Basic ${rest.trim()}`
+                    "Authorization": osAuth(rest.trim())
                 },
                 body: JSON.stringify(osPayload)
             });

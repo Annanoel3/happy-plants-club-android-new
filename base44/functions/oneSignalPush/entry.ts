@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// OneSignal auth: new keys (os_v2_...) use "Key", legacy keys use "Basic".
+function osAuth(key: string | undefined | null): string {
+    const k = (key || '').trim();
+    return k.startsWith('os_v2') ? `Key ${k}` : `Basic ${k}`;
+}
+
+
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
@@ -21,8 +28,7 @@ Deno.serve(async (req) => {
 
         const payload = {
             app_id: appId.trim(),
-                    include_external_user_ids: [String(targetEmail)],
-                    channel_for_external_user_ids: 'push',
+                    include_aliases: { external_id: [String(targetEmail)] }, target_channel: 'push',
             headings: { en: title },
             contents: { en: message },
             data: data || {}
@@ -35,11 +41,11 @@ Deno.serve(async (req) => {
 
         console.log('Sending push via external_id to:', targetEmail);
 
-        const response = await fetch("https://onesignal.com/api/v1/notifications", {
+        const response = await fetch("https://api.onesignal.com/notifications", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Basic ${rest.trim()}`
+                "Authorization": osAuth(rest.trim())
             },
             body: JSON.stringify(payload)
         });

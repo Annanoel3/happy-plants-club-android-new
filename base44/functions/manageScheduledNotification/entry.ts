@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// OneSignal auth: new keys (os_v2_...) use "Key", legacy keys use "Basic".
+function osAuth(key: string | undefined | null): string {
+    const k = (key || '').trim();
+    return k.startsWith('os_v2') ? `Key ${k}` : `Basic ${k}`;
+}
+
+
 Deno.serve(async (req) => {
     console.log('[manageScheduledNotification] ========== FUNCTION START ==========');
     
@@ -32,11 +39,11 @@ Deno.serve(async (req) => {
 
             console.log('[manageScheduledNotification] Canceling notification:', onesignalNotificationId);
 
-            const cancelResponse = await fetch(`https://onesignal.com/api/v1/notifications/${onesignalNotificationId}?app_id=${appId}`, {
+            const cancelResponse = await fetch(`https://api.onesignal.com/notifications/${onesignalNotificationId}?app_id=${appId}`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Basic ${restApiKey}`
+                    'Authorization': osAuth(restApiKey)
                 }
             });
 
@@ -63,10 +70,9 @@ Deno.serve(async (req) => {
 
             const notificationPayload = {
                 app_id: appId,
-                include_external_user_ids: [toUserEmail],
+                include_aliases: { external_id: [toUserEmail] }, target_channel: 'push',
                 headings: { en: title },
                 contents: { en: messageBody },
-                channel_for_external_user_ids: 'push'
             };
 
             // Handle scheduling
@@ -85,11 +91,11 @@ Deno.serve(async (req) => {
 
             console.log('[manageScheduledNotification] Creating scheduled notification:', JSON.stringify(notificationPayload, null, 2));
 
-            const response = await fetch('https://onesignal.com/api/v1/notifications', {
+            const response = await fetch('https://api.onesignal.com/notifications', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Basic ${restApiKey}`
+                    'Authorization': osAuth(restApiKey)
                 },
                 body: JSON.stringify(notificationPayload)
             });
