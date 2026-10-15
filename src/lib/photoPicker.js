@@ -31,8 +31,8 @@ function pickWithInput({ capture = false, multiple = false } = {}) {
     let settled = false;
     const done = (files) => { if (settled) return; settled = true; input.remove(); resolve(files); };
     input.addEventListener('change', () => done(Array.from(input.files || [])));
-    // If the picker is dismissed, resolve empty when focus returns.
-    window.addEventListener('focus', () => setTimeout(() => done(Array.from(input.files || [])), 1500), { once: true });
+    // Chrome/WebView fire 'cancel' when the picker is dismissed without a choice.
+    input.addEventListener('cancel', () => done([]));
     document.body.appendChild(input);
     input.click();
   });
