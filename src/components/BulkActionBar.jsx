@@ -29,6 +29,9 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
   const [loading, setLoading] = useState(null);
   const [showLocationMenu, setShowLocationMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [showWaterMenu, setShowWaterMenu] = useState(false);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [waterDate, setWaterDate] = useState(todayStr);
   const [newLocationInput, setNewLocationInput] = useState('');
   const [newLocationEnv, setNewLocationEnv] = useState('Indoor');
   const [showNewLocationInput, setShowNewLocationInput] = useState(false);
@@ -59,13 +62,16 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
     }
   };
 
-  const handleWaterAll = async () => {
+  // Logs a watering for every selected plant on `today` (defaults to today, can be a past day).
+  const handleWaterAll = async (dateStr) => {
+    setShowWaterMenu(false);
     setLoading('water');
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateStr || todayStr;
     try {
       const plantRows = selectedPlants.map(plant => {
         const freq = plant.water_frequency_days || 7;
-        const next = new Date();
+        // Next due date counts from the day it was actually watered, not from today.
+        const next = new Date(today + 'T12:00:00');
         next.setDate(next.getDate() + freq);
         return {
           id: plant.id,
@@ -227,6 +233,62 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
         )}
       </AnimatePresence>
 
+      {/* Water submenu: today, yesterday, or any past date */}
+      <AnimatePresence>
+        {showWaterMenu && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="mx-4 mb-2 rounded-2xl overflow-hidden bg-gray-900 border border-white/10 shadow-2xl"
+          >
+            <p className="text-white/50 text-xs font-bold px-4 pt-3 pb-2 uppercase tracking-widest">When were they watered?</p>
+            <div className="flex gap-2 px-4 pb-3">
+              <button
+                onClick={() => handleWaterAll(todayStr)}
+                className="flex-1 text-sm font-bold py-2.5 rounded-xl bg-blue-600 text-white"
+              >
+                Today
+              </button>
+              <button
+                onClick={() => {
+                  const d = new Date(); d.setDate(d.getDate() - 1);
+                  handleWaterAll(d.toISOString().split('T')[0]);
+                }}
+                className="flex-1 text-sm font-bold py-2.5 rounded-xl bg-white/10 text-white"
+              >
+                Yesterday
+              </button>
+            </div>
+            <div className="px-4 pb-3">
+              <p className="text-white/30 text-xs font-bold pb-1 uppercase tracking-widest">Or pick a day</p>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={waterDate}
+                  max={todayStr}
+                  onChange={e => setWaterDate(e.target.value)}
+                  className="flex-1 bg-white/10 text-white text-sm px-3 py-2 rounded-xl outline-none border border-white/20"
+                />
+                <button
+                  onClick={() => waterDate && waterDate <= todayStr && handleWaterAll(waterDate)}
+                  disabled={!waterDate || waterDate > todayStr}
+                  className="bg-blue-600 text-white px-3 py-2 rounded-xl disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowWaterMenu(false)}
+              className="w-full py-3 text-sm text-white/40 border-t border-white/10"
+            >
+              Cancel
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Status submenu */}
       <AnimatePresence>
         {showStatusMenu && (
@@ -290,7 +352,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
             color="text-blue-400"
             loading={loading === 'water'}
             disabled={count === 0}
-            onClick={handleWaterAll}
+            onClick={() => { setShowLocationMenu(false); setShowStatusMenu(false); setShowWaterMenu(v => !v); }}
           />
 
           {/* Location */}
@@ -300,7 +362,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
             color="text-emerald-400"
             loading={loading === 'location'}
             disabled={count === 0}
-            onClick={() => { setShowStatusMenu(false); setShowLocationMenu(v => !v); }}
+            onClick={() => { setShowStatusMenu(false); setShowWaterMenu(false); setShowLocationMenu(v => !v); }}
           />
 
           {/* Status */}
@@ -310,7 +372,7 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
             color="text-amber-400"
             loading={loading === 'status'}
             disabled={count === 0}
-            onClick={() => { setShowLocationMenu(false); setShowStatusMenu(v => !v); }}
+            onClick={() => { setShowLocationMenu(false); setShowWaterMenu(false); setShowStatusMenu(v => !v); }}
           />
 
           {/* Pin */}
