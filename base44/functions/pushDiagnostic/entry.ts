@@ -39,5 +39,20 @@ Deno.serve(async (req) => {
         });
         out.send = { status: r.status, body: await r.json().catch(() => ({})) };
     }
+    // 3) Reproduce exactly what the existing functions do, to confirm the failure mode.
+    if (body.legacy) {
+        const r = await fetch('https://onesignal.com/api/v1/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Basic ${rest}` },
+            body: JSON.stringify({
+                app_id: appId,
+                include_external_user_ids: [email],
+                channel_for_external_user_ids: 'push',
+                headings: { en: 'legacy test' },
+                contents: { en: 'legacy test' },
+            }),
+        });
+        out.legacy = { status: r.status, body: await r.json().catch(() => ({})) };
+    }
     return Response.json(out);
 });
