@@ -822,12 +822,12 @@ export default function PlantDetail() {
                     </div>
                     <div className="flex gap-2">
                       <Button
-                        variant="outline"
                         size="icon"
                         onClick={() => setShowEditDialog(true)}
-                        className={`${getThemedClasses()} ${getTextColor()}`}
+                        aria-label="Edit plant"
+                        className="bg-white text-gray-900 hover:bg-gray-100 border border-gray-300 shadow"
                       >
-                        <Edit className="w-4 h-4" />
+                        <Edit className="w-5 h-5" strokeWidth={2.25} />
                       </Button>
                       <Button
                         variant="outline"
@@ -837,9 +837,10 @@ export default function PlantDetail() {
                             deletePlantMutation.mutate();
                           }
                         }}
-                        className={getThemedClasses()}
+                        aria-label="Remove plant"
+                        className="bg-red-600 text-white hover:bg-red-700 shadow"
                       >
-                        <Trash2 className="w-4 h-4 text-red-600" />
+                        <Trash2 className="w-5 h-5" strokeWidth={2.25} />
                       </Button>
                     </div>
                   </div>
