@@ -395,8 +395,8 @@ export default function Schedule() {
         </div>
 
         {view === 'calendar' ? (
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="md:col-span-2">
+          <div className="grid gap-6">
+            <div>
               <Card className={getThemedClasses()}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-6">

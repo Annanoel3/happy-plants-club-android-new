@@ -75,7 +75,7 @@ export default function SharedGardenView() {
           <p className="text-gray-500 mt-2">🌱 {plants.length} plant{plants.length !== 1 ? 's' : ''}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           {plants.map((plant) => (
             <Card key={plant.id} className="overflow-hidden hover:shadow-lg transition">
               {plant.image_url && (

@@ -699,7 +699,7 @@ export default function PlantDetail() {
                       onClick={() => removeTagMutation.mutate(tag)}
                     >
                       {tag}
-                      <X className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <X className="w-3.5 h-3.5 ml-1" strokeWidth={2.5} aria-label="Remove tag" />
                     </Badge>
                   ))
                 ) : (
@@ -718,7 +718,7 @@ export default function PlantDetail() {
             <TabsTrigger value="progress" className={`${isThemeLight(theme) ? 'data-[state=active]:bg-green-100 data-[state=active]:text-green-700' : 'data-[state=active]:bg-green-700 data-[state=active]:text-white'} rounded-lg px-3 py-2`}>Progress</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="details" className="grid md:grid-cols-2 gap-6">
+          <TabsContent value="details" className="grid gap-6">
             <div>
               <Card className={`${getThemedClasses()} overflow-hidden shadow-xl mb-4`}>
                 <div className="relative h-80 bg-green-50 group">

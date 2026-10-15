@@ -250,11 +250,11 @@ export default function SearchPage() {
     <div className="min-h-screen theme-bg p-6 pb-24">
       <div className="max-w-2xl mx-auto w-full">
         <div className={`mb-6 rounded-2xl p-4 ${getThemedClasses()}`}>
-          <h1 className={`text-3xl md:text-4xl font-bold mb-2 ${getTextColor()}`}>Find Friends</h1>
-          <p className={`text-sm md:text-base ${getSecondaryTextColor()}`}>Connect with other plant lovers</p>
+          <h1 className={`text-3xl font-bold mb-2 ${getTextColor()}`}>Find Friends</h1>
+          <p className={`text-sm ${getSecondaryTextColor()}`}>Connect with other plant lovers</p>
         </div>
 
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-3 px-3 md:mx-0 md:px-0">
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-3 px-3">
           <Button
             onClick={() => setActiveTab('search')}
             variant={activeTab === 'search' ? 'default' : 'outline'}

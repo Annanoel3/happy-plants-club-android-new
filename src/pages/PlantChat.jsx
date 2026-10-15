@@ -292,7 +292,7 @@ export default function PlantChat() {
           <div className="flex items-center gap-2">
             <button
               onClick={toggleSidebar}
-              className={`md:hidden p-2 rounded-lg transition-opacity hover:opacity-70 ${getTextColor()}`}
+              className={`p-2 rounded-lg transition-opacity hover:opacity-70 ${getTextColor()}`}
             >
               <PanelLeft className="w-5 h-5" />
             </button>

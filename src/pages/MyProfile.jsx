@@ -221,7 +221,7 @@ export default function MyProfile() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               {plants.map((plant) => {
                 let displayName = '';
                 if (plant.nickname) {

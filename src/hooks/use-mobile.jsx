@@ -1,19 +1,6 @@
-import * as React from "react"
-
-const MOBILE_BREAKPOINT = 768
-
+// Happy Plants is a phone app only. On wide phones (e.g. an unfolded Galaxy Fold,
+// ~880px) the old 768px check flipped the app into its desktop layout (docked
+// sidebar, hidden phone menu buttons). Always use the phone layout.
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState(undefined)
-
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    }
-    mql.addEventListener("change", onChange)
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    return () => mql.removeEventListener("change", onChange);
-  }, [])
-
-  return !!isMobile
+  return true
 }

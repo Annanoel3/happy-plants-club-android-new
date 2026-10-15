@@ -398,7 +398,7 @@ export default function Profile() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 {userPlants.map((plant) => {
                   let displayName = '';
                   if (plant.nickname) {
