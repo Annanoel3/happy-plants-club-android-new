@@ -1,18 +1,39 @@
 {
   "name": "Block",
-  "type": "object",
   "properties": {
-    "blocker_email": {
-      "type": "string",
-      "description": "Email of the user doing the blocking"
-    },
     "blocked_email": {
-      "type": "string",
-      "description": "Email of the user being blocked"
+      "description": "Email of the user being blocked",
+      "type": "string"
+    },
+    "blocker_email": {
+      "description": "Email of the user doing the blocking",
+      "type": "string"
     }
   },
   "required": [
     "blocker_email",
     "blocked_email"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "data.blocker_email": "{{user.email}}"
+    },
+    "delete": {
+      "data.blocker_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.blocker_email": "{{user.email}}"
+        },
+        {
+          "data.blocked_email": "{{user.email}}"
+        }
+      ]
+    },
+    "update": {
+      "data.blocker_email": "{{user.email}}"
+    }
+  },
+  "type": "object"
 }
