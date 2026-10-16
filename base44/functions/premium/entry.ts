@@ -7,7 +7,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 // RevenueCat app user id = Base44 user id (not the email).
 
 const AI_LIMITS: Record<string, { free: number; plus: number }> = {
-    identify: { free: 25, plus: 200 }, // adding plants uses this; a whole shelf in one go must fit
+    identify: { free: 10, plus: 200 }, // adding plants uses this; a whole shelf in one go must fit
     health: { free: 3, plus: 25 },
     chat: { free: 20, plus: 200 },
 };

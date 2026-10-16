@@ -9,7 +9,7 @@ const openai = new OpenAI({
 // Usage is always counted (AiUsage). Limits are only enforced once the secret
 // AI_LIMITS_ON is "true" — i.e. after people can actually buy Plus.
 const AI_LIMITS: Record<string, { free: number; plus: number }> = {
-    identify: { free: 25, plus: 200 }, // adding plants uses this; a whole shelf in one go must fit
+    identify: { free: 10, plus: 200 }, // adding plants uses this; a whole shelf in one go must fit
     health: { free: 3, plus: 25 },
     chat: { free: 20, plus: 200 },
 };
