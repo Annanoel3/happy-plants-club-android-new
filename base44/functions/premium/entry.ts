@@ -20,7 +20,7 @@ function localDay(tz?: string): string {
     return `${p.year}-${p.month}-${p.day}`;
 }
 
-export async function fetchRevenueCat(appUserId: string) {
+async function fetchRevenueCat(appUserId: string) {
     const key = (Deno.env.get('REVENUECAT_SECRET_KEY') || '').trim();
     if (!key) return { configured: false as const };
     const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}`, {
@@ -50,7 +50,7 @@ export async function fetchRevenueCat(appUserId: string) {
     };
 }
 
-export async function saveSubscription(db: any, userId: string, email: string | null, info: any, event: string) {
+async function saveSubscription(db: any, userId: string, email: string | null, info: any, event: string) {
     const existing = (await db.Subscription.filter({ user_id: userId }))?.[0];
     const row = {
         user_id: userId,
