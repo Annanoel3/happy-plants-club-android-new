@@ -259,33 +259,15 @@ export default function PlantDetail() {
       const nextWatering = new Date(waterDate + 'T12:00:00');
       nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
 
-      // Update user stats
-      const newLifetimeWaterings = (user.lifetime_waterings || 0) + 1;
-      let newTotalPlantGrowths = (user.total_plant_growths || 0);
-
-      if (grewThisWatering) {
-        newTotalPlantGrowths++;
-      }
-
-      let tier = 'New Sprout';
-      if (newLifetimeWaterings >= 200) {
-        tier = 'Legendary Botanist';
-      } else if (newLifetimeWaterings >= 100) {
-        tier = 'Plant Whisperer';
-      } else if (newLifetimeWaterings >= 50) {
-        tier = 'Master Gardener';
-      } else if (newLifetimeWaterings >= 25) {
-        tier = 'Gold Thumb';
-      } else if (newLifetimeWaterings >= 10) {
-        tier = 'Green Thumb';
-      }
+      // Your stats, tier and achievements are recomputed on the server from your
+      // watering history right after this (lib/stats.js) — no +1 counters to drift.
 
       // These four writes/reads don't depend on each other, so they go out together.
       // Previously each one waited for the last (plant -> log -> user -> events), which
       // is why a single watering felt slow on a phone connection.
       // Logging an older day than the latest watering must not move the schedule backwards.
       const isNewest = !plantData.last_watered || waterDate >= plantData.last_watered;
-      const [, , , events] = await Promise.all([
+      const [, , events] = await Promise.all([
         base44.entities.Plant.update(plantId, {
           total_waterings: newTotalWaterings,
           growth_stage: newGrowthStage,
@@ -298,11 +280,6 @@ export default function PlantDetail() {
           watered_date: waterDate,
           method: 'manual',
           notes: wateringNotes || null,
-        }),
-        base44.auth.updateMe({
-          lifetime_waterings: newLifetimeWaterings,
-          current_tier: tier,
-          total_plant_growths: newTotalPlantGrowths,
         }),
         base44.entities.GameEvent.filter({ resolved: false }),
       ]);
@@ -325,10 +302,6 @@ export default function PlantDetail() {
         success: true,
         grew: grewThisWatering,
         growth_stage: newGrowthStage,
-        new_tier: tier,
-        tier_changed: tier !== user.current_tier,
-        total_waterings: newLifetimeWaterings,
-        total_plant_growths: newTotalPlantGrowths,
       };
     },
     onSuccess: (data) => {
@@ -351,10 +324,6 @@ export default function PlantDetail() {
         toast.success(`🌱 Your plant grew to ${data.growth_stage}!`);
       } else {
         toast.success('Plant watered! 💧');
-      }
-
-      if (data?.tier_changed) {
-        toast.success(`🏆 You reached ${data.new_tier}!`);
       }
 
       // One interstitial per watering (fire-and-forget)
