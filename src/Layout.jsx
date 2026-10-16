@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Home, Calendar, MessageCircle, Settings, Sun, Moon, Leaf, User, Search } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { scheduleStatsSync } from "@/lib/stats";
+import { getPremiumStatus } from "@/lib/premium";
 import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
@@ -379,6 +380,8 @@ export default function Layout({ children, currentPageName }) {
       if (Object.keys(patch).length) base44.auth.updateMe(patch).catch(() => {});
       // Keep stats/achievements true to your history (also fixes old +1 counters)
       scheduleStatsSync(4000);
+      // Plus status (no ads / higher AI limits) — keep the on-device flag current
+      getPremiumStatus().catch(() => {});
     } catch { /* never block the app on this */ }
   };
 

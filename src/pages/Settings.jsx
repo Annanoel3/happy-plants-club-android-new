@@ -289,6 +289,18 @@ export default function Settings() {
         </div>
 
         <div className="space-y-6">
+          {/* Happy Plants Plus */}
+          <button
+            onClick={() => navigate('/Premium')}
+            className="w-full text-left rounded-2xl p-5 text-white bg-gradient-to-br from-green-700 to-emerald-900 shadow flex items-center justify-between gap-4"
+          >
+            <div>
+              <p className="font-bold text-lg">🌿 Happy Plants Plus</p>
+              <p className="text-green-50 text-sm">No ads and 10× more AI. Manage or restore your subscription.</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-white text-green-800 font-semibold text-sm px-3 py-1.5">Open</span>
+          </button>
+
           {/* Profile Settings */}
            <Card className={getThemedClasses()}>
              <CardContent className="p-6">
