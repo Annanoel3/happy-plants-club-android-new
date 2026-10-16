@@ -58,9 +58,12 @@ async function saveSubscription(db: any, userId: string, email: string | null, i
 }
 
 Deno.serve(async (req) => {
+    // Base44 only lets "Bearer ..." Authorization headers through, so in RevenueCat set the
+    // header to: Bearer <REVENUECAT_WEBHOOK_AUTH>. (?key=<same value> on the URL also works.)
     const expected = (Deno.env.get('REVENUECAT_WEBHOOK_AUTH') || '').trim();
     const got = (req.headers.get('authorization') || '').trim();
-    if (!expected || (got !== expected && got !== `Bearer ${expected}`)) {
+    const qkey = new URL(req.url).searchParams.get('key') || '';
+    if (!expected || (got !== expected && got !== `Bearer ${expected}` && qkey !== expected)) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
     try {
@@ -74,7 +77,8 @@ Deno.serve(async (req) => {
         // Our app user ids are Base44 user ids; find the one that exists
         let user: any = null;
         for (const id of [...new Set(ids)]) {
-            user = (await db.User.filter({ id }))?.[0];
+            if (!/^[a-f0-9]{24}$/i.test(id)) continue; // Base44 ids only
+            try { user = (await db.User.filter({ id }))?.[0]; } catch { user = null; }
             if (user) break;
         }
         if (!user) {
