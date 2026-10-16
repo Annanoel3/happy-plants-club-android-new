@@ -16,6 +16,7 @@ import Search from './pages/Search';
 import FollowRequests from './pages/FollowRequests';
 import TermsAndConditions from './pages/TermsAndConditions';
 import VacationReview from './pages/VacationReview';
+import Premium from './pages/Premium';
 import __Layout from './Layout.jsx';
 
 
@@ -28,6 +29,7 @@ export const PAGES = {
     "Welcome": Welcome,
     "Schedule": Schedule,
     "Settings": Settings,
+    "Premium": Premium,
     "PrivacyPolicy": PrivacyPolicy,
     "Feed": Feed,
     "Profile": Profile,
