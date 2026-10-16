@@ -43,6 +43,9 @@ export default function DeleteAccount() {
           <p className="text-sm text-muted-foreground">
             Deleting your account will permanently remove all your plants and data from Happy Plants. This action cannot be reversed.
           </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            If you have Happy Plants Plus, deleting your account does <b>not</b> cancel it. Cancel it first in Google Play → Payments &amp; subscriptions → Subscriptions.
+          </p>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" className="w-full border-red-500 text-red-500 hover:bg-red-50">
