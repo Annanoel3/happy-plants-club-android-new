@@ -117,6 +117,9 @@ Deno.serve(async (req) => {
             const d = String(p.created_date || '').slice(0, 10);
             if (d && (!firstDay || d < firstDay)) firstDay = d;
         }
+        // Plants deleted/re-added over time still count: use when you joined, if you have plants
+        const joined = String(user.created_date || '').slice(0, 10);
+        if (plants.length && joined && (!firstDay || joined < firstDay)) firstDay = joined;
 
         const waterings = plantDays.size;
 
