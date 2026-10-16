@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import ShareGardenCard from "@/components/ShareGardenCard";
 
 export default function MyProfile() {
   const navigate = useNavigate();
@@ -211,6 +212,12 @@ export default function MyProfile() {
             </div>
           </CardContent>
         </Card>
+
+        <ShareGardenCard
+          cardClass={getThemedClasses()}
+          textClass={getTextColor()}
+          subTextClass={getSecondaryTextColor()}
+        />
 
         <div>
           <h3 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>My Garden</h3>
