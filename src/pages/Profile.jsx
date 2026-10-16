@@ -220,7 +220,7 @@ export default function Profile() {
     },
     onSuccess: () => {
       loadUsers();
-      queryClient.invalidateQueries(['followerCount', profileEmail]);
+      queryClient.invalidateQueries({ queryKey: ['followerCount', profileEmail] });
       
       if (isFollowing) {
         toast.success('Unfollowed');

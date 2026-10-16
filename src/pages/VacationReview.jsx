@@ -139,7 +139,7 @@ export default function VacationReview() {
       await base44.entities.VacationDay.update(vacationId, updates);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['vacation']);
+      queryClient.invalidateQueries({ queryKey: ['vacation'] });
       toast.success('Vacation details saved!');
     },
   });

@@ -107,7 +107,7 @@ export default function Schedule() {
       return result;
     },
     onSuccess: (newVacation) => {
-      queryClient.invalidateQueries(['vacations']);
+      queryClient.invalidateQueries({ queryKey: ['vacations'] });
       setShowVacationDialog(false);
       setVacationStartDate("");
       setVacationEndDate("");
@@ -123,7 +123,7 @@ export default function Schedule() {
       await base44.entities.VacationDay.delete(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['vacations']);
+      queryClient.invalidateQueries({ queryKey: ['vacations'] });
       toast.success("Vacation deleted");
     },
   });
@@ -300,7 +300,7 @@ export default function Schedule() {
       await base44.entities.Reminder.update(id, { completed });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['reminders', user?.email]); // Invalidate with user email for specific cache
+      queryClient.invalidateQueries({ queryKey: ['reminders', user?.email] }); // Invalidate with user email for specific cache
     },
   });
 
@@ -660,8 +660,8 @@ export default function Schedule() {
                        reminder={reminder}
                        theme={theme}
                        onRefresh={() => {
-                         queryClient.invalidateQueries(['reminders']);
-                         queryClient.invalidateQueries(['remindersWithNotifications']);
+                         queryClient.invalidateQueries({ queryKey: ['reminders'] });
+                         queryClient.invalidateQueries({ queryKey: ['remindersWithNotifications'] });
                        }}
                      />
                    ))}

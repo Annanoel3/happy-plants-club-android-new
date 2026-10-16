@@ -177,7 +177,7 @@ export default function SearchPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['following']);
+      queryClient.invalidateQueries({ queryKey: ['following'] });
     },
   });
 
@@ -192,7 +192,7 @@ export default function SearchPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['following']);
+      queryClient.invalidateQueries({ queryKey: ['following'] });
       toast.success('Unfollowed');
     },
   });
@@ -215,8 +215,8 @@ export default function SearchPage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['followRequests']);
-      queryClient.invalidateQueries(['followers']);
+      queryClient.invalidateQueries({ queryKey: ['followRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['followers'] });
       toast.success('Request approved!');
     },
   });
@@ -226,7 +226,7 @@ export default function SearchPage() {
       await base44.entities.FollowRequest.update(requestId, { status: 'denied' });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['followRequests']);
+      queryClient.invalidateQueries({ queryKey: ['followRequests'] });
       toast.success('Request denied');
     },
   });

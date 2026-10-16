@@ -47,7 +47,7 @@ export default function NotificationPopup() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['notifications']);
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 

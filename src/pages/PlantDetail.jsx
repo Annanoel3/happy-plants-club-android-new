@@ -227,7 +227,7 @@ export default function PlantDetail() {
       const waterDate = wateringDate || localToday();
       
       // Use the plant this page already loaded instead of re-fetching it (one less round trip).
-      // It is refetched after every watering via invalidateQueries(['plant']), so it's current.
+      // It is refetched after every watering via invalidateQueries({ queryKey: ['plant'] }), so it's current.
       const plantData = plant || await base44.entities.Plant.get(plantId);
       
       if (!plantData) {
@@ -335,9 +335,9 @@ export default function PlantDetail() {
       setShowWaterDialog(false);
       
       // Invalidate queries to refresh data
-      queryClient.invalidateQueries(['plant']);
-      queryClient.invalidateQueries(['wateringLogs']);
-      queryClient.invalidateQueries(['plants']);
+      queryClient.invalidateQueries({ queryKey: ['plant'] });
+      queryClient.invalidateQueries({ queryKey: ['wateringLogs'] });
+      queryClient.invalidateQueries({ queryKey: ['plants'] });
       
       // Clear the form
       setWateringNotes("");
@@ -368,8 +368,8 @@ export default function PlantDetail() {
       await base44.entities.Plant.update(plantId, updates);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['plant']);
-      queryClient.invalidateQueries(['plants']);
+      queryClient.invalidateQueries({ queryKey: ['plant'] });
+      queryClient.invalidateQueries({ queryKey: ['plants'] });
       setShowEditDialog(false);
       toast.success('Plant updated!');
     },
@@ -390,7 +390,7 @@ export default function PlantDetail() {
       await base44.entities.Reminder.create(reminderData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['reminders']);
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
       setShowReminderDialog(false);
       setReminderTitle("");
       setReminderDescription("");
@@ -404,7 +404,7 @@ export default function PlantDetail() {
       await base44.entities.Reminder.update(id, { completed });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['reminders']);
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
     },
   });
 
@@ -419,7 +419,7 @@ export default function PlantDetail() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['progressPhotos']);
+      queryClient.invalidateQueries({ queryKey: ['progressPhotos'] });
       setProgressPhotoNotes("");
       toast.success("Progress photo added!");
     },
@@ -430,7 +430,7 @@ export default function PlantDetail() {
       await base44.entities.PlantProgressPhoto.delete(photoId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['progressPhotos']);
+      queryClient.invalidateQueries({ queryKey: ['progressPhotos'] });
       toast.success("Photo deleted");
     },
   });
@@ -444,7 +444,7 @@ export default function PlantDetail() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['plant']);
+      queryClient.invalidateQueries({ queryKey: ['plant'] });
       setNewTag("");
       setShowTagDialog(false);
       toast.success("Tag added!");
@@ -459,7 +459,7 @@ export default function PlantDetail() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['plant']);
+      queryClient.invalidateQueries({ queryKey: ['plant'] });
       toast.success("Tag removed");
     },
   });
@@ -473,7 +473,7 @@ export default function PlantDetail() {
       });
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries(['plant']);
+      queryClient.invalidateQueries({ queryKey: ['plant'] });
       setVacationModeEnabled(variables.enabled);
       setVacationStartDate(variables.startDate || "");
       setVacationEndDate(variables.endDate || "");
@@ -529,7 +529,7 @@ export default function PlantDetail() {
         thumbnail_url: thumbUpload?.file_url || null
       });
 
-      queryClient.invalidateQueries(['plant']);
+      queryClient.invalidateQueries({ queryKey: ['plant'] });
       toast.success("Plant photo updated! 📸");
     } catch (error) {
       console.error('Error uploading image:', error);

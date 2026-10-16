@@ -24,7 +24,7 @@ export default function ReminderNotificationManager({ reminder, theme, onRefresh
     },
     onSuccess: (data) => {
       refreshPlantData();
-      queryClient.invalidateQueries(['reminders']);
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
       if (data?.result === 'advanced') toast.success(`Done! Next one: ${format(parseISO(data.next_due), 'MMM d')}`);
       else toast.success(reminder.completed ? 'Reminder reopened' : 'Reminder completed!');
       onRefresh?.();
@@ -41,7 +41,7 @@ export default function ReminderNotificationManager({ reminder, theme, onRefresh
     },
     onSuccess: () => {
       refreshPlantData();
-      queryClient.invalidateQueries(['reminders']);
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
       toast.success('Reminder deleted');
       onRefresh?.();
     },
@@ -71,7 +71,7 @@ export default function ReminderNotificationManager({ reminder, theme, onRefresh
     },
     onSuccess: () => {
       refreshPlantData();
-      queryClient.invalidateQueries(['reminders']);
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
       setIsEditing(false);
       toast.success('Reminder updated!');
       onRefresh?.();
