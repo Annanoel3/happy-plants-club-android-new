@@ -296,7 +296,7 @@ export default function Settings() {
           >
             <div>
               <p className="font-bold text-lg">🌿 Happy Plants Plus</p>
-              <p className="text-green-50 text-sm">No ads and 10× more AI. Manage or restore your subscription.</p>
+              <p className="text-green-50 text-sm">No ads and way more AI. Manage or restore your subscription.</p>
             </div>
             <span className="shrink-0 rounded-full bg-white text-green-800 font-semibold text-sm px-3 py-1.5">Open</span>
           </button>

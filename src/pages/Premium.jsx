@@ -117,7 +117,7 @@ export default function Premium() {
         <div className={`rounded-2xl p-5 mb-4 ${card}`}>
           <ul className="space-y-3">
             <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>No ads</b> — ever</span></li>
-            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>10× more</b> plant IDs, health checks and AI chat</span></li>
+            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>Way more</b> plant IDs, health checks and AI chat</span></li>
             <li className="flex gap-3"><Leaf className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}>Everything else in Happy Plants stays free</span></li>
           </ul>
           {limits && (
