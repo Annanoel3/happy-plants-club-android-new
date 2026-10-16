@@ -56,7 +56,11 @@ Deno.serve(async (req) => {
         }
 
         const patch: any = {};
-        if (action === 'enable') patch.is_active = true;
+        if (action === 'enable') {
+            patch.is_active = true;
+            // Old/odd tokens get replaced so the link always matches what the public page accepts
+            if (!/^[a-z0-9]{8,40}$/i.test(existing.share_token || '')) patch.share_token = newToken();
+        }
         if (action === 'regenerate') { patch.share_token = newToken(); patch.is_active = true; }
         if (action === 'update' || body.public_name !== undefined) {
             if (body.public_name !== undefined) patch.public_name = clean(body.public_name, 60) || `${firstName}'s Garden`;
