@@ -147,7 +147,9 @@ export default function AddPlant() {
       );
 
       const succeeded = results.filter(r => r.status === 'fulfilled').map(r => r.value);
-      const failed = results.filter(r => r.status === 'rejected').length;
+      const limitHit = results.find(r => r.status === 'rejected' && aiLimitInfo(r.reason));
+      const failed = results.filter(r => r.status === 'rejected' && !aiLimitInfo(r.reason)).length;
+      if (limitHit) await handleAiLimit(limitHit.reason, navigate);
 
       if (succeeded.length > 0) {
         toast.success(`Added ${succeeded.length} plant${succeeded.length > 1 ? 's' : ''}! 🌿`);
@@ -157,7 +159,7 @@ export default function AddPlant() {
       if (failed > 0) {
         toast.error(`${failed} photo${failed > 1 ? 's' : ''} could not be identified`);
       }
-      navigate('/Dashboard');
+      if (succeeded.length > 0 || !limitHit) navigate('/Dashboard');
     } catch (error) {
       toast.error('Error processing images: ' + (error?.message || 'Unknown error'));
     } finally {

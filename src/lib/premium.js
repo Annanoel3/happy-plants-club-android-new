@@ -101,3 +101,13 @@ export function manageSubscriptionUrl(productId) {
   const base = 'https://play.google.com/store/account/subscriptions';
   return productId ? `${base}?sku=${encodeURIComponent(productId.split(':')[0])}&package=${pkg}` : `${base}?package=${pkg}`;
 }
+
+/** If err is the daily-limit answer, show one friendly toast with a way to Plus. */
+export async function handleAiLimit(err, navigate) {
+  const info = aiLimitInfo(err);
+  if (!info) return false;
+  const { toast } = await import('sonner');
+  const go = () => (navigate ? navigate('/Premium') : window.location.assign('/Premium'));
+  toast.error(aiLimitMessage(info), info.plus ? { duration: 6000 } : { duration: 8000, action: { label: 'See Plus', onClick: go } });
+  return true;
+}

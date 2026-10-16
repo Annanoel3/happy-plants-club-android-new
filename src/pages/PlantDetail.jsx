@@ -490,7 +490,10 @@ export default function PlantDetail() {
       }]);
     } catch (error) {
       console.error('Error in plant chat:', error);
-      toast.error("Failed to send message");
+      if (await handleAiLimit(error, navigate)) {
+        setChatMessages(prev => prev.slice(0, -1));
+        setChatInput(userMessage);
+      } else toast.error("Failed to send message");
     } finally {
       setIsProcessingChat(false);
     }

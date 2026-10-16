@@ -190,7 +190,7 @@ export default function PlantChat() {
        }
      } catch (error) {
        console.error('❌ Error in chat:', error);
-       toast.error(error.message || "Failed to send message");
+       if (!(await handleAiLimit(error, navigate))) toast.error(error.message || "Failed to send message");
        setMessages(prev => prev.slice(0, -1));
      } finally {
        setIsProcessing(false);

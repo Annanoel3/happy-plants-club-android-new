@@ -85,7 +85,7 @@ export default function PlantHealthCheck({ plant }) {
       }
     } catch (error) {
       console.error('Error analyzing plant:', error);
-      toast.error(error.message || "Failed to analyze plant health");
+      if (!(await handleAiLimit(error))) toast.error(error.message || "Failed to analyze plant health");
     } finally {
       setIsAnalyzing(false);
     }
