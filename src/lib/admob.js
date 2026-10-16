@@ -1,4 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { isPlusCached } from '@/lib/premium';
 
 const AD_UNIT_ID = 'ca-app-pub-7979856440890193/9127484934';
 
@@ -80,6 +81,7 @@ let _pending = false;
  */
 export function showAdForEvent(reason = 'event') {
   if (!Capacitor.isNativePlatform()) return;
+  if (isPlusCached()) return; // Happy Plants Plus = no ads
   if (_pending) return;
   if (Date.now() - lastAdAt() < MIN_GAP_BETWEEN_ADS_MS) {
     console.log('[AdMob] skipped (' + reason + '): too soon after last ad');
