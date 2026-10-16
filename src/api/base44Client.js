@@ -82,6 +82,7 @@ const QUERY_KEYS_BY_ENTITY = {
   Notification: ['notifications', 'feedNotifications'],
   Block: ['following', 'followers'],
 };
+const STATS_ENTITIES = new Set(['WateringLog', 'Plant', 'PlantProgressPhoto']);
 const WRITE_METHODS = new Set(['create', 'update', 'delete', 'bulkCreate', 'bulkUpdate', 'updateMany', 'deleteMany', 'upsert']);
 
 const rawEntities = base44.entities;
@@ -97,6 +98,10 @@ base44.entities = new Proxy({}, {
         return async (...args) => {
           const result = await fn.apply(target, args);
           for (const key of keys) queryClientInstance.invalidateQueries({ queryKey: [key] });
+          // Stats & achievements are recomputed from these (see lib/stats.js)
+          if (STATS_ENTITIES.has(entityName)) {
+            try { window.dispatchEvent(new CustomEvent('hp-data-write', { detail: { entity: entityName } })); } catch { /* noop */ }
+          }
           return result;
         };
       },
