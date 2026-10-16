@@ -373,7 +373,7 @@ export default function Profile() {
                 </div>
                 <div>
                   <p className={cn("text-3xl font-bold mb-2", getTextColor())}>{profileUser.total_plant_growths || 0}</p>
-                  <p className={cn("text-xs", getSecondaryTextColor())}>Plants Grown</p>
+                  <p className={cn("text-xs", getSecondaryTextColor())}>Growth Stages</p>
                 </div>
               </div>
             </CardContent>

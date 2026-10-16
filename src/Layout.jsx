@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Home, Calendar, MessageCircle, Settings, Sun, Moon, Leaf, User, Search } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { scheduleStatsSync } from "@/lib/stats";
 import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
@@ -376,6 +377,8 @@ export default function Layout({ children, currentPageName }) {
       if (lastOpenDay !== today) patch.last_app_open = new Date().toISOString();
       if (tz && u.timezone !== tz) patch.timezone = tz;
       if (Object.keys(patch).length) base44.auth.updateMe(patch).catch(() => {});
+      // Keep stats/achievements true to your history (also fixes old +1 counters)
+      scheduleStatsSync(4000);
     } catch { /* never block the app on this */ }
   };
 
