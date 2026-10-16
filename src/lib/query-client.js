@@ -6,6 +6,8 @@ export function refreshPlantData() {
 	for (const key of ['plants', 'plant', 'userPlants', 'wateringLogs', 'reminders', 'remindersWithNotifications', 'todayWateringReminder']) {
 		queryClientInstance.invalidateQueries({ queryKey: [key] });
 	}
+	// Server-side waterings (voice, chat) also change stats & achievements
+	try { window.dispatchEvent(new CustomEvent('hp-data-write', { detail: { entity: 'server' } })); } catch { /* noop */ }
 }
 
 export const queryClientInstance = new QueryClient({
