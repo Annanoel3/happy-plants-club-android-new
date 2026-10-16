@@ -134,8 +134,10 @@ export default function Schedule() {
     queryFn: async () => {
       try {
         const allReminders = await base44.entities.Reminder.filter({ created_by: user.email }, '-due_date');
-        // Return reminders that have notification details
-        return allReminders.filter(r => r.onesignal_notification_id);
+        // Open reminders that push at a set time or repeat (date-only ones push at 9 AM)
+        return allReminders
+          .filter(r => !r.completed && (r.schedule_time || r.is_recurring))
+          .sort((a, b) => String(a.next_fire_at || a.schedule_time || a.due_date).localeCompare(String(b.next_fire_at || b.schedule_time || b.due_date)));
       } catch (err) {
         return [];
       }
@@ -297,11 +299,20 @@ export default function Schedule() {
 
   const toggleReminderMutation = useMutation({
     mutationFn: async ({ id, completed }) => {
-      await base44.entities.Reminder.update(id, { completed });
+      // Goes through the reminder engine so the queued push is cancelled/re-queued,
+      // and a repeating reminder rolls to its next date instead of ending.
+      const { data } = await base44.functions.invoke('sendCustomReminders', {
+        action: completed ? 'complete' : 'uncomplete',
+        reminder_id: id,
+      });
+      if (data?.error) throw new Error(data.error);
+      return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reminders', user?.email] }); // Invalidate with user email for specific cache
+    onSuccess: (data) => {
+      refreshPlantData();
+      if (data?.result === 'advanced' && data?.next_due) toast.success(`Done! Next one: ${format(parseISO(data.next_due), 'MMM d')}`);
     },
+    onError: (err) => toast.error('Could not update reminder: ' + err.message),
   });
 
   const getTasksForDate = (date) => {
