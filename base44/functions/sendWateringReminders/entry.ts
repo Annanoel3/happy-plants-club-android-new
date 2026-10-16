@@ -19,15 +19,16 @@ function getTodayInTimezone(timezone) {
     return `${y}-${m}-${d}`;
 }
 
-function getScheduledSendTime(hour, today, timezone) {
-    const now = new Date();
-    const tzNow = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-    const offsetMs = now - tzNow;
-    
-    const tzTarget = new Date(`${today}T${String(hour).padStart(2, '0')}:00:00`);
-    const utcTarget = new Date(tzTarget.getTime() + offsetMs);
-    return utcTarget;
+function localHour(timezone) {
+    return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: '2-digit', hourCycle: 'h23' }).format(new Date()), 10);
 }
+
+// Runs every hour. Each user gets the digest during their own 8 AM hour (local),
+// with catch-up until 11 AM if a run was missed. Sending at that moment (not
+// pre-scheduling hours ahead) means the count is current: plants watered at 7:30
+// aren't counted, and far-west timezones no longer get it the night before.
+const SEND_FROM_HOUR = 8;
+const SEND_UNTIL_HOUR = 11;
 
 Deno.serve(async (req) => {
     try {
@@ -53,7 +54,11 @@ Deno.serve(async (req) => {
             
             if (!targetUser) continue;
             
-            const userTimezone = targetUser.timezone || 'America/Chicago';
+            if (targetUser.notifications_watering === false) continue;
+            let userTimezone = targetUser.timezone || 'America/Chicago';
+            try { new Intl.DateTimeFormat('en-US', { timeZone: userTimezone }); } catch { userTimezone = 'America/Chicago'; }
+            const hourNow = localHour(userTimezone);
+            if (hourNow < SEND_FROM_HOUR || hourNow > SEND_UNTIL_HOUR) continue;
             const today = getTodayInTimezone(userTimezone);
             
             // Fetch plants needing water
@@ -63,14 +68,11 @@ Deno.serve(async (req) => {
                 p.next_watering_due <= today
             );
             
-            // Fetch all custom reminders due today
-            const userReminders = await base44.asServiceRole.entities.Reminder.filter({
-                created_by: userEmail,
-                due_date: today,
-                completed: false
-            });
+            // Custom reminders push on their own at their own time (sendCustomReminders),
+            // so the digest is plants only — no double notifications.
+            const userReminders: any[] = [];
             
-            const totalTasks = userPlants.length + userReminders.length;
+            const totalTasks = userPlants.length;
             if (totalTasks === 0) continue;
             
             const existingReminders = await base44.asServiceRole.entities.DailyWateringReminder.filter({
@@ -116,11 +118,7 @@ Deno.serve(async (req) => {
             
             const notificationIds = [];
             
-            // Send a single notification at 8am user local time
-            const sendTimeUTC = getScheduledSendTime(8, today, userTimezone);
-            const diffSeconds = Math.floor((sendTimeUTC - now) / 1000);
-            
-            // If 8am already passed, send immediately; otherwise schedule it
+            // Send now — this run is already inside the user's 8 AM hour
             const osPayload = {
                 app_id: appId.trim(),
                 include_aliases: { external_id: [userEmail] }, target_channel: 'push',
@@ -128,10 +126,6 @@ Deno.serve(async (req) => {
                 contents: { en: `${notificationText} today! 🌱` },
                 data: { type: 'care_reminder', plant_count: plantCount, reminder_count: reminderCount, date: today },
             };
-            
-            if (diffSeconds > 120) {
-                osPayload.send_after = sendTimeUTC.toUTCString();
-            }
             
             let osResult: any = {};
             try {
@@ -148,7 +142,7 @@ Deno.serve(async (req) => {
             } catch (sendErr) {
                 console.error('OneSignal send failed for', userEmail, sendErr);
             }
-            console.log(`Scheduled 8:00 local for ${userEmail}: id=${osResult.id}, errors=${JSON.stringify(osResult.errors)}`);
+            console.log(`Sent morning digest for ${userEmail}: id=${osResult.id}, errors=${JSON.stringify(osResult.errors)}`);
             
             if (osResult.id) {
                 notificationIds.push(osResult.id);
