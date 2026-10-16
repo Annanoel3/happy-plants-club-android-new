@@ -125,6 +125,8 @@ Deno.serve(async (req) => {
                 headings: { en: '💧 Plant Care Reminder' },
                 contents: { en: `${notificationText} today! 🌱` },
                 data: { type: 'care_reminder', plant_count: plantCount, reminder_count: reminderCount, date: today },
+                priority: 10,
+                ttl: 8 * 60 * 60,
             };
             
             let osResult: any = {};

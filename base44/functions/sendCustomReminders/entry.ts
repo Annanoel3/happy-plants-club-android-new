@@ -114,6 +114,8 @@ async function osSend(email: string, r: any, sendAfterMs: number | null): Promis
         contents: { en: (r.description && r.description !== r.title) ? r.description
             : (r.plant_name && r.plant_name !== 'General' ? `For ${r.plant_name} 🌱` : 'Tap to see your reminders 🌱') },
         data: { type: 'custom_reminder', reminder_id: r.id, screen: '/Schedule' },
+        priority: 10, // high priority so Android doesn't hold it back in battery-saver (Doze)
+        ttl: 6 * 60 * 60, // if the phone is off, still deliver within 6h, then drop it
     };
     if (sendAfterMs && sendAfterMs - Date.now() > 60 * 1000) payload.send_after = iso(sendAfterMs);
     const res = await fetch('https://api.onesignal.com/notifications', {
