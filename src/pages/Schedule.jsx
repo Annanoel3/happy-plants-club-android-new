@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { refreshPlantData } from "@/lib/query-client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar as CalendarIcon, Droplets, Plus, Check, ChevronLeft, ChevronRight, FileDown, Trash2 } from "lucide-react";
