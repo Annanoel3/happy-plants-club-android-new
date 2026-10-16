@@ -1,0 +1,66 @@
+{
+  "name": "Subscription",
+  "properties": {
+    "active": {
+      "default": false,
+      "type": "boolean"
+    },
+    "entitlement": {
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "last_event": {
+      "type": "string"
+    },
+    "last_synced_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "product_id": {
+      "type": "string"
+    },
+    "sandbox": {
+      "type": "boolean"
+    },
+    "store": {
+      "type": "string"
+    },
+    "user_email": {
+      "type": "string"
+    },
+    "user_id": {
+      "description": "Base44 user id (= RevenueCat app user id)",
+      "type": "string"
+    },
+    "will_renew": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "user_id"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "type": "object"
+}

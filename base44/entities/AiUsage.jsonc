@@ -1,0 +1,54 @@
+{
+  "name": "AiUsage",
+  "properties": {
+    "count": {
+      "default": 0,
+      "type": "number"
+    },
+    "day": {
+      "description": "User's local date",
+      "format": "date",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "identify",
+        "health",
+        "chat"
+      ],
+      "type": "string"
+    },
+    "user_email": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "day",
+    "kind"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "type": "object"
+}
