@@ -11,28 +11,22 @@ export default function ReminderNotificationManager({ reminder, theme, onRefresh
   const [isEditing, setIsEditing] = useState(false);
   const [editedTime, setEditedTime] = useState(reminder.original_time_phrase || "");
 
+  // All scheduling/cancelling goes through the reminder engine (sendCustomReminders),
+  // which checks you own the reminder and cancels any queued push.
   const completeMutation = useMutation({
     mutationFn: async () => {
-      // Cancel all OneSignal notifications
-      if (reminder.onesignal_notification_ids?.length > 0) {
-        for (const notifId of reminder.onesignal_notification_ids) {
-          try {
-            await base44.asServiceRole.functions.invoke('manageScheduledNotification', {
-              action: 'cancel',
-              notification_id: notifId
-            });
-          } catch (e) {
-            console.warn('Failed to cancel notification:', e.message);
-          }
-        }
-      }
-      
-      // Mark reminder as completed
-      await base44.entities.Reminder.update(reminder.id, { completed: true });
+      const { data } = await base44.functions.invoke('sendCustomReminders', {
+        action: reminder.completed ? 'uncomplete' : 'complete',
+        reminder_id: reminder.id,
+      });
+      if (data?.error) throw new Error(data.error);
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      refreshPlantData();
       queryClient.invalidateQueries(['reminders']);
-      toast.success('Reminder completed!');
+      if (data?.result === 'advanced') toast.success(`Done! Next one: ${format(parseISO(data.next_due), 'MMM d')}`);
+      else toast.success(reminder.completed ? 'Reminder reopened' : 'Reminder completed!');
       onRefresh?.();
     },
     onError: (err) => {
@@ -42,24 +36,11 @@ export default function ReminderNotificationManager({ reminder, theme, onRefresh
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      // Cancel all OneSignal notifications
-      if (reminder.onesignal_notification_ids?.length > 0) {
-        for (const notifId of reminder.onesignal_notification_ids) {
-          try {
-            await base44.asServiceRole.functions.invoke('manageScheduledNotification', {
-              action: 'cancel',
-              notification_id: notifId
-            });
-          } catch (e) {
-            console.warn('Failed to cancel notification:', e.message);
-          }
-        }
-      }
-      
-      // Delete reminder
-      await base44.entities.Reminder.delete(reminder.id);
+      const { data } = await base44.functions.invoke('sendCustomReminders', { action: 'delete', reminder_id: reminder.id });
+      if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
+      refreshPlantData();
       queryClient.invalidateQueries(['reminders']);
       toast.success('Reminder deleted');
       onRefresh?.();
@@ -71,39 +52,29 @@ export default function ReminderNotificationManager({ reminder, theme, onRefresh
 
   const editMutation = useMutation({
     mutationFn: async () => {
-      // Cancel existing notifications
-      if (reminder.onesignal_notification_ids?.length > 0) {
-        for (const notifId of reminder.onesignal_notification_ids) {
-          try {
-            await base44.asServiceRole.functions.invoke('manageScheduledNotification', {
-              action: 'cancel',
-              notification_id: notifId
-            });
-          } catch (e) {
-            console.warn('Failed to cancel notification:', e.message);
-          }
-        }
-      }
-      
-      // Process the new time phrase
+      // Make the new one first; only remove the old one once the new one exists.
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const repeat = reminder.recurrence_type && !/every|daily|weekly|monthly/i.test(editedTime)
+        ? (reminder.recurrence_type === 'every_two_hours' ? ' every 2 hours' : ` ${reminder.recurrence_type}`)
+        : '';
       const result = await base44.functions.invoke('processPlantCareLog', {
-        transcript: `Remind me to ${reminder.title} ${editedTime}`,
+        transcript: `Remind me to ${reminder.title} ${editedTime}${repeat}`,
         userTimezone
       });
-      
-      refreshPlantData();
       if (result.data?.needs_clarification) {
-        toast.error('Time not clear, please be more specific');
-        return;
+        throw new Error('Time not clear, please be more specific');
       }
-      
-      // Extract the new reminder time from the processing
-      if (result.data?.success) {
-        setIsEditing(false);
-        toast.success('Reminder updated!');
-        onRefresh?.();
+      if (!result.data?.success || !result.data?.reminder_count) {
+        throw new Error("Couldn't understand that time");
       }
+      await base44.functions.invoke('sendCustomReminders', { action: 'delete', reminder_id: reminder.id });
+    },
+    onSuccess: () => {
+      refreshPlantData();
+      queryClient.invalidateQueries(['reminders']);
+      setIsEditing(false);
+      toast.success('Reminder updated!');
+      onRefresh?.();
     },
     onError: (err) => {
       toast.error('Failed to update: ' + err.message);
