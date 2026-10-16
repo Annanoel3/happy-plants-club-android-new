@@ -52,6 +52,8 @@ export default function PlantDetail() {
   const [reminderTitle, setReminderTitle] = useState("");
   const [reminderDescription, setReminderDescription] = useState("");
   const [reminderDate, setReminderDate] = useState("");
+  const [reminderTime, setReminderTime] = useState("09:00");
+  const [reminderRepeat, setReminderRepeat] = useState("");
 
   const [showChatDialog, setShowChatDialog] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
@@ -387,7 +389,9 @@ export default function PlantDetail() {
 
   const createReminderMutation = useMutation({
     mutationFn: async (reminderData) => {
-      await base44.entities.Reminder.create(reminderData);
+      const rec = await base44.entities.Reminder.create(reminderData);
+      // Queue the push right away (the 15-minute sweep is the backup)
+      try { await base44.functions.invoke('sendCustomReminders', { action: 'sync', reminder_id: rec.id }); } catch (_) {}
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reminders'] });
@@ -395,17 +399,27 @@ export default function PlantDetail() {
       setReminderTitle("");
       setReminderDescription("");
       setReminderDate("");
-      toast.success('Reminder created!');
+      setReminderTime("09:00");
+      setReminderRepeat("");
+      refreshPlantData();
+      toast.success('Reminder set!');
     },
   });
 
   const toggleReminderMutation = useMutation({
     mutationFn: async ({ id, completed }) => {
-      await base44.entities.Reminder.update(id, { completed });
+      const { data } = await base44.functions.invoke('sendCustomReminders', {
+        action: completed ? 'complete' : 'uncomplete',
+        reminder_id: id,
+      });
+      if (data?.error) throw new Error(data.error);
+      return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+    onSuccess: (data) => {
+      refreshPlantData();
+      if (data?.result === 'advanced' && data?.next_due) toast.success(`Done! Next one: ${format(parseISO(data.next_due), 'MMM d')}`);
     },
+    onError: (err) => toast.error('Could not update reminder: ' + err.message),
   });
 
   const uploadProgressPhotoMutation = useMutation({
@@ -1365,6 +1379,31 @@ export default function PlantDetail() {
                 className="theme-input"
               />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Time</label>
+                <Input
+                  type="time"
+                  value={reminderTime}
+                  onChange={(e) => setReminderTime(e.target.value)}
+                  className="theme-input"
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Repeat</label>
+                <select
+                  value={reminderRepeat}
+                  onChange={(e) => setReminderRepeat(e.target.value)}
+                  className="theme-input w-full h-10 rounded-md border px-3 text-sm bg-white text-gray-900"
+                >
+                  <option value="">Never</option>
+                  <option value="daily">Every day</option>
+                  <option value="weekly">Every week</option>
+                  <option value="biweekly">Every 2 weeks</option>
+                  <option value="monthly">Every month</option>
+                </select>
+              </div>
+            </div>
             <Button
               onClick={() => {
                 if (!reminderTitle || !reminderDate) {
@@ -1376,7 +1415,12 @@ export default function PlantDetail() {
                   plant_name: plant.name,
                   title: reminderTitle,
                   description: reminderDescription,
-                  due_date: reminderDate
+                  due_date: reminderDate,
+                  // Phone's local time → exact UTC moment for the push
+                  schedule_time: new Date(`${reminderDate}T${reminderTime || '09:00'}`).toISOString(),
+                  is_recurring: !!reminderRepeat,
+                  recurrence_type: reminderRepeat || null,
+                  original_time_phrase: reminderTime || '09:00',
                 });
               }}
               disabled={createReminderMutation.isPending}
