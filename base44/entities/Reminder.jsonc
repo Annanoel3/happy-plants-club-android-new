@@ -12,13 +12,27 @@
       "format": "date",
       "type": "string"
     },
+    "fire_basis": {
+      "description": "Engine: fields next_fire_at was computed from, to detect edits",
+      "type": "string"
+    },
     "is_recurring": {
       "default": false,
       "description": "Whether this reminder repeats",
       "type": "boolean"
     },
+    "last_fired_at": {
+      "description": "Engine: last time this reminder fired (UTC)",
+      "format": "date-time",
+      "type": "string"
+    },
+    "next_fire_at": {
+      "description": "Engine: next time this reminder pushes (UTC)",
+      "format": "date-time",
+      "type": "string"
+    },
     "onesignal_notification_ids": {
-      "description": "OneSignal notification IDs for this recurring reminder batch",
+      "description": "Legacy: OneSignal notification IDs",
       "items": {
         "type": "string"
       },
@@ -51,8 +65,17 @@
       "type": "string"
     },
     "schedule_time": {
-      "description": "Specific time for scheduled notification (first instance)",
+      "description": "Specific time for the notification (UTC ISO)",
       "format": "date-time",
+      "type": "string"
+    },
+    "scheduled_for": {
+      "description": "Engine: time the queued push is set for (UTC)",
+      "format": "date-time",
+      "type": "string"
+    },
+    "scheduled_notification_id": {
+      "description": "Engine: queued OneSignal notification id",
       "type": "string"
     },
     "title": {
