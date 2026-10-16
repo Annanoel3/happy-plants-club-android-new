@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
             return Response.json({ success: false, error: 'Invalid response from OneSignal API', response_text: responseText }, { status: 500 });
         }
 
-        if (!oneSignalResponse.ok || oneSignalResult.errors) {
+        if (!oneSignalResult?.id) { // an id means accepted, even if errors lists old unsubscribed devices
             console.error('[schedulePush] OneSignal error:', oneSignalResult);
             return Response.json({
                 success: false,

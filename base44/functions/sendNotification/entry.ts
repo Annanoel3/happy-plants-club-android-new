@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
 
         console.log('[sendNotification] Response status:', response.status, 'body:', JSON.stringify(result));
 
-        if (!response.ok || result.errors) {
+        if (!result?.id) { // an id means accepted, even if errors lists old unsubscribed devices
             console.error('[sendNotification] OneSignal error:', result);
             return Response.json({ 
                 success: false,
