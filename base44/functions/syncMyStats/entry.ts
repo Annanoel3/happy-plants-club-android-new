@@ -56,9 +56,9 @@ const ACHIEVEMENTS: Def[] = [
     { id: 'photo_10', group: 'Memories', icon: '🖼️', name: 'Photo Journal', desc: 'Add 10 progress photos', goal: 10, metric: 'photos' },
     { id: 'photo_plants_5', group: 'Memories', icon: '🎞️', name: 'Glow-Up Tracker', desc: 'Progress photos for 5 different plants', goal: 5, metric: 'photo_plants' },
 
-    { id: 'loyal_30', group: 'Dedication', icon: '📅', name: 'One Month In', desc: 'Care for plants for 30 days', goal: 30, metric: 'days_caring' },
-    { id: 'loyal_180', group: 'Dedication', icon: '🗓️', name: 'Half a Year', desc: 'Care for plants for 6 months', goal: 180, metric: 'days_caring' },
-    { id: 'loyal_365', group: 'Dedication', icon: '🎂', name: 'Plantiversary', desc: 'Care for plants for a full year', goal: 365, metric: 'days_caring' },
+    { id: 'loyal_30', group: 'Dedication', icon: '📅', name: 'One Month In', desc: 'Happy Plants member for 30 days', goal: 30, metric: 'days_caring' },
+    { id: 'loyal_180', group: 'Dedication', icon: '🗓️', name: 'Half a Year', desc: 'Happy Plants member for 6 months', goal: 180, metric: 'days_caring' },
+    { id: 'loyal_365', group: 'Dedication', icon: '🎂', name: 'Plantiversary', desc: 'Happy Plants member for a full year', goal: 365, metric: 'days_caring' },
     { id: 'big_day_10', group: 'Dedication', icon: '⚡', name: 'Watering Day', desc: 'Water 10 plants in one day', goal: 10, metric: 'best_day' },
 ];
 
