@@ -3,6 +3,7 @@ import { usePhotoSource } from "@/components/PhotoSourceSheet";
 import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { localToday, toLocalDateString } from '@/lib/dates';
 import { base44 } from "@/api/base44Client";
+import { refreshPlantData } from "@/lib/query-client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Droplets, Calendar, MapPin, Edit, Trash2, Heart, Plus, Check, MessageCircle, Send, Loader2, Camera, X, Image as ImageIcon } from "lucide-react";
