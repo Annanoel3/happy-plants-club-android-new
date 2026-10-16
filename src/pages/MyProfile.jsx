@@ -9,12 +9,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import ShareGardenCard from "@/components/ShareGardenCard";
+import AchievementsCard, { useStats } from "@/components/AchievementsCard";
 
 export default function MyProfile() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+  const statsData = useStats();
 
   useEffect(() => {
     loadUser();
@@ -197,21 +199,42 @@ export default function MyProfile() {
             </h3>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
-                <div className="text-3xl mb-2">{tierEmojis[user.current_tier || 'New Sprout']}</div>
-                <p className={`text-sm font-bold ${getTextColor()}`}>{user.current_tier || 'New Sprout'}</p>
+                <div className="text-3xl mb-2">{tierEmojis[statsData?.stats?.tier || user.current_tier || 'New Sprout']}</div>
+                <p className={`text-sm font-bold ${getTextColor()}`}>{statsData?.stats?.tier || user.current_tier || 'New Sprout'}</p>
                 <p className={`text-xs ${getSecondaryTextColor()}`}>Current Tier</p>
               </div>
               <div>
-                <p className={`text-3xl font-bold mb-2 ${getTextColor()}`}>{user.lifetime_waterings || 0}</p>
+                <p className={`text-3xl font-bold mb-2 ${getTextColor()}`}>{(statsData?.stats?.waterings ?? user.lifetime_waterings ?? 0).toLocaleString()}</p>
                 <p className={`text-xs ${getSecondaryTextColor()}`}>Plants Watered</p>
               </div>
               <div>
-                <p className={`text-3xl font-bold mb-2 ${getTextColor()}`}>{user.total_plant_growths || 0}</p>
-                <p className={`text-xs ${getSecondaryTextColor()}`}>Plants Grown</p>
+                <p className={`text-3xl font-bold mb-2 ${getTextColor()}`}>{(statsData?.stats?.growths ?? user.total_plant_growths ?? 0).toLocaleString()}</p>
+                <p className={`text-xs ${getSecondaryTextColor()}`}>Growth Stages</p>
               </div>
             </div>
+            {statsData?.stats?.next_tier && (
+              <div className="mt-5">
+                <div className={`h-2 rounded-full ${theme === 'light' || theme === 'kawaii' ? 'bg-gray-200' : 'bg-white/15'}`}>
+                  <div
+                    className="h-2 rounded-full bg-green-600"
+                    style={{ width: `${Math.min(100, Math.round((statsData.stats.waterings / statsData.stats.next_tier.at) * 100))}%` }}
+                  />
+                </div>
+                <p className={`text-xs mt-1.5 text-center ${getSecondaryTextColor()}`}>
+                  {(statsData.stats.next_tier.at - statsData.stats.waterings).toLocaleString()} more waterings to {statsData.stats.next_tier.name}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        <AchievementsCard
+          data={statsData}
+          cardClass={getThemedClasses()}
+          textClass={getTextColor()}
+          subTextClass={getSecondaryTextColor()}
+          dark={!(theme === 'light' || theme === 'kawaii')}
+        />
 
         <ShareGardenCard
           cardClass={getThemedClasses()}
