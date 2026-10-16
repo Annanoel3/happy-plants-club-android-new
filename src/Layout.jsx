@@ -26,6 +26,7 @@ import OneSignalSetup from "@/components/OneSignalSetup";
 import ThemeMode from "@/components/ThemeMode";
 import PermissionsCheck from "@/components/PermissionsCheck";
 import AdManager from './components/shared/AdManager';
+import UpdatePrompt from '@/components/UpdatePrompt';
 
 function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
@@ -385,6 +386,7 @@ export default function Layout({ children, currentPageName }) {
       <AdManager />
       <NotificationPopup user={user} />
       <PermissionsCheck user={user} />
+      {user && <UpdatePrompt />}
       <LayoutContent children={children} currentPageName={currentPageName} />
       
       <style>{`
