@@ -10,6 +10,18 @@ async function internalToken(): Promise<string> {
 }
 
 
+
+// ---- timezone helpers (local wall-clock <-> UTC, DST-safe) ----
+function tzParts(ms: number, tz: string) {
+    const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const o: Record<string, string> = {};
+    for (const p of f.formatToParts(new Date(ms))) o[p.type] = p.value;
+    return { y: +o.year, mo: +o.month, d: +o.day, h: +o.hour, mi: +o.minute, s: +o.second };
+}
+function tzOffsetMs(ms: number, tz: string) { const p = tzParts(ms, tz); return Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi, p.s) - Math.floor(ms / 1000) * 1000; }
+function localToUtc(y: number, mo: number, d: number, h: number, mi: number, tz: string) { const g = Date.UTC(y, mo - 1, d, h, mi); let t = g - tzOffsetMs(g, tz); t = g - tzOffsetMs(t, tz); return t; }
+function localDateOf(ms: number, tz: string) { const p = tzParts(ms, tz); return `${p.y}-${String(p.mo).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`; }
+
 function extractJSON(str) {
     const cleaned = str.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
     const start = cleaned.indexOf('{');
@@ -34,7 +46,9 @@ Deno.serve(async (req) => {
     }
 
     // Use provided timezone or fall back to UTC
-    const timezone = userTimezone || 'UTC';
+    let timezone = userTimezone || user.timezone || 'UTC';
+    try { new Intl.DateTimeFormat('en-US', { timeZone: timezone }); } catch { timezone = 'UTC'; }
+    const createdReminders: any[] = [];
     console.log('Using timezone:', timezone);
 
     // Fetch plants using user-scoped call (RLS automatically filters to user's plants)
@@ -80,13 +94,13 @@ Available plants: ${plantsList}
 Given a transcript, extract:
 1. Which plants were watered — match using the plant's name, nickname, OR scientific name fuzzily (e.g. "tulips" matches name "Tulip" or scientific "Tulipa", "my monstera" matches "Monstera"). If the user says "everything", "all", "all my plants", return "ALL". If they reference a location like "everything on the porch" / "all the indoor plants", return "LOCATION:<location>". If they say "everything overdue", "all the overdue ones", "everything that needed water", return "OVERDUE".
 2. Any observations or notes about specific plants.
-3. Any reminders the user wants to set. Extract the time string exactly as the user said it (e.g. "8 PM", "tomorrow at 9am", "in 2 hours"). Do NOT try to convert timezones yourself — just extract the raw time phrase. Return in reminder_time_phrase. If it's vague like "later" or "soon", set reminder_time_phrase to null and needs_time_clarification to true. Also detect recurrence patterns: if they say "every X hours/days/weeks/months", extract the recurrence_type. Supported types: "daily", "weekly", "biweekly", "monthly", "every_two_hours".
+3. Any reminders the user wants to set. Extract the time string exactly as the user said it (e.g. "8 PM", "tomorrow at 9am", "in 2 hours"). Do NOT try to convert timezones yourself — just extract the raw time phrase. Return it in reminder_time_phrase. ALSO resolve it to the exact local date and time the user means, using the current local time above, and return it in reminder_local_datetime as "YYYY-MM-DDTHH:mm" (24-hour, user's local time, no timezone suffix). Rules: a time with no day means the next time that clock time happens (if it already passed today, use tomorrow); "tonight" means today in the evening; "tomorrow morning" with no time means 09:00; a day with no time means 09:00. For relative phrases like "in 2 hours" just add to the current local time. If it's vague like "later" or "soon", set reminder_time_phrase to null and needs_time_clarification to true. Also detect recurrence patterns: if they say "every X hours/days/weeks/months", extract the recurrence_type. Supported types: "daily", "weekly", "biweekly", "monthly", "every_two_hours".
 
 Return ONLY valid JSON:
 {
     "watered_plant_names": ["Tulip"],
     "plant_notes": [{"plant_name": "Monstera", "note": "observation"}],
-    "reminders": [{"description": "what to do", "reminder_time_phrase": "user's exact time phrase or null", "needs_time_clarification": false, "recurrence_type": null}],
+    "reminders": [{"description": "what to do", "plant_name": "plant it is about, or null", "reminder_time_phrase": "user's exact time phrase or null", "reminder_local_datetime": "YYYY-MM-DDTHH:mm in the user's LOCAL time, or null", "needs_time_clarification": false, "recurrence_type": null}],
     "summary": "brief summary"
 }`
             },
@@ -131,7 +145,7 @@ Return ONLY valid JSON:
 
     let plantsToWater = [];
     try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = localDateOf(Date.now(), timezone);
 
         // Expand ALL / LOCATION / OVERDUE special tokens into real plant lists
         let wateredNames = result.watered_plant_names || [];
@@ -164,7 +178,7 @@ Return ONLY valid JSON:
                     method: 'voice',
                     created_by: user.email
                 });
-                const nextWatering = new Date();
+                const nextWatering = new Date(today + 'T12:00:00Z');
                 nextWatering.setDate(nextWatering.getDate() + (plant.water_frequency_days || 7));
                 await base44.entities.Plant.update(plant.id, {
                     last_watered: today,
@@ -187,165 +201,54 @@ Return ONLY valid JSON:
             }
         }
 
-        // Schedule reminders with specific times
-         for (const reminder of result.reminders || []) {
-             if (reminder.reminder_time_phrase) {
-                 // Parse natural language time using Intl to convert user's local time to UTC
-                 let reminderDateTime;
-                 const phrase = reminder.reminder_time_phrase.toLowerCase().trim();
+        // Reminders: the LLM resolves the phrase to a local date+time in the user's timezone,
+        // we convert that to UTC here, save the Reminder, and hand it to the reminder engine
+        // (sendCustomReminders), which queues the exact push and handles repeats.
+        for (const reminder of result.reminders || []) {
+            if (!reminder.reminder_time_phrase && !reminder.reminder_local_datetime) continue;
+            try {
+                let fireMs: number | null = null;
+                const phrase = String(reminder.reminder_time_phrase || '').toLowerCase().trim();
+                const rel = phrase.match(/in\s+(\d+|an?|one)\s+(hour|hr|minute|min)s?/);
+                if (rel) {
+                    const amt = /^\d+$/.test(rel[1]) ? parseInt(rel[1]) : 1;
+                    fireMs = Date.now() + amt * (rel[2].startsWith('h') ? 3600000 : 60000);
+                } else if (reminder.reminder_local_datetime) {
+                    const m = String(reminder.reminder_local_datetime).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+                    if (m) fireMs = localToUtc(+m[1], +m[2], +m[3], +m[4], +m[5], timezone);
+                }
+                if (fireMs === null || isNaN(fireMs)) {
+                    console.warn('Could not resolve reminder time:', reminder.reminder_time_phrase, reminder.reminder_local_datetime);
+                    continue;
+                }
+                // "8 PM" said at 9 PM means tomorrow at 8 PM, not right now
+                if (fireMs < Date.now() - 60000) fireMs += 24 * 3600000;
 
-                 try {
-                     // Calculate timezone offset in minutes using Intl API
-                     const now = new Date();
-                     const formatter = new Intl.DateTimeFormat('en-US', {
-                         timeZone: timezone,
-                         year: 'numeric',
-                         month: '2-digit',
-                         day: '2-digit',
-                         hour: '2-digit',
-                         minute: '2-digit',
-                         second: '2-digit',
-                         hour12: false
-                     });
-
-                     const parts = formatter.formatToParts(now);
-                     const partsObj = {};
-                     parts.forEach(p => { partsObj[p.type] = p.value; });
-
-                     // Create naive date with local time components, then compare to UTC
-                     const naiveDate = new Date(Date.UTC(
-                         parseInt(partsObj.year),
-                         parseInt(partsObj.month) - 1,
-                         parseInt(partsObj.day),
-                         parseInt(partsObj.hour),
-                         parseInt(partsObj.minute),
-                         parseInt(partsObj.second)
-                     ));
-
-                     const tzOffsetMinutes = (naiveDate.getTime() - now.getTime()) / (60 * 1000);
-
-                     // Handle relative times (in X hours, in X minutes)
-                     const inMatch = phrase.match(/in\s+(\d+)\s+(hour|minute)s?/);
-                     if (inMatch) {
-                         reminderDateTime = new Date();
-                         const amount = parseInt(inMatch[1]);
-                         if (inMatch[2] === 'hour') reminderDateTime.setHours(reminderDateTime.getHours() + amount);
-                         else reminderDateTime.setMinutes(reminderDateTime.getMinutes() + amount);
-                     } else {
-                         // Handle absolute times (8pm, tomorrow at 9am, etc)
-                         const timeMatch = phrase.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?/i) || phrase.match(/(\d{1,2})\s*(am|pm)/i);
-                         if (timeMatch) {
-                             const hour = parseInt(timeMatch[1]);
-                             const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-                             const isPM = (timeMatch[3] || timeMatch[2])?.toLowerCase() === 'pm';
-
-                             // Start with UTC now as baseline
-                             reminderDateTime = new Date(now);
-
-                             // Check if user said "tomorrow"
-                             if (phrase.includes('tomorrow')) {
-                                 reminderDateTime.setUTCDate(reminderDateTime.getUTCDate() + 1);
-                             }
-
-                             let finalHour = hour;
-                             if (isPM && hour !== 12) finalHour = hour + 12;
-                             if (!isPM && hour === 12) finalHour = 0;
-
-                             // Set to user's local time, then convert to UTC
-                             // If user wants 9 PM local and tz offset is -360 (CDT), 9 PM = 2 AM UTC
-                             reminderDateTime.setUTCHours(finalHour - Math.round(tzOffsetMinutes / 60), minute, 0, 0);
-                         } else {
-                             console.warn('Could not parse time phrase:', phrase);
-                             continue;
-                         }
-                     }
-
-                     const delayMinutes = Math.max(0, Math.floor((reminderDateTime.getTime() - Date.now()) / (60 * 1000)));
-                     console.log('Scheduling reminder:', reminder.description, 'phrase:', reminder.reminder_time_phrase, 'computed time:', reminderDateTime.toISOString(), 'delay:', delayMinutes, 'minutes', 'recurrence:', reminder.recurrence_type);
-
-                     // Create the reminder record
-                     const reminderRecord = await base44.entities.Reminder.create({
-                         plant_id: 'general',
-                         plant_name: 'General',
-                         title: reminder.description,
-                         description: reminder.description,
-                         due_date: reminderDateTime.toISOString().split('T')[0],
-                         schedule_time: reminderDateTime.toISOString(),
-                         completed: false,
-                         is_recurring: !!reminder.recurrence_type,
-                         recurrence_type: reminder.recurrence_type || null,
-                         original_time_phrase: reminder.reminder_time_phrase,
-                         onesignal_notification_ids: []
-                     });
-
-                     // If recurring, batch-schedule for the whole day
-                     if (reminder.recurrence_type) {
-                         const notificationIds = [];
-                         const scheduleTimesForDay = [];
-
-                         if (reminder.recurrence_type === 'every_two_hours') {
-                             // Schedule every 2 hours from start time for the rest of the day
-                             let schedTime = new Date(reminderDateTime);
-                             const dayEnd = new Date(schedTime);
-                             dayEnd.setUTCHours(23, 59, 59, 999);
-
-                             while (schedTime <= dayEnd) {
-                                 scheduleTimesForDay.push(new Date(schedTime));
-                                 schedTime.setHours(schedTime.getHours() + 2);
-                             }
-                         }
-
-                         // Schedule each occurrence
-                         for (const schedTime of scheduleTimesForDay) {
-                             const delayMin = Math.max(0, Math.floor((schedTime.getTime() - Date.now()) / (60 * 1000)));
-                             try {
-                                 const res = await base44.asServiceRole.functions.invoke('schedulePush', { _internal: await internalToken(),
-                                     toUserExternalId: user.email,
-                                     title: '🔔 ' + reminder.description,
-                                     body: 'Time to ' + reminder.description.toLowerCase(),
-                                     minutesFromNow: delayMin,
-                                     data: { screen: '/Dashboard' }
-                                 });
-                                 if (res?.notificationId) notificationIds.push(res.notificationId);
-                             } catch (e) {
-                                 console.error('Failed to schedule recurring occurrence:', e.message);
-                             }
-                         }
-
-                         // Update reminder with all notification IDs
-                         if (notificationIds.length > 0) {
-                             await base44.entities.Reminder.update(reminderRecord.id, {
-                                 onesignal_notification_ids: notificationIds
-                             });
-                             console.log('✅ Recurring reminder scheduled with', notificationIds.length, 'notifications');
-                         }
-                     } else {
-                         // Single notification
-                         try {
-                             const schedulePushResult = await base44.asServiceRole.functions.invoke('schedulePush', { _internal: await internalToken(),
-                                 toUserExternalId: user.email,
-                                 title: '🔔 ' + reminder.description,
-                                 body: 'Time to ' + reminder.description.toLowerCase(),
-                                 minutesFromNow: delayMinutes,
-                                 data: { screen: '/Dashboard' }
-                             });
-
-                             if (schedulePushResult?.notificationId) {
-                                 await base44.entities.Reminder.update(reminderRecord.id, {
-                                     onesignal_notification_ids: [schedulePushResult.notificationId]
-                                 });
-                                 console.log('✅ Reminder scheduled with notification ID:', schedulePushResult.notificationId);
-                             }
-                         } catch (scheduleErr) {
-                             console.error('Failed to schedule reminder notification:', scheduleErr.message);
-                         }
-                     }
-                 } catch (parseErr) {
-                     console.error('Failed to parse reminder time:', parseErr.message);
-                 }
-             }
-         }
-
+                const rec = ['daily', 'weekly', 'biweekly', 'monthly', 'every_two_hours'].includes(reminder.recurrence_type) ? reminder.recurrence_type : null;
+                const matched = reminder.plant_name ? findPlant(reminder.plant_name) : null;
+                const record = await base44.entities.Reminder.create({
+                    plant_id: matched?.id || 'general',
+                    plant_name: matched?.name || 'General',
+                    title: reminder.description,
+                    description: reminder.description,
+                    due_date: localDateOf(fireMs, timezone),
+                    schedule_time: new Date(fireMs).toISOString(),
+                    completed: false,
+                    is_recurring: !!rec,
+                    recurrence_type: rec,
+                    original_time_phrase: reminder.reminder_time_phrase || reminder.reminder_local_datetime,
+                });
+                createdReminders.push({ id: record.id, title: reminder.description, at: new Date(fireMs).toISOString() });
+                try {
+                    await base44.functions.invoke('sendCustomReminders', { action: 'sync', reminder_id: record.id });
+                } catch (e) {
+                    // The 15-minute sweep will still pick it up
+                    console.warn('engine sync failed, sweep will catch it:', (e as Error).message);
+                }
+            } catch (remErr) {
+                console.error('Failed to create reminder:', (remErr as Error).message);
+            }
+        }
     } catch (dbErr) {
         console.error('processPlantCareLog DB error:', dbErr.message, dbErr.stack?.substring(0, 200));
         return Response.json({ error: 'DB operation failed: ' + dbErr.message }, { status: 500 });
@@ -357,7 +260,8 @@ Return ONLY valid JSON:
         transcript,
         watered_count: plantsToWater?.length || 0,
         notes_count: result.plant_notes?.length || 0,
-        reminder_count: (result.reminders || []).filter(r => r.reminder_time_phrase).length,
+        reminder_count: createdReminders.length,
+        reminders: createdReminders,
         summary: result.summary
     });
 });
