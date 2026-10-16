@@ -25,12 +25,22 @@ export default function UpdatePrompt() {
       try {
         if (!Capacitor.isNativePlatform()) return;
         const { result } = await NotifyBridge.checkAppUpdate();
-        if (!cancelled && result === 'available') setShow(true);
+        if (cancelled || result !== 'available') return;
+        // Never stack on another popup (permissions, weather, etc.): wait until it's closed.
+        const showWhenClear = () => {
+          if (cancelled) return;
+          if (document.querySelector('[role="dialog"], [role="alertdialog"]')) {
+            t2 = setTimeout(showWhenClear, 2000);
+          } else {
+            setShow(true);
+          }
+        };
+        showWhenClear();
       } catch { /* older build or no Play services: stay quiet */ }
     };
-    // Give the app a moment to settle so this doesn't race other first-open popups.
+    let t2;
     const t = setTimeout(check, 2500);
-    return () => { cancelled = true; clearTimeout(t); };
+    return () => { cancelled = true; clearTimeout(t); clearTimeout(t2); };
   }, []);
 
   const update = async () => {
