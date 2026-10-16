@@ -91,14 +91,16 @@ Deno.serve(async (req) => {
         const reminders = (result.reminders || []).filter(r => r.title && r.due_date);
         for (const reminder of reminders) {
             try {
-                await base44.entities.Reminder.create({
-                    plant_id: reminder.plant_id || null,
+                const rec = await base44.entities.Reminder.create({
+                    plant_id: reminder.plant_id || 'general',
                     plant_name: reminder.plant_name || 'General',
                     title: reminder.title,
                     description: reminder.description || '',
                     due_date: reminder.due_date,
                     completed: false
                 });
+                // Queue its push now (the 15-min sweep is the backup)
+                try { await base44.functions.invoke('sendCustomReminders', { action: 'sync', reminder_id: rec.id }); } catch (_) { /* sweep catches it */ }
             } catch (err) {
                 console.error('Failed to create reminder:', err);
             }
