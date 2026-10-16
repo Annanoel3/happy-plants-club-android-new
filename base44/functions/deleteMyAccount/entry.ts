@@ -30,6 +30,8 @@ const OWNERSHIP: Record<string, string[]> = {
     Post: ['author_email'],
     Comment: ['author_email'],
     Like: ['user_email'],
+    AiUsage: ['user_email'],
+    Subscription: ['user_email'],
 };
 
 Deno.serve(async (req) => {
