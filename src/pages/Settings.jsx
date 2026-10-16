@@ -9,11 +9,17 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { billingAvailable, isPlusCached } from "@/lib/premium";
 
 export default function Settings() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
+  const [plusReady, setPlusReady] = useState(false);
+  useEffect(() => {
+    billingAvailable().then((b) => setPlusReady(!!b.available)).catch(() => {});
+    if (isPlusCached()) setPlusReady(true); // subscribers can always reach Manage/Restore
+  }, []);
   const [isLoading, setIsLoading] = useState(true);
   const [location, setLocation] = useState("");
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
@@ -289,8 +295,8 @@ export default function Settings() {
         </div>
 
         <div className="space-y-6">
-          {/* Happy Plants Plus */}
-          <button
+          {/* Happy Plants Plus — only shown once this install can actually buy it */}
+          {plusReady && <button
             onClick={() => navigate('/Premium')}
             className="w-full text-left rounded-2xl p-5 text-white bg-gradient-to-br from-green-700 to-emerald-900 shadow flex items-center justify-between gap-4"
           >
@@ -299,7 +305,7 @@ export default function Settings() {
               <p className="text-green-50 text-sm">No ads and way more AI. Manage or restore your subscription.</p>
             </div>
             <span className="shrink-0 rounded-full bg-white text-green-800 font-semibold text-sm px-3 py-1.5">Open</span>
-          </button>
+          </button>}
 
           {/* Profile Settings */}
            <Card className={getThemedClasses()}>
