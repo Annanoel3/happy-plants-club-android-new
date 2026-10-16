@@ -169,7 +169,7 @@ export default function Premium() {
         ) : plans?.error || !(plans?.monthly || plans?.annual) ? (
           <div className={`rounded-2xl p-5 mb-4 text-center ${card}`}>
             {!plans ? <Loader2 className="w-6 h-6 animate-spin text-green-600 mx-auto" /> : (
-              <p className={`font-semibold ${text}`}>Plans couldn't load. Check your connection and try again.</p>
+              <p className={`font-semibold ${text}`}>Plus is almost ready — check back soon!</p>
             )}
           </div>
         ) : (
