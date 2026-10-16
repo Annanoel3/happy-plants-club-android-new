@@ -36,6 +36,9 @@
     "delete": {
       "data.owner_email": "{{user.email}}"
     },
+    "read": {
+      "data.owner_email": "{{user.email}}"
+    },
     "update": {
       "data.owner_email": "{{user.email}}"
     }
