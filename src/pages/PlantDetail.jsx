@@ -3,6 +3,7 @@ import { usePhotoSource } from "@/components/PhotoSourceSheet";
 import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { localToday, toLocalDateString } from '@/lib/dates';
 import { base44 } from "@/api/base44Client";
+import { handleAiLimit } from "@/lib/premium";
 import { refreshPlantData } from "@/lib/query-client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

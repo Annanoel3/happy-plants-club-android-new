@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { usePhotoSource } from "@/components/PhotoSourceSheet";
 import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { base44 } from "@/api/base44Client";
+import { handleAiLimit } from "@/lib/premium";
 import { Camera, Image, Heart, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

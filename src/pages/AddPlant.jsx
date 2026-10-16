@@ -4,6 +4,7 @@ import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { localToday, toLocalDateString } from '@/lib/dates';
 import { refreshPlantData } from '@/lib/query-client';
 import { base44 } from "@/api/base44Client";
+import { aiLimitInfo, handleAiLimit } from "@/lib/premium";
 import { useNavigate } from "react-router-dom";
 import { Camera, Image, Mic, Keyboard, Plus, Loader2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";

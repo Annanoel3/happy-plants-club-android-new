@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { usePhotoSource } from "@/components/PhotoSourceSheet";
 import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { base44 } from "@/api/base44Client";
+import { handleAiLimit } from "@/lib/premium";
 import { useNavigate } from "react-router-dom";
 import { Send, Loader2, Sparkles, Camera, Mic, Square, PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
