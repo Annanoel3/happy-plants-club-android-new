@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { billingAvailable, isPlusCached } from "@/lib/premium";
+import { syncWateringPopups } from "@/lib/wateringPopups";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -183,8 +184,10 @@ export default function Settings() {
     mutationFn: async (settings) => {
       await base44.auth.updateMe(settings);
     },
-    onSuccess: () => {
+    onSuccess: (_d, settings) => {
       loadUser();
+      // Watering on/off also turns the phone's own watering pop-up on/off
+      if (settings && 'notifications_watering' in settings) syncWateringPopups();
       toast.success('Notification settings updated!');
     },
     onError: () => {

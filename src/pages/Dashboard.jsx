@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { localToday, toLocalDateString } from '@/lib/dates';
 import { base44 } from "@/api/base44Client";
+import { syncWateringPopups } from "@/lib/wateringPopups";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X, CheckSquare, LayoutGrid, Layers, Wand2 } from "lucide-react";
@@ -98,6 +99,7 @@ export default function Dashboard() {
     mutationFn: async (enabled) => {
       await base44.auth.updateMe({ notifications_watering: enabled });
     },
+    onSuccess: () => syncWateringPopups(),
   });
 
   const handleToggleWateringReminders = () => {

@@ -55,6 +55,12 @@ Deno.serve(async (req) => {
             if (!targetUser) continue;
             
             if (targetUser.notifications_watering === false) continue;
+            // Phones on the new build show their own watering pop-up (Done / Later today)
+            // at 8 AM; skip the push for them so nobody gets both. The app refreshes this
+            // stamp every day it's opened; a phone that hasn't opened in a week falls back
+            // to the push.
+            const nativeAt = targetUser.watering_popups_native_at ? Date.parse(targetUser.watering_popups_native_at) : 0;
+            if (nativeAt && Date.now() - nativeAt < 7 * 24 * 3600 * 1000) continue;
             let userTimezone = targetUser.timezone || 'America/Chicago';
             try { new Intl.DateTimeFormat('en-US', { timeZone: userTimezone }); } catch { userTimezone = 'America/Chicago'; }
             const hourNow = localHour(userTimezone);
