@@ -106,7 +106,7 @@ export default function ShareGardenCard({ cardClass, textClass, subTextClass }) 
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={share} className="rounded-full bg-green-700 text-white font-semibold py-2.5 flex items-center justify-center gap-2">
-              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copied ? "Copied" : "Copy link"}
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copied ? "Copied" : "Share link"}
             </button>
             <button
               onClick={() => navigate(`/SharedGardenView/${info.share_token}`)}
