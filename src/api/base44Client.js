@@ -54,6 +54,8 @@ base44.auth.updateMe = async (data) => {
 
 base44.auth.logout = (...args) => {
   clearUserCache();
+  // Stop this phone's watering pop-ups for the account being signed out
+  import('@/lib/wateringPopups').then((m) => m.signOutWateringPopups()).catch(() => {});
   return rawLogout(...args);
 };
 

@@ -4,6 +4,7 @@ import { Home, Calendar, MessageCircle, Settings, Sun, Moon, Leaf, User, Search 
 import { base44 } from "@/api/base44Client";
 import { scheduleStatsSync } from "@/lib/stats";
 import { getPremiumStatus } from "@/lib/premium";
+import { syncWateringPopups } from "@/lib/wateringPopups";
 import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
@@ -382,6 +383,8 @@ export default function Layout({ children, currentPageName }) {
       scheduleStatsSync(4000);
       // Plus status (no ads / higher AI limits) — keep the on-device flag current
       getPremiumStatus().catch(() => {});
+      // Phone's own watering pop-up (new builds only)
+      syncWateringPopups();
     } catch { /* never block the app on this */ }
   };
 

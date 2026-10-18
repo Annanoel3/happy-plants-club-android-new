@@ -89,4 +89,8 @@ export async function signOutWateringPopups() {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('hp-data-write', () => scheduleWateringPopupSync());
+  // Coming back to the app: refresh the session the pop-up uses and the due list
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') scheduleWateringPopupSync(1500);
+  });
 }
