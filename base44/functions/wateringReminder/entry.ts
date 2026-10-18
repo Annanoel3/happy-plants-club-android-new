@@ -37,7 +37,10 @@ const rank: Record<string, number> = { seedling: 0, small: 1, medium: 2, large: 
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
+        // An expired/missing session must come back as 401 so the phone can say
+        // "open Happy Plants to sign back in" instead of "no connection".
+        let user: any = null;
+        try { user = await base44.auth.me(); } catch { user = null; }
         if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
         let body: any = {};
         try { body = await req.json(); } catch { body = {}; }
