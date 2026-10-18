@@ -5,7 +5,9 @@
       "enum": [
         "voice",
         "manual",
-        "bulk"
+        "bulk",
+        "quick",
+        "reminder"
       ],
       "type": "string"
     },
@@ -27,6 +29,7 @@
     "plant_id",
     "watered_date"
   ],
+  "type": "object",
   "rls": {
     "delete": {
       "created_by_id": "{{user.id}}"
@@ -37,6 +40,5 @@
     "update": {
       "created_by_id": "{{user.id}}"
     }
-  },
-  "type": "object"
+  }
 }
