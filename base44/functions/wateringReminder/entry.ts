@@ -1,0 +1,100 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+
+// Backend for the phone's own watering pop-up (the alarm-scheduled notification
+// with "Done" and "Later today"). The phone calls this directly, with the
+// signed-in user's token, even when the app is closed.
+//   { action: 'due',   tz }                 → plants that need water today or earlier
+//   { action: 'water', tz, plant_ids: [...] } → log a watering for each (skips any
+//                                              already logged today, so a double
+//                                              tap never double-counts)
+
+function localDay(tz?: string): string {
+    let zone = tz || 'America/Chicago';
+    try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); } catch { zone = 'America/Chicago'; }
+    const p: Record<string, string> = {};
+    for (const x of new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())) p[x.type] = x.value;
+    return `${p.year}-${p.month}-${p.day}`;
+}
+
+function addDays(day: string, n: number): string {
+    const d = new Date(day + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+}
+
+function onVacation(p: any, today: string): boolean {
+    if (!p.vacation_mode_enabled) return false;
+    const start = p.vacation_start_date ? String(p.vacation_start_date).slice(0, 10) : null;
+    const end = p.vacation_end_date ? String(p.vacation_end_date).slice(0, 10) : null;
+    if (start && today < start) return false;
+    if (end && today > end) return false;
+    return true;
+}
+
+const STAGES: [number, string][] = [[20, 'mature'], [15, 'large'], [10, 'medium'], [5, 'small'], [0, 'seedling']];
+const rank: Record<string, number> = { seedling: 0, small: 1, medium: 2, large: 3, mature: 4 };
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        let body: any = {};
+        try { body = await req.json(); } catch { body = {}; }
+        const tz = body.tz || user.timezone;
+        const today = localDay(tz);
+
+        if (body.action === 'water') {
+            const ids: string[] = Array.isArray(body.plant_ids) ? body.plant_ids.filter((x: any) => typeof x === 'string').slice(0, 200) : [];
+            if (!ids.length) return Response.json({ success: true, watered: 0, skipped: 0 });
+            // User-scoped reads: RLS only returns this user's own plants
+            const plants = (await base44.entities.Plant.filter({ id: { $in: ids } })) || [];
+            const already = new Set(
+                ((await base44.entities.WateringLog.filter({ plant_id: { $in: plants.map((p: any) => p.id) }, watered_date: today })) || [])
+                    .map((l: any) => l.plant_id),
+            );
+            let watered = 0, skipped = 0;
+            for (const p of plants) {
+                if (already.has(p.id)) { skipped++; continue; }
+                const total = (p.total_waterings || 0) + 1;
+                const computed = STAGES.find(([min]) => total >= min)![1];
+                const stage = (rank[p.growth_stage] ?? 0) > rank[computed] ? p.growth_stage : computed;
+                const isNewest = !p.last_watered || today >= String(p.last_watered).slice(0, 10);
+                await Promise.all([
+                    base44.entities.WateringLog.create({
+                        plant_id: p.id,
+                        plant_name: p.nickname || p.name,
+                        watered_date: today,
+                        method: 'reminder',
+                    }),
+                    base44.entities.Plant.update(p.id, {
+                        total_waterings: total,
+                        growth_stage: stage,
+                        status: p.status === 'wilted' ? 'healthy' : (p.status || 'healthy'),
+                        ...(isNewest ? { last_watered: today, next_watering_due: addDays(today, p.water_frequency_days || 7) } : {}),
+                    }),
+                ]);
+                watered++;
+            }
+            return Response.json({ success: true, watered, skipped, today });
+        }
+
+        // 'due' (default)
+        const plants = (await base44.entities.Plant.filter({ created_by: user.email }, '-created_date', 500)) || [];
+        const due = plants
+            .filter((p: any) => p.next_watering_due && String(p.next_watering_due).slice(0, 10) <= today)
+            .filter((p: any) => !onVacation(p, today))
+            .filter((p: any) => String(p.last_watered || '').slice(0, 10) !== today)
+            .sort((a: any, b: any) => String(a.next_watering_due).localeCompare(String(b.next_watering_due)))
+            .map((p: any) => ({ id: p.id, name: p.nickname || p.name || 'Plant', next_due: String(p.next_watering_due).slice(0, 10) }));
+        return Response.json({
+            success: true,
+            today,
+            enabled: user.notifications_watering !== false,
+            plants: due,
+        });
+    } catch (error) {
+        console.error('wateringReminder', error);
+        return Response.json({ error: (error as Error).message }, { status: 500 });
+    }
+});
