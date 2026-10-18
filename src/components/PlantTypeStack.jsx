@@ -1,8 +1,58 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Droplets, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle, Pin } from "lucide-react";
+import { Droplets, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle, Pin, Check, Loader2 } from "lucide-react";
+import { quickWaterPlant, wateredToday } from "@/lib/watering";
+import { toast } from "sonner";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
+
+// One-tap watering on the card itself (doesn't open the plant)
+function WaterButton({ plant, compact = false }) {
+  const [busy, setBusy] = useState(false);
+  const [justDone, setJustDone] = useState(false);
+  const done = justDone || wateredToday(plant);
+  useEffect(() => { if (!wateredToday(plant)) setJustDone(false); }, [plant.last_watered]);
+
+  const onClick = async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (busy || done) return;
+    setBusy(true);
+    try {
+      await quickWaterPlant(plant);
+      setJustDone(true);
+    } catch (err) {
+      console.error('quick water failed', err);
+      toast.error("Couldn't log that watering. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const stop = (e) => e.stopPropagation();
+
+  if (compact) {
+    return (
+      <button
+        onClick={onClick}
+        onPointerDown={stop}
+        aria-label={done ? 'Watered today' : 'Water now'}
+        className={`w-9 h-9 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition ${done ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'}`}
+      >
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : done ? <Check className="w-4 h-4" /> : <Droplets className="w-4 h-4" />}
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={onClick}
+      onPointerDown={stop}
+      className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold shadow-lg active:scale-95 transition ${done ? 'bg-emerald-500/90 text-white' : 'bg-blue-500 text-white'}`}
+    >
+      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : done ? <Check className="w-3.5 h-3.5" /> : <Droplets className="w-3.5 h-3.5" />}
+      {done ? 'Watered' : 'Water'}
+    </button>
+  );
+}
 
 // Tile card — compact 2-per-row grid
 function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex }) {
@@ -44,8 +94,13 @@ function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex }) {
         </div>
       )}
 
+      {/* Water button */}
+      <div className="absolute bottom-2 right-2 z-10">
+        <WaterButton plant={plant} compact />
+      </div>
+
       {/* Name at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2.5 pt-4">
+      <div className="absolute bottom-0 left-0 right-12 px-2.5 pb-2.5 pt-4">
         <p className="font-bold text-white text-xs leading-tight line-clamp-2 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
           {displayName}
         </p>
@@ -265,7 +320,7 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
                     </span>
                   )}
                 </div>
-                <span className="text-white/50 text-[10px] font-semibold">Tap to open →</span>
+                <WaterButton plant={plant} />
               </div>
             </motion.div>
           )}
