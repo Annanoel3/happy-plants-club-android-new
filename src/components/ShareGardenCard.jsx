@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Share2, Copy, Eye, Link2Off, RefreshCw, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 
 async function copyText(text) {
   try {
@@ -56,6 +57,10 @@ export default function ShareGardenCard({ cardClass, textClass, subTextClass }) 
   const share = async () => {
     if (!info?.share_url) return;
     const text = `Check out my plants on Happy Plants 🌱 ${info.share_url}`;
+    // New app builds: Android's own share sheet (Messages, WhatsApp, Instagram…)
+    if (Capacitor.isNativePlatform()) {
+      try { await registerPlugin('NotifyBridge').shareText({ text, title: info.public_name || 'My garden' }); return; } catch { /* older build: copy instead */ }
+    }
     if (navigator.share) {
       try { await navigator.share({ title: info.public_name, text, url: info.share_url }); return; } catch { /* cancelled or unsupported */ }
     }
