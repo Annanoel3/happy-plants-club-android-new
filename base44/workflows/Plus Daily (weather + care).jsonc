@@ -1,0 +1,43 @@
+{
+  "name": "Plus Daily (weather + care)",
+  "description": "Hourly: keeps local weather fresh, applies weather-smart watering once a day per Plus user (from 5 AM local), and sends at most one plant-care push a day (9-11 AM local).",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "20 * * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {
+              "action": "sweep"
+            },
+            "function_name": "plus"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "plus_daily",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
