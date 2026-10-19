@@ -18,8 +18,10 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-export default function PlantHealthCheck({ plant }) {
+export default function PlantHealthCheck({ plant, openKey = 0 }) {
   const [isOpen, setIsOpen] = useState(false);
+  // "Re-check now" on the plant page opens this from outside
+  React.useEffect(() => { if (openKey) setIsOpen(true); }, [openKey]);
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
