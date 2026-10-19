@@ -507,6 +507,28 @@ function snapTo(v: number, options: number[]): number {
 const FEED_STEPS = [7, 14, 21, 30, 45, 60, 90, 120, 180, 365];
 const ROTATE_STEPS = [7, 14, 21, 30, 45, 60, 90];
 const REPOT_MONTHS = [6, 12, 18, 24, 36, 48, 60];
+// What we know for sure about a plant, so a care task that can't apply is never switched on
+// (whatever the AI says): no repot check for plants in the ground, in water, air plants;
+// no misting for succulents/cacti or plants already misted as their watering; no turning
+// for plants in the ground or outdoors; no feeding for carnivorous plants.
+const GROUND_AREAS = ['garden', 'raised bed', 'front yard', 'backyard', 'yard', 'flower bed', 'vegetable garden'];
+function careFacts(p: any) {
+    const methods = ['pour', 'reservoir', 'soak', 'mist', 'bottom', 'in_water'];
+    const set = methods.includes(p.water_method) ? p.water_method : null;
+    const method = set && p.care_profile?.user_method ? set : p.pot_type === 'Self-watering' ? 'reservoir' : (set || 'pour');
+    const group = String(p.care_profile?.group || '');
+    const env = String(p.environment || '');
+    const loc = String(p.location || '').trim().toLowerCase();
+    const inGround = p.pot_diameter_in === 0 || (env === 'Outdoor' && GROUND_AREAS.includes(loc) && !(Number(p.pot_diameter_in) > 0));
+    return {
+        method, group, inGround,
+        noFeed: group === 'carnivorous',
+        noMist: method === 'mist' || !!p.care_profile?.drought_tolerant || ['succulent', 'cactus', 'caudiciform'].includes(group) || env === 'Outdoor',
+        noRotate: inGround || env === 'Outdoor',
+        noRepot: inGround || method === 'in_water' || ['air_plant', 'aquatic'].includes(group),
+    };
+}
+
 function fallbackCare(p: any) {
     const type = p.plant_type || '';
     const indoor = !p.environment || INDOORISH.includes(p.environment);
@@ -518,12 +540,13 @@ function fallbackCare(p: any) {
     else if (['Trees & Shrubs', 'Perennials'].includes(type)) { fert = 60; repotMonths = 24; }
     else if (type === 'Houseplants') { mist = humid && indoor; }
     // Carnivorous plants are never fed through the soil (NC State Extension: "Do not fertilize")
-    const feed = p.care_profile?.group !== 'carnivorous';
+    const f = careFacts(p);
+    if (['fern', 'orchid', 'air_plant'].includes(f.group) && indoor) mist = true;
     return {
-        fertilize: { useful: feed, every_days: fert, winter_pause: true },
-        mist: { useful: mist, every_days: 3 },
-        rotate: { useful: indoor, every_days: rotateEvery },
-        repot: { every_days: repotMonths * 30 },
+        fertilize: { useful: !f.noFeed, every_days: fert, winter_pause: true },
+        mist: { useful: mist && !f.noMist, every_days: 3 },
+        rotate: { useful: indoor && !f.noRotate, every_days: rotateEvery },
+        repot: { useful: !f.noRepot, every_days: repotMonths * 30 },
         note: null,
         source: 'default',
     };
@@ -540,6 +563,9 @@ async function suggestCare(plants: any[]) {
         scientific_name: p.scientific_name || null,
         type: p.plant_type || null,
         environment: p.environment || null,
+        location: p.location || null,
+        how_watered: careFacts(p).method,
+        in_the_ground: careFacts(p).inGround,
         drought_tolerant: !!p.care_profile?.drought_tolerant,
         group: p.care_profile?.group || null,
         fertilizing_notes: String(p.care_instructions?.fertilizing || '').slice(0, 200) || null,
@@ -554,12 +580,14 @@ async function suggestCare(plants: any[]) {
                 {
                     role: 'system',
                     content: `You are a careful horticulturist. For each plant, suggest a simple home-care schedule.
-Return JSON: {"plants":[{"id":"...","fertilize":{"useful":true,"every_days":30,"winter_pause":true},"mist":{"useful":false,"every_days":3},"rotate":{"useful":true,"every_days":14},"repot":{"every_months":18},"note":"one short sentence, or null"}]}
+Return JSON: {"plants":[{"id":"...","fertilize":{"useful":true,"every_days":30,"winter_pause":true},"mist":{"useful":false,"every_days":3},"rotate":{"useful":true,"every_days":14},"repot":{"useful":true,"every_months":18},"note":"one short sentence, or null"}]}
+Every "useful" is a yes/no: true only if this plant actually needs that task, false if it doesn't.
 Rules:
 - fertilize.useful false ONLY for plants that should not be fed at all: carnivorous plants (Venus flytrap, pitcher plants, sundews, butterworts) and anything whose notes say not to fertilize. True for everything else.
 - fertilize.every_days between 7 and 365: how often to feed DURING the growing season (spring and summer; the app never schedules feeding in fall or winter). Slow growers need very little: succulents, cacti, aloe, snake plant, ZZ plant 120-365 (once or twice a season); most foliage houseplants 28-60; heavy feeders (herbs, vegetables, annual flowers) 14-21. winter_pause true unless the plant actively grows in winter.
-- mist.useful true ONLY for plants that benefit from extra humidity (ferns, calatheas, orchids, air plants...). Never for succulents, cacti or fuzzy-leaved plants.
+- mist.useful true ONLY for plants that benefit from extra humidity (ferns, calatheas, orchids, air plants...). Never for succulents, cacti or fuzzy-leaved plants, and false when how_watered is "mist" (misting is already its watering).
 - rotate.useful true only for plants kept indoors near a window (they lean toward light). False for outdoor plants. rotate.every_days between 7 and 90: fast growers that lean (pothos, monstera, fiddle-leaf fig) 14-30; slow growers (succulents, cacti, aloe, snake plant) 60-90.
+- repot.useful false when the plant isn't growing in a pot of soil: in_the_ground true, how_watered "in_water", air plants, plants mounted on a board (staghorn ferns). True otherwise.
 - repot.every_months between 6 and 60 (this is a "check if it needs a bigger pot" reminder; slow growers like aloe 24-36).
 - Use the given notes when they say something specific. Keep the same ids.`,
                 },
@@ -570,16 +598,17 @@ Rules:
         for (const s of j?.plants || []) {
             if (!s?.id || !out[s.id]) continue;
             const fb = out[s.id];
+            const f = careFacts(plants.find((x) => x.id === s.id) || {});
             out[s.id] = {
                 fertilize: {
-                    // never switch feeding on for a plant the fallback says must not be fed
-                    useful: fb.fertilize.useful !== false && s.fertilize?.useful !== false,
+                    // the AI can switch a task off; it can't switch on one that can't apply
+                    useful: !f.noFeed && s.fertilize?.useful !== false,
                     every_days: snapTo(clampInt(s.fertilize?.every_days, 7, 365, fb.fertilize.every_days), FEED_STEPS),
                     winter_pause: s.fertilize?.winter_pause !== false,
                 },
-                mist: { useful: !!s.mist?.useful, every_days: clampInt(s.mist?.every_days, 1, 14, 3) },
-                rotate: { useful: !!s.rotate?.useful, every_days: snapTo(clampInt(s.rotate?.every_days, 7, 90, fb.rotate.every_days), ROTATE_STEPS) },
-                repot: { every_days: snapTo(clampInt(s.repot?.every_months, 6, 60, 18), REPOT_MONTHS) * 30 },
+                mist: { useful: !f.noMist && !!s.mist?.useful, every_days: clampInt(s.mist?.every_days, 1, 14, 3) },
+                rotate: { useful: !f.noRotate && !!s.rotate?.useful, every_days: snapTo(clampInt(s.rotate?.every_days, 7, 90, fb.rotate.every_days), ROTATE_STEPS) },
+                repot: { useful: !f.noRepot && s.repot?.useful !== false, every_days: snapTo(clampInt(s.repot?.every_months, 6, 60, 18), REPOT_MONTHS) * 30 },
                 note: typeof s.note === 'string' ? s.note.slice(0, 160) : null,
                 source: 'ai',
             };
