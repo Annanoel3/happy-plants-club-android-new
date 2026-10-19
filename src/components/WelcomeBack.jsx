@@ -10,9 +10,7 @@ export default function WelcomeBack({ trip, ui, onClose }) {
   const [busy, setBusy] = useState(null);
   const visits = trip?.sitter_plan?.visits || [];
   const end = String(trip?.end_date || '').slice(0, 10);
-  const today = new Date();
-  const lastDay = end; // visits after the trip's last day never happen
-  const done = visits.filter((v) => v.date <= lastDay);
+  const done = visits.filter((v) => v.date <= end); // a trip cut short: later visits never happened
   const waterings = done.reduce((n, v) => n + (v.areas || []).reduce((m, a) => m + (a.plants || []).length, 0), 0);
   const plantIds = new Set(done.flatMap((v) => (v.areas || []).flatMap((a) => (a.plants || []).map((p) => p.id))));
 
