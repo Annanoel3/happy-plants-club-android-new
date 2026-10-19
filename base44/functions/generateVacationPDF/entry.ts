@@ -105,7 +105,7 @@ function makePlan(plants: any[], vac: any, every: number, plus: boolean, today: 
             id: p.id,
             name: p.nickname || p.name || 'Plant',
             sci: p.scientific_name || null,
-            area: String(p.location || '').trim() || 'No area set',
+            area: String(p.location || '').trim() || 'Other plants',
             how: howText(p, plus),
             note: notes[p.id] || null,
             strict: !!p.water_strict,
@@ -244,7 +244,7 @@ function buildPdf(plan: any, vac: any) {
         for (const a of v.areas) {
             need(14);
             doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...green);
-            doc.text(`${clean(a.area) || 'No area set'} (${a.plants.length})`, M, y); y += 5.5;
+            doc.text(`${clean(a.area) || 'Other plants'} (${a.plants.length})`, M, y); y += 5.5;
             for (const p of a.plants) {
                 const name = clean(p.name) || 'Plant', sci = clean(p.sci);
                 const how = doc.splitTextToSize(p.how, W - 2 * M - 10);
@@ -279,7 +279,7 @@ function buildPdf(plan: any, vac: any) {
         doc.text('No water needed during the trip', M, y); y += 5.5;
         doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(90, 90, 90);
         const byArea = new Map<string, string[]>();
-        for (const p of plan.not_needed) { const a = clean(p.area) || 'No area set'; if (!byArea.has(a)) byArea.set(a, []); byArea.get(a)!.push(clean(p.name) || 'Plant'); }
+        for (const p of plan.not_needed) { const a = clean(p.area) || 'Other plants'; if (!byArea.has(a)) byArea.set(a, []); byArea.get(a)!.push(clean(p.name) || 'Plant'); }
         for (const [area, names] of byArea) {
             const lines = doc.splitTextToSize(`${area}: ${names.sort().join(', ')}`, W - 2 * M);
             need(lines.length * 4.4 + 1);
