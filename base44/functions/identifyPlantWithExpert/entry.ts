@@ -339,7 +339,9 @@ Deno.serve(async (req) => {
                     ...d,
                     next_watering_due: addDays(last, d.water_frequency_days),
                     care_profile: prof,
-                    add_info: { ...info, renamed_from: plant.scientific_name || null, renamed_at: new Date().toISOString() },
+                    add_info: { ...info, error: null, renamed_from: plant.scientific_name || null, renamed_at: new Date().toISOString() },
+                    // A plant we couldn't name is named now: on to the check
+                    ...(plant.add_status === 'failed' || plant.add_status === 'identifying' ? { add_status: 'review' } : {}),
                 };
                 // Seasonal numbers belonged to the old name
                 if (!prof.user_interval) { patch.water_days_grow = null; patch.water_days_rest = null; patch.water_rest_season = null; patch.water_season = null; }
