@@ -9,6 +9,7 @@ import { appParams } from '@/lib/app-params';
 import { localToday } from '@/lib/dates';
 import { isPlusCached } from '@/lib/premium';
 import { waterAmount } from '@/lib/waterAmount';
+import { fetchTrips, dueAfterTrips } from '@/lib/vacation';
 
 let Notify = null;
 function bridge() {
@@ -43,7 +44,10 @@ export async function syncWateringPopups() {
       if (!token) return null;
       const today = localToday();
       const plus = isPlusCached();
-      const plants = (await base44.entities.Plant.filter({ created_by: user.email }, '-created_date', 500)) || [];
+      const [plants, trips] = await Promise.all([
+        base44.entities.Plant.filter({ created_by: user.email }, '-created_date', 500).then((r) => r || []),
+        fetchTrips(user.email).catch(() => []),
+      ]);
       const snapshot = plants
         .filter((p) => !onVacation(p, today))
         .map((p) => {
@@ -51,10 +55,11 @@ export async function syncWateringPopups() {
           return {
             id: p.id,
             name: p.nickname || p.name || 'Plant',
-            // already watered today → not due again today
+            // already watered today → not due again today; on a trip → not due until after it
+            // (the phone uses these dates only when it can't reach the server)
             next_due: String(p.last_watered || '').slice(0, 10) === today
               ? '9999-12-31'
-              : String(p.next_watering_due || '').slice(0, 10),
+              : dueAfterTrips(String(p.next_watering_due || '').slice(0, 10), trips),
             // Plus: "6 oz" on the pop-up and widget (used when the phone is offline)
             detail: amt && amt.short ? amt.short : null,
             // so a watering from the widget/pop-up can set the right next date offline
