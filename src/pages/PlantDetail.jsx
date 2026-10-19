@@ -1040,7 +1040,26 @@ export default function PlantDetail() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="history">
+          <TabsContent value="history" className="space-y-4">
+            {Array.isArray(plant.care_history) && plant.care_history.length > 0 && (
+              <Card className={getThemedClasses()}>
+                <CardContent className="p-6">
+                  <h2 className={`text-xl font-semibold mb-4 ${getTextColor()}`}>Care & Rain</h2>
+                  <div className="space-y-2">
+                    {[...plant.care_history].reverse().slice(0, 30).map((h, i) => (
+                      <div key={i} className={`flex items-center justify-between p-3 rounded-lg border ${getThemedClasses()}`}>
+                        <p className={`font-medium ${getTextColor()}`}>
+                          {h.type === 'rain'
+                            ? `🌧️ Rain counted as watering${h.amount_in ? ` (${h.amount_in} in)` : ''}`
+                            : `${CARE_META[h.type]?.icon || '✅'} ${CARE_META[h.type]?.label || h.type}`}
+                        </p>
+                        <span className={`text-sm ${getSecondaryTextColor()}`}>{h.date ? format(parseISO(h.date), 'MMM d, yyyy') : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             {wateringLogs.length > 0 && (
               <Card className={getThemedClasses()}>
                 <CardContent className="p-6">
@@ -1066,6 +1085,16 @@ export default function PlantDetail() {
           </TabsContent>
 
           <TabsContent value="progress">
+            {plus ? (
+              <GrowthTimeline plant={plant} photos={progressPhotos} ui={ui} />
+            ) : (
+            <>
+            {plusReady && (
+              <button onClick={() => navigate('/Premium')} className={`w-full text-left rounded-2xl p-4 border mb-4 ${getThemedClasses()}`}>
+                <p className={`font-semibold ${getTextColor()}`}>🎞️ Growth time-lapse</p>
+                <p className={`text-sm mt-1 ${getSecondaryTextColor()}`}>Plus lines up each photo with the last one, then plays them as a time-lapse and compares before and after.</p>
+              </button>
+            )}
             <Card className={getThemedClasses()}>
               <CardHeader>
                 <div className="flex items-center justify-between">
