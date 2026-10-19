@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { identifyPlantWithExpert } from "@/functions/identifyPlantWithExpert";
+import { getIdStatus, nameNewPlants } from "@/lib/plantIds";
+import PhotoIdsBar from "@/components/PhotoIdsBar";
 import { setMicActive, showAdForEvent } from "@/lib/admob";
 import { transcribeVoice } from "@/functions/transcribeVoice";
 import { processBulkPlants } from "@/functions/processBulkPlants";
@@ -33,6 +34,11 @@ export default function AddPlant() {
   const fileInputRef = useRef(null);
   const galleryInputRef = useRef(null);
   const [loadingIndex, setLoadingIndex] = useState(0);
+  const [ids, setIds] = useState(null); // photo IDs left today
+
+  useEffect(() => {
+    getIdStatus().then(setIds).catch(() => {});
+  }, []);
 
   const loadingMessages = [
     "Identifying your plants...",
@@ -142,15 +148,18 @@ export default function AddPlant() {
       }
       if (!created.length) return;
 
-      // Name them on the server (don't wait here)
-      for (const p of created) {
-        identifyPlantWithExpert({ plant_id: p.id }).catch(async (err) => {
-          if (aiLimitInfo(err)) await handleAiLimit(err, navigate);
-        });
-      }
+      // Use today's photo IDs, then name them on the server (don't wait for the naming).
+      // Photos over the limit are kept and wait under "Newly added".
+      const { approved, waiting } = await nameNewPlants(created.map((p) => p.id));
       try { sessionStorage.setItem('hp_add_ad_pending', '1'); } catch { /* ignore */ }
       refreshPlantData();
-      toast.success(created.length === 1 ? 'Got it! Naming your plant…' : `Got them! Naming ${created.length} plants…`);
+      if (!waiting.length) {
+        toast.success(created.length === 1 ? 'Got it! Naming your plant…' : `Got them! Naming ${created.length} plants…`);
+      } else if (!approved.length) {
+        toast(`Saved ${waiting.length === 1 ? 'your plant' : `${waiting.length} plants`}. You're out of photo IDs for today, so ${waiting.length === 1 ? 'it gets' : 'they get'} named tomorrow. Typing a name is always free.`, { duration: 8000 });
+      } else {
+        toast(`Naming ${approved.length} now. ${waiting.length} more ${waiting.length === 1 ? 'is' : 'are'} saved and get named tomorrow (out of photo IDs for today).`, { duration: 8000 });
+      }
       navigate('/Dashboard');
     } catch (error) {
       toast.error('Error processing images: ' + (error?.message || 'Unknown error'));
@@ -332,6 +341,10 @@ export default function AddPlant() {
               )}
             </CardContent>
           </Card>
+
+          <div className="mb-4">
+            <PhotoIdsBar ids={ids} mode="add" text={getTextColor()} sub={getSecondaryTextColor()} cardClass={getThemedClasses()} onChange={setIds} />
+          </div>
 
           <div className="space-y-4">
             {/* Camera input */}
