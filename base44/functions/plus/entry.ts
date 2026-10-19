@@ -967,6 +967,29 @@ Deno.serve(async (req) => {
                 bump('profile_error');
                 console.error('profile/season sweep error', (e as Error).message);
             }
+            // 3) New plants stuck mid-add (app closed or no signal while it was being named):
+            //    try again here on the server, up to 3 tries per plant.
+            try {
+                const stuck = (await db.Plant.filter({ add_status: { $in: ['identifying', 'failed'] } }, 'created_date', 20)) || [];
+                for (const p of stuck) {
+                    const info = p.add_info || {};
+                    const tries = Number(info.tries) || 0;
+                    if (tries >= 3 || info.error === 'limit_reached' || !p.image_url) continue;
+                    const started = Date.parse(info.started_at || p.created_date) || 0;
+                    const wait = p.add_status === 'identifying' ? 10 * 60 * 1000 : 30 * 60 * 1000;
+                    if (now - started < wait) continue;
+                    try {
+                        const res = await fetch(`https://happyplants.club/api/apps/68e7e07bd0e33d2da3f22dbf/functions/identifyPlantWithExpert`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key: sweepKey, plant_id: p.id }),
+                        });
+                        bump(res.ok ? 'add_retried' : 'add_retry_failed');
+                    } catch { bump('add_retry_failed'); }
+                }
+            } catch (e) {
+                console.error('add retry sweep error', (e as Error).message);
+            }
             return Response.json({ success: true, at: new Date(now).toISOString(), plus_users: plusIds.size, stats });
         }
 
