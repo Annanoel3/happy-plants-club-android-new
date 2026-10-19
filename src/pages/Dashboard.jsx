@@ -18,6 +18,7 @@ import BulkActionBar from "@/components/BulkActionBar";
 import WateringRound, { dueNow } from "@/components/WateringRound";
 import NewPlantReview from "@/components/NewPlantReview";
 import WelcomeBack from "@/components/WelcomeBack";
+import NewPlantsNotice from "@/components/NewPlantsNotice";
 import { fetchTrips, tripCovering, welcomeBackTrip, niceDay, addDays } from "@/lib/vacation";
 import { whenPopupFree, releasePopup } from "@/lib/popupGate";
 import { toast } from "sonner";
@@ -47,6 +48,9 @@ export default function Dashboard() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewSkip, setReviewSkip] = useState(() => new Set()); // "Later" (this visit) or just saved
   const reviewWaitRef = useRef(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSeenTick, setBulkSeenTick] = useState(0);
+  const bulkWaitRef = useRef(null);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [welcomeLater, setWelcomeLater] = useState(false);
   const welcomeWaitRef = useRef(null);
@@ -478,8 +482,11 @@ export default function Dashboard() {
 
   // ---- New plants: being named on the server, then "Check your new plant" ----
   const identifyingPlants = plantsList.filter((p) => p.add_status === 'identifying');
+  // One plant added: the check opens right away. Several at once (add_info.bulk) or put off
+  // with "Later": no popup per plant; they wait under "Newly added" until the owner opens
+  // each one and says where it lives.
   const reviewQueue = plantsList
-    .filter((p) => (p.add_status === 'review' || p.add_status === 'failed') && !reviewSkip.has(p.id))
+    .filter((p) => (p.add_status === 'review' || p.add_status === 'failed') && !reviewSkip.has(p.id) && !p.add_info?.bulk && !p.add_info?.later)
     .sort((a, b) => String(a.created_date).localeCompare(String(b.created_date)));
   const reviewPlant = reviewQueue[0] || null;
 
@@ -489,6 +496,36 @@ export default function Dashboard() {
     reviewWaitRef.current = whenPopupFree('review', () => { reviewWaitRef.current = null; setReviewOpen(true); }, { firstDelay: 600 });
   }, [reviewPlant?.id, reviewOpen]);
   useEffect(() => () => { reviewWaitRef.current?.(); releasePopup('review'); }, []);
+
+  // "Newly added": everything not set up yet, newest first
+  const newPlants = plantsList
+    .filter((p) => ['identifying', 'review', 'failed'].includes(p.add_status))
+    .sort((a, b) => String(b.created_date).localeCompare(String(a.created_date)));
+
+  // Several plants added at once: one note, not a question per plant
+  const bulkSeen = (() => {
+    try { return new Set(JSON.parse(localStorage.getItem('hp_bulk_announced') || '[]')); } catch { return new Set(); }
+  })();
+  void bulkSeenTick; // re-read after "Got it"
+  const bulkUnseen = newPlants.filter((p) => p.add_info?.bulk && !bulkSeen.has(p.id));
+  useEffect(() => {
+    if (!bulkUnseen.length || bulkOpen || bulkWaitRef.current) return;
+    bulkWaitRef.current = whenPopupFree('bulknew', () => { bulkWaitRef.current = null; setBulkOpen(true); }, { firstDelay: 700 });
+  }, [bulkUnseen.length, bulkOpen]);
+  useEffect(() => () => { bulkWaitRef.current?.(); releasePopup('bulknew'); }, []);
+  const closeBulk = () => {
+    try {
+      const ids = [...bulkSeen, ...newPlants.filter((p) => p.add_info?.bulk).map((p) => p.id)].slice(-300);
+      localStorage.setItem('hp_bulk_announced', JSON.stringify(ids));
+    } catch { /* ignore */ }
+    setBulkSeenTick((t) => t + 1);
+    setBulkOpen(false);
+    releasePopup('bulknew');
+    // One ad per add, after the note (never on top of it)
+    let pending = false;
+    try { pending = sessionStorage.getItem('hp_add_ad_pending') === '1'; sessionStorage.removeItem('hp_add_ad_pending'); } catch { /* ignore */ }
+    if (pending) setTimeout(() => showAdForEvent('add'), 800);
+  };
 
   const closeReview = (skipIds = []) => {
     setReviewSkip((s) => { const n = new Set(s); skipIds.forEach((id) => n.add(id)); return n; });
@@ -644,6 +681,9 @@ export default function Dashboard() {
     <>
       <DailyWeatherPopup />
       <LocationPrompt plantCount={plants?.length || 0} />
+      {bulkOpen && (
+        <NewPlantsNotice count={Math.max(1, bulkUnseen.length)} ui={roundUi} onClose={closeBulk} />
+      )}
       {welcomeOpen && backTrip && (
         <WelcomeBack trip={backTrip} ui={roundUi} onClose={closeWelcome} />
       )}
@@ -654,7 +694,13 @@ export default function Dashboard() {
           ui={roundUi}
           navigate={navigate}
           onDone={reviewSaved}
-          onLater={() => closeReview(reviewQueue.map((p) => p.id))}
+          onLater={() => {
+            // Put off: it waits under "Newly added" instead of popping up again
+            for (const p of reviewQueue) {
+              base44.entities.Plant.update(p.id, { add_info: { ...(p.add_info || {}), later: true } }).catch(() => {});
+            }
+            closeReview(reviewQueue.map((p) => p.id));
+          }}
         />
       )}
       <WateringRound
@@ -705,22 +751,6 @@ export default function Dashboard() {
             <div className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold ${getThemedClasses()} ${getTextColor()}`}>
               🌿 <span>{plantsList.length}</span>
             </div>
-            {/* New plants still being named on the server */}
-            {identifyingPlants.length > 0 && (
-              <div className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold ${getThemedClasses()} ${getTextColor()}`} role="status">
-                <span className="w-3.5 h-3.5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" aria-hidden />
-                Naming {identifyingPlants.length} new plant{identifyingPlants.length === 1 ? '' : 's'}…
-              </div>
-            )}
-            {/* Unchecked new plants (after "Later") */}
-            {!reviewOpen && reviewQueue.length === 0 && plantsList.some((p) => p.add_status === 'review' || p.add_status === 'failed') && (
-              <button
-                onClick={() => setReviewSkip(new Set())}
-                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-amber-500 text-white active:scale-95"
-              >
-                🌱 Check new plants
-              </button>
-            )}
             {/* Watering round: only what's due, by area */}
             {dueToday.length > 0 && !holdTrip && (
               <button
@@ -776,6 +806,48 @@ export default function Dashboard() {
               {wateringRemindersEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
             </button>
           </div>
+
+          {/* Newly added: plants still to set up (where they live, care). They leave once
+              the owner saves where the plant lives, not just by opening it. */}
+          {newPlants.length > 0 && (
+            <section className="mb-5" aria-label="Newly added">
+              <div className="flex items-baseline justify-between gap-2 mb-2">
+                <p className={`text-sm font-bold ${getTextColor()}`}>🌱 Newly added ({newPlants.length})</p>
+                <p className={`text-xs ${getSecondaryTextColor()}`}>Tap one to say where it lives</p>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+                {newPlants.map((p) => {
+                  const naming = p.add_status === 'identifying';
+                  const img = p.thumbnail_url || p.image_url;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => navigate(`/PlantDetail?id=${p.id}`)}
+                      className={`shrink-0 w-28 rounded-2xl overflow-hidden text-left active:scale-95 transition ${getThemedClasses()}`}
+                      aria-label={naming ? 'New plant, still being named' : `Set up ${p.nickname || p.name}`}
+                    >
+                      <div className="relative h-20 bg-green-100">
+                        {img
+                          ? <img src={img} alt="" className="w-full h-full object-cover" loading="lazy" />
+                          : <span className="w-full h-full flex items-center justify-center text-3xl" aria-hidden>🪴</span>}
+                        {naming && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <span className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden />
+                          </div>
+                        )}
+                      </div>
+                      <div className="px-2 py-1.5">
+                        <p className={`text-xs font-semibold truncate ${getTextColor()}`}>{naming ? 'Naming…' : (p.nickname || p.name)}</p>
+                        <p className={`text-[10px] truncate ${getSecondaryTextColor()}`}>
+                          {naming ? 'Almost ready' : p.add_status === 'failed' ? "Couldn't name it" : (p.scientific_name ? <i>{p.scientific_name}</i> : 'Set it up')}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* Away: watering reminders paused for the whole garden */}
           {awayTrip && (
