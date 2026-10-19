@@ -3,6 +3,10 @@ import { usePhotoSource } from "@/components/PhotoSourceSheet";
 import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { base44 } from "@/api/base44Client";
 import { handleAiLimit } from "@/lib/premium";
+import { queryClientInstance } from "@/lib/query-client";
+import { usePlusReady } from "@/lib/plus";
+import { useNavigate } from "react-router-dom";
+import { format, parseISO } from "date-fns";
 import { Camera, Image, Heart, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +24,10 @@ export default function PlantHealthCheck({ plant }) {
   const [imagePreview, setImagePreview] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState("");
+  const [check, setCheck] = useState(null);
+  const [plusResult, setPlusResult] = useState(false);
+  const plusReady = usePlusReady();
+  const navigate = useNavigate();
 
   const [theme, setTheme] = React.useState(() => {
     return localStorage.getItem('theme') || 'light';
@@ -61,6 +69,7 @@ export default function PlantHealthCheck({ plant }) {
 
     setIsAnalyzing(true);
     setAnalysis("");
+    setCheck(null);
 
     try {
       const formData = new FormData();
@@ -76,11 +85,17 @@ export default function PlantHealthCheck({ plant }) {
 
       const { data } = await base44.functions.invoke('analyzePlantHealth', {
         image_url: uploadResponse.file_url,
-        plant_name: plant.name
+        plant_name: plant.name,
+        plant_id: plant.id,
       });
 
       if (data.success) {
         setAnalysis(data.analysis);
+        setCheck(data.check || null);
+        setPlusResult(!!data.plus);
+        // Saved to the plant's health history (and maybe a re-check reminder) on the server
+        queryClientInstance.invalidateQueries({ queryKey: ['healthChecks'] });
+        queryClientInstance.invalidateQueries({ queryKey: ['reminders'] });
       } else {
         throw new Error(data.error || "Failed to analyze plant health");
       }
@@ -97,7 +112,15 @@ export default function PlantHealthCheck({ plant }) {
     setSelectedImage(null);
     setImagePreview("");
     setAnalysis("");
+    setCheck(null);
   };
+
+  const STATUS = {
+    healthy: { label: 'Healthy', cls: 'bg-green-100 text-green-800' },
+    needs_attention: { label: 'Needs attention', cls: 'bg-amber-100 text-amber-800' },
+    concerning: { label: 'Concerning', cls: 'bg-red-100 text-red-800' },
+  };
+  const PROGRESS = { improving: '📈 Getting better', same: '➖ About the same', worse: '📉 Getting worse' };
 
   return (
     <>
@@ -218,13 +241,38 @@ export default function PlantHealthCheck({ plant }) {
                 {analysis && (
                   <Card className="theme-card">
                     <CardContent className="p-4">
-                      <h3 className="font-semibold theme-text mb-3 flex items-center gap-2">
+                      <h3 className="font-semibold theme-text mb-3 flex items-center gap-2 flex-wrap">
                         <Heart className="w-5 h-5 text-red-500" />
-                        Health Assessment
+                        {check?.headline || 'Health Assessment'}
+                        {check?.status && STATUS[check.status] && (
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${STATUS[check.status].cls}`}>{STATUS[check.status].label}</span>
+                        )}
                       </h3>
+                      {check?.progress && PROGRESS[check.progress] && (
+                        <p className="text-sm font-semibold theme-text mb-2">
+                          {PROGRESS[check.progress]}{check.progress_note ? ` — ${check.progress_note}` : ''}
+                        </p>
+                      )}
                       <p className="theme-text text-sm whitespace-pre-wrap leading-relaxed">
                         {analysis}
                       </p>
+                      {plusResult && check?.plan?.length > 0 && (
+                        <div className="mt-4">
+                          <p className="font-semibold theme-text text-sm mb-2">Treatment plan</p>
+                          <ol className="list-decimal pl-5 space-y-1 text-sm theme-text">
+                            {check.plan.map((s, i) => <li key={i}>{s.text}</li>)}
+                          </ol>
+                          <p className="text-xs theme-text-secondary mt-2">
+                            Saved to this plant's page so you can tick off steps.
+                            {check.recheck_date && check.reminder_id ? ` We'll remind you to re-check on ${format(parseISO(check.recheck_date), 'EEE, MMM d')}.` : ''}
+                          </p>
+                        </div>
+                      )}
+                      {!plusResult && plusReady && check?.status && check.status !== 'healthy' && (
+                        <button onClick={() => navigate('/Premium')} className="mt-4 w-full text-left text-sm rounded-xl p-3 bg-green-50 text-green-900 border border-green-200">
+                          🌿 Plus turns this into a step-by-step plan, reminds you to re-check, and shows if it's getting better.
+                        </button>
+                      )}
                     </CardContent>
                   </Card>
                 )}
