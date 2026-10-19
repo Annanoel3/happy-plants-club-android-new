@@ -36,11 +36,21 @@ Deno.serve(async (req) => {
         const message = messages[daysInactive] || `It's been ${daysInactive} days — your plants would love a check-in 🌱`;
 
         const allUsers = await base44.asServiceRole.entities.User.list('-created_date', 1000);
+        // Nobody gets "your garden misses you" while they're on a trip they told us about.
+        // (UTC day, padded by a day each side, is close enough for a once-a-day nudge.)
+        const utcDay = new Date(now).toISOString().slice(0, 10);
+        const shift = (day: string, n: number) => { const d = new Date(day + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+        const away = new Set<string>();
+        for (const v of ((await base44.asServiceRole.entities.VacationDay.list('-created_date', 1000).catch(() => [])) || [])) {
+            const s = String(v.start_date || '').slice(0, 10), e = String(v.end_date || '').slice(0, 10);
+            if (v.created_by && s && e && utcDay >= shift(s, -1) && utcDay <= shift(e, 1)) away.add(v.created_by);
+        }
         let sentCount = 0;
 
         for (const user of allUsers) {
             if (!user.email || !user.last_app_open) continue;
             if (user.notifications_enabled === false) continue;
+            if (away.has(user.email)) continue;
             const lastOpen = new Date(user.last_app_open).getTime();
             if (!(lastOpen >= windowStart && lastOpen < windowEnd)) continue;
 
