@@ -620,7 +620,7 @@ async function aiProfiles(plants: any[], ctx: { today: string; place: string | n
                 role: 'system',
                 content: `You are a careful horticulturist setting up a plant-care app's watering schedule.
 Today is ${ctx.today}. The owner's location: ${ctx.place || 'unknown'} (${ctx.hemi === 'tropics' ? 'tropics' : ctx.hemi + 'ern hemisphere'}).
-Return JSON: {"plants":[{"id":"...","group":"succulent","method":"pour","strict":false,"drought_tolerant":true,"rest_season":"winter","grow_days":7,"rest_days":21,"watering_text":"...","why":"..."}]}
+Return JSON: {"plants":[{"id":"...","group":"succulent","method":"pour","strict":false,"drought_tolerant":true,"rest_season":"winter","grow_days":7,"rest_days":21,"why":"..."}]}
 Fields:
 - group: one of ${PROFILE_GROUPS.join(', ')}.
 - method: how the plant gets its water.
@@ -637,7 +637,6 @@ Fields:
   grow_days: days between waterings in its growing season, for THIS plant's spot (indoor/outdoor, pot, sun) in the owner's climate. Guide: outdoor potted succulents in warm, dry weather about every 5-7 days; indoors about every 10-21 days. Small pots and terracotta dry faster.
   rest_days: days between waterings in its rest season. Guide: every 21-30 days or less often.
   If the plant's watering depends on its own cycle in a way two seasons can't capture (Lithops and other living stones, Conophytum, winter bulbs), use null for all three.
-- watering_text: for plants where you gave grow_days and rest_days, 2-3 short plain sentences the owner will read: how to water (soak until it drains, then let it dry out completely), about how often in the growing season and in the rest season, and to check the soil first. Otherwise null.
 - why: one short sentence.
 Keep the same ids. Be realistic, not cautious-to-a-fault: overwatering kills more succulents than underwatering.`,
             },
