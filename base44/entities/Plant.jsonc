@@ -1,6 +1,20 @@
 {
   "name": "Plant",
   "properties": {
+    "add_info": {
+      "description": "From identification: {confidence, notes, alternatives, error, tries, started_at}",
+      "type": "object"
+    },
+    "add_status": {
+      "description": "New-plant pipeline: identifying (server is naming it) -> review (owner checks area, pot, name) -> done. Unset = an older plant.",
+      "enum": [
+        "identifying",
+        "review",
+        "failed",
+        "done"
+      ],
+      "type": "string"
+    },
     "care_history": {
       "description": "Care done (and rain that counted as watering): [{type, date, amount_in?}]",
       "items": {
