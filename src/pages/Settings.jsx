@@ -11,12 +11,16 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { billingAvailable, isPlusCached } from "@/lib/premium";
 import { syncWateringPopups } from "@/lib/wateringPopups";
+import { saveLocation } from "@/lib/weather";
+import { usePlus } from "@/lib/plus";
 
 export default function Settings() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [plusReady, setPlusReady] = useState(false);
+  const plus = usePlus();
+  const [notificationsCare, setNotificationsCare] = useState(true);
   useEffect(() => {
     billingAvailable().then((b) => setPlusReady(!!b.available)).catch(() => {});
     if (isPlusCached()) setPlusReady(true); // subscribers can always reach Manage/Restore
@@ -77,6 +81,7 @@ export default function Settings() {
       setNotificationsFollows(currentUser?.notifications_follows !== false);
       setNotificationsWeather(currentUser?.notifications_weather !== false);
       setNotificationsEnabled(currentUser?.notifications_enabled !== false);
+      setNotificationsCare(currentUser?.notifications_care !== false);
 
       // Load weather notification time (stored as UTC hour, convert back to local)
       if (currentUser?.weather_notification_hour !== undefined && currentUser?.weather_notification_hour !== null) {
@@ -162,12 +167,21 @@ export default function Settings() {
     return 'bg-white text-gray-900 border-gray-300';
   };
 
+  // Saves the city and looks it up on the map, so weather is for the right place
   const updateLocationMutation = useMutation({
     mutationFn: async () => {
-      await base44.auth.updateMe({ location: location.trim() });
+      const value = location.trim();
+      if (!value) {
+        await base44.auth.updateMe({ location: '' });
+        return { status: 'missing' };
+      }
+      return await saveLocation(value);
     },
-    onSuccess: () => {
-      toast.success('Location updated!');
+    onSuccess: (r) => {
+      if (r?.status === 'ok') toast.success(`📍 ${r.label || 'Location updated!'}`);
+      else if (r?.status === 'too_broad') toast(`Saved ${r.label || ''}. Add your city for local weather.`);
+      else if (r?.status === 'not_found') toast.error("Saved, but we couldn't find that place on the map. Try “City, State”.");
+      else toast.success('Location updated!');
       loadUser();
     },
     onError: () => {
@@ -212,6 +226,7 @@ export default function Settings() {
     if (key === 'notifications_follows') setNotificationsFollows(value);
     if (key === 'notifications_weather') setNotificationsWeather(value);
     if (key === 'notifications_enabled') setNotificationsEnabled(value);
+    if (key === 'notifications_care') setNotificationsCare(value);
     updateNotificationMutation.mutate({ [key]: value });
   };
 
@@ -338,9 +353,18 @@ export default function Settings() {
                     placeholder="e.g., Austin, TX"
                     className={getInputClasses()}
                   />
-                  <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>
-                    Used for climate-specific plant advice
-                  </p>
+                  {user.location && user.location === location.trim() && user.location_status === 'ok' && user.location_label ? (
+                    <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>📍 Using {user.location_label} for weather</p>
+                  ) : user.location && user.location === location.trim() && user.location_status === 'too_broad' ? (
+                    <p className="text-xs mt-1 text-amber-600">Using the middle of {user.location_label || user.location}. Add your city for local weather.</p>
+                  ) : user.location && user.location === location.trim() && user.location_status === 'not_found' ? (
+                    <p className="text-xs mt-1 text-amber-600">We couldn't find this place on the map. Try “City, State” or a ZIP code.</p>
+                  ) : (
+                    <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>
+                      City and state, or a ZIP code. Used for local weather.
+                    </p>
+                  )}
+                  <p className={`text-[10px] mt-1 opacity-70 ${getSecondaryTextColor()}`}>Place search © OpenStreetMap contributors · Weather data from MET Norway</p>
                 </div>
                 <Button
                   onClick={handleUpdateLocation}
@@ -443,6 +467,27 @@ export default function Settings() {
                     />
                   </button>
                 </div>
+
+                {plus && (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={`font-medium ${getTextColor()}`}>Plant Care (Plus)</p>
+                      <p className={`text-sm ${getSecondaryTextColor()}`}>Fertilize, mist, rotate and repot reminders. One a day at most.</p>
+                    </div>
+                    <button
+                      onClick={() => handleToggleNotification('notifications_care', !notificationsCare)}
+                      className={`w-12 h-6 shrink-0 rounded-full transition-colors ${
+                        notificationsCare ? 'bg-green-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                          notificationsCare ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between">
                   <div>
