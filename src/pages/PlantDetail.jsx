@@ -1274,7 +1274,27 @@ export default function PlantDetail() {
               </Select>
             </div>
             <div>
-              <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Pot Size</label>
+              <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Pot width (across the top)</label>
+              <Select
+                value={editData.pot_diameter_in}
+                onValueChange={(value) => setEditData({...editData, pot_diameter_in: value})}
+              >
+                <SelectTrigger className="theme-input">
+                  <SelectValue placeholder="Not set" />
+                </SelectTrigger>
+                <SelectContent>
+                  {POT_SIZES.map((s) => (
+                    <SelectItem key={s} value={String(s)}>{s} inches</SelectItem>
+                  ))}
+                  <SelectItem value="0">In the ground</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>
+                Used to work out how much water to give
+              </p>
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Pot fit</label>
               <Select
                 value={editData.pot_size}
                 onValueChange={(value) => setEditData({...editData, pot_size: value})}
