@@ -439,6 +439,18 @@ export default function Dashboard() {
     window.dispatchEvent(new Event('storage'));
   };
 
+  // New plants get a watering profile (how it's watered, finicky or not, seasonal
+  // intervals for succulents) right away instead of waiting for the hourly sweep.
+  const unprofiled = plantsList.filter((p) => !p.care_profile).length;
+  useEffect(() => {
+    if (!unprofiled) return;
+    const key = `hp_profile_try_${unprofiled}`;
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch { /* ignore */ }
+    base44.functions.invoke('plus', { action: 'profile' })
+      .then(({ data }) => { if (data?.profiled) refreshPlantData(); })
+      .catch(() => {});
+  }, [unprofiled]);
+
   if (!authChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center theme-bg">
@@ -483,18 +495,6 @@ export default function Dashboard() {
   const today = localToday();
   return plant.next_watering_due <= today; // Include overdue plants
   });
-
-  // New plants get a watering profile (how it's watered, finicky or not, seasonal
-  // intervals for succulents) right away instead of waiting for the hourly sweep.
-  const unprofiled = plantsList.filter((p) => !p.care_profile).length;
-  useEffect(() => {
-    if (!unprofiled) return;
-    const key = `hp_profile_try_${unprofiled}`;
-    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch { /* ignore */ }
-    base44.functions.invoke('plus', { action: 'profile' })
-      .then(({ data }) => { if (data?.profiled) refreshPlantData(); })
-      .catch(() => {});
-  }, [unprofiled]);
 
   // Due right now (not on vacation, not already watered today), for the watering round
   const dueToday = dueNow(plantsList);
