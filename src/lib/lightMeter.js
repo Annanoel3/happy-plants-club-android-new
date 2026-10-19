@@ -30,7 +30,10 @@ function bridge() {
   return Notify;
 }
 let availability = null;
+// Preview on the web: localStorage.hp_light_demo = '1' feeds made-up readings
+const demo = () => { try { return localStorage.getItem('hp_light_demo') === '1'; } catch { return false; } };
 export async function lightMeterAvailable() {
+  if (demo()) return true;
   if (availability !== null) return availability;
   const b = bridge();
   if (!b) return (availability = false);
@@ -44,6 +47,14 @@ export async function lightMeterAvailable() {
 }
 /** Starts readings; calls onLux(lux) on every change. Returns a stop function. */
 export async function startLight(onLux) {
+  if (demo()) {
+    const steps = [300, 1500, 6000, 15000, 60000]; // dark → sun, 4 s each
+    let i = 0;
+    const tick = () => onLux(steps[Math.floor(i++ / 16) % steps.length] * (0.9 + Math.random() * 0.2));
+    const t = setInterval(tick, 250);
+    tick();
+    return async () => clearInterval(t);
+  }
   const b = bridge();
   if (!b) throw new Error('unavailable');
   const sub = await b.addListener('light', (e) => {
