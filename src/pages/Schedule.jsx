@@ -28,6 +28,7 @@ import CareTaskList, { careTasks } from "@/components/plus/CareTaskList";
 export default function Schedule() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const plus = usePlus();
   const [user, setUser] = useState(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -696,7 +697,7 @@ export default function Schedule() {
               </CardContent>
             </Card>
           </div>
-        )}
+        ) : null}
 
         {view === 'notifications' && (
            <Card className={getThemedClasses()}>
