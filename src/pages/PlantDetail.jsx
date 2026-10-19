@@ -35,7 +35,7 @@ import { chatWithPlant } from "@/functions/chatWithPlant";
 import { showAdForEvent } from "@/lib/admob";
 import { prepareImageForUpload } from "@/lib/imageResize";
 import { usePlus, usePlusReady, useMe } from "@/lib/plus";
-import { hintChip } from "@/lib/weather";
+import { hintLine } from "@/lib/weather";
 import { POT_SIZES } from "@/lib/waterAmount";
 import { CARE_META } from "@/lib/care";
 import PlantWaterPanel from "@/components/plus/PlantWaterPanel";
@@ -855,10 +855,8 @@ export default function PlantDetail() {
                     <Droplets className="w-5 h-5" />
                     {wateringStatus.text}
                   </div>
-                  {plus && hintChip(plant) && (
-                    <p className={`-mt-2 mb-4 text-sm font-semibold ${getTextColor()}`}>
-                      {hintChip(plant).icon} {hintChip(plant).text} today
-                    </p>
+                  {plus && hintLine(plant) && (
+                    <p className={`-mt-2 mb-4 text-sm font-semibold ${getTextColor()}`}>{hintLine(plant)}</p>
                   )}
 
                   {/* Location Section - PROMINENT */}
