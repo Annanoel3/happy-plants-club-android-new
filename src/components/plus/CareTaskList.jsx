@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { localToday } from '@/lib/dates';
-import { CARE_TYPES, CARE_META, completeCare, hemisphere, isPausedForWinter, hasCareSchedule, scheduleFromSuggestion } from '@/lib/care';
+import { CARE_TYPES, CARE_META, completeCare, hemisphere, isPausedForWinter, hasCareSchedule, scheduleFromSuggestion, effectiveNext } from '@/lib/care';
 import { base44 } from '@/api/base44Client';
 import { refreshPlantData } from '@/lib/query-client';
 import { whenText } from '@/components/plus/CareScheduleCard';
@@ -19,7 +19,7 @@ export function careTasks(plants, user) {
       const task = cs[t.key];
       if (!task?.on || !task.next) continue;
       if (isPausedForWinter(t.key, task, hemi, today)) continue;
-      out.push({ plant: p, key: t.key, next: String(task.next).slice(0, 10) });
+      out.push({ plant: p, key: t.key, next: effectiveNext(t.key, task, hemi, today) });
     }
   }
   return out.sort((a, b) => a.next.localeCompare(b.next));
