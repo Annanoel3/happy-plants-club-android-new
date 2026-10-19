@@ -201,8 +201,11 @@ const PlantListRow = React.memo(function PlantListRow({ plant, wateringReminders
       {/* Name + watering */}
       <div className="flex-1 min-w-0">
         <p className={`font-bold text-sm leading-tight truncate ${textColor}`}>{displayName}</p>
-        {(plant.scientific_name || place) && (
-          <p className={`text-[11px] truncate ${secondaryTextColor}`}>{place || <i>{plant.scientific_name}</i>}</p>
+        {plant.scientific_name && (
+          <p className={`text-[11px] italic truncate ${secondaryTextColor}`}>{plant.scientific_name}</p>
+        )}
+        {place && (
+          <p className={`text-[11px] truncate ${secondaryTextColor}`}>{place}</p>
         )}
       </div>
 
@@ -312,8 +315,11 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
 
         {/* TOP ROW */}
         <div className="absolute top-0 left-0 right-0 flex items-center px-4 pt-3 pb-2 gap-2">
-          <p className="flex-1 font-bold text-white text-[15px] leading-tight line-clamp-1 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+          <p className="flex-1 min-w-0 font-bold text-white text-[15px] leading-tight line-clamp-1 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
             {displayName}
+            {scientificName && scientificName !== displayName && (
+              <span className="ml-1.5 font-normal italic text-[11px] text-white/75">{scientificName}</span>
+            )}
           </p>
           {plant.pinned && <Pin className="w-3.5 h-3.5 text-pink-300 drop-shadow flex-shrink-0" />}
           {watering && (
@@ -335,9 +341,6 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
               transition={{ duration: 0.25, delay: 0.05 }}
               className="absolute bottom-0 left-0 right-0 px-4 pb-4"
             >
-              {scientificName && (
-                <p className="text-white/60 text-[11px] italic mb-1 drop-shadow">{scientificName}</p>
-              )}
               <div className="flex items-center justify-between">
                 <div className="flex gap-1.5 flex-wrap">
                   {chips.map((c) => (
