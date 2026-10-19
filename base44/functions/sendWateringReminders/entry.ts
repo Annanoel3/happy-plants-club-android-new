@@ -63,7 +63,14 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Missing OneSignal credentials' }, { status: 500 });
         }
         
-        const allPlants = await base44.asServiceRole.entities.Plant.list();
+        // Page through every plant (a bare list() stops at the first page, which
+        // silently left some people's plants out of the digest)
+        const allPlants: any[] = [];
+        for (let skip = 0; skip < 20000; skip += 500) {
+            const page = await base44.asServiceRole.entities.Plant.list('-created_date', 500, skip);
+            allPlants.push(...(page || []));
+            if (!page || page.length < 500) break;
+        }
         const userEmails = [...new Set(allPlants.map(p => p.created_by).filter(Boolean))];
         const activeSubs = (await base44.asServiceRole.entities.Subscription.filter({ active: true }).catch(() => [])) || [];
         const plusIds = new Set(activeSubs
