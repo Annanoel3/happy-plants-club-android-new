@@ -12,10 +12,13 @@ import { WATER_METHODS, POT_SIZES, waterMethod } from '@/lib/waterAmount';
 // lives, how it's watered, the pot width (for plants you water normally), and show the
 // scientific name with a way to correct it. A corrected name redoes the plant's care.
 // The plant is already saved; this only fills in the rest, so closing the app loses nothing.
+// inline: the same questions as a card at the top of the plant's own page (plants added in
+// bulk, or put off with "Later"). Saving it, with a place picked, takes the plant out of
+// "Newly added".
 
 const name = (p) => p?.nickname || p?.name || 'New plant';
 
-export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, navigate }) {
+export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, navigate, inline = false }) {
   const [local, setLocal] = useState(plant);
   const [area, setArea] = useState(null); // { value, environment }
   const [otherArea, setOtherArea] = useState('');
@@ -143,18 +146,11 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
   const pageBg = ui.light ? 'bg-gray-50' : 'bg-neutral-950';
   const sectionTitle = `text-sm font-bold mb-2 ${ui.text}`;
 
-  return createPortal(
-    <div className={`fixed inset-0 z-[300] flex flex-col ${pageBg}`} role="dialog" aria-modal="true" aria-label="Check your new plant"
-      style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      <div className={`px-4 py-3 border-b flex items-center justify-between ${border}`}>
-        <p className={`text-lg font-bold ${ui.text}`}>🌱 Check your new plant</p>
-        <button onClick={onLater} aria-label="Later" className={`p-2 -mr-2 rounded-full ${ui.text}`}><X className="w-6 h-6" /></button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+  const body = (
+      <div className={inline ? 'px-4 pb-4 space-y-5' : 'flex-1 overflow-y-auto px-4 py-4 space-y-5'}>
         {/* What it is */}
         <div className={`rounded-2xl border p-3 flex gap-3 ${ui.card}`}>
-          {local?.thumbnail_url || local?.image_url ? (
+          {inline ? null : local?.thumbnail_url || local?.image_url ? (
             <img src={local.thumbnail_url || local.image_url} alt="" className="w-24 h-24 rounded-xl object-cover shrink-0" />
           ) : (
             <span className={`w-24 h-24 rounded-xl shrink-0 flex items-center justify-center text-4xl ${ui.light ? 'bg-green-100' : 'bg-white/10'}`} aria-hidden>🪴</span>
@@ -276,12 +272,38 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
           </div>
         )}
       </div>
+  );
 
+  const saveButton = (
+    <button onClick={save} disabled={saving || renaming} className="flex-[2] flex items-center justify-center gap-2 rounded-2xl py-3.5 bg-green-600 text-white font-bold active:scale-95 disabled:opacity-60">
+      {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />} Save
+    </button>
+  );
+
+  if (inline) {
+    return (
+      <section className={`rounded-2xl border-2 border-green-500/60 mb-6 overflow-hidden ${ui.card}`} aria-label="Finish setting up this plant">
+        <div className="px-4 pt-4 pb-3">
+          <p className={`text-lg font-bold ${ui.text}`}>🌱 New plant: finish setting it up</p>
+          <p className={`text-sm ${ui.sub}`}>Pick where it lives and check how it's watered. It stays under Newly added until you save.</p>
+        </div>
+        {body}
+        <div className="px-4 pb-4 flex">{saveButton}</div>
+      </section>
+    );
+  }
+
+  return createPortal(
+    <div className={`fixed inset-0 z-[300] flex flex-col ${pageBg}`} role="dialog" aria-modal="true" aria-label="Check your new plant"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className={`px-4 py-3 border-b flex items-center justify-between ${border}`}>
+        <p className={`text-lg font-bold ${ui.text}`}>🌱 Check your new plant</p>
+        <button onClick={onLater} aria-label="Later" className={`p-2 -mr-2 rounded-full ${ui.text}`}><X className="w-6 h-6" /></button>
+      </div>
+      {body}
       <div className={`px-4 pt-3 pb-4 border-t flex gap-3 ${border}`}>
         <button onClick={onLater} className={`flex-1 rounded-2xl py-3.5 font-semibold border ${ui.card} ${ui.text}`}>Later</button>
-        <button onClick={save} disabled={saving || renaming} className="flex-[2] flex items-center justify-center gap-2 rounded-2xl py-3.5 bg-green-600 text-white font-bold active:scale-95 disabled:opacity-60">
-          {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />} Save
-        </button>
+        {saveButton}
       </div>
     </div>,
     document.body,
