@@ -32,6 +32,7 @@ import ThemeMode from "@/components/ThemeMode";
 import PermissionsCheck from "@/components/PermissionsCheck";
 import AdManager from './components/shared/AdManager';
 import UpdatePrompt from '@/components/UpdatePrompt';
+import PushRouter from '@/components/PushRouter';
 
 function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
@@ -397,6 +398,7 @@ export default function Layout({ children, currentPageName }) {
     <SidebarProvider>
       <ThemeMode />
       <OneSignalSetup user={user} />
+      {user && <PushRouter />}
       <AdManager />
       <NotificationPopup user={user} />
       <PermissionsCheck user={user} />
