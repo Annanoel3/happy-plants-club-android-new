@@ -56,6 +56,23 @@ export async function setGetsRain(plantId, getsRainValue) {
   return data;
 }
 
+// On app open: a location typed before (or outside) the app hasn't been looked up on
+// the map yet. One lookup per location change, for everyone (free users too), so a
+// typo or a whole-state location can be caught and asked about.
+let geocodedFor = null;
+export function ensureGeocoded(user) {
+  const loc = String(user?.location || '').trim();
+  if (!loc || user.location_geocoded_for === loc || geocodedFor === loc) return null;
+  geocodedFor = loc;
+  return call({ action: 'geocode' })
+    .then((d) => {
+      clearUserCache();
+      try { window.dispatchEvent(new CustomEvent('hp-location', { detail: d })); } catch { /* noop */ }
+      return d;
+    })
+    .catch(() => { geocodedFor = null; return null; });
+}
+
 // Once a day on app open: make sure today's weather has been applied (normally the
 // hourly server job already did it at 5 AM; this covers a new location or a missed run).
 let ran = null;
