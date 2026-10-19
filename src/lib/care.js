@@ -36,6 +36,18 @@ export function isDormant(day, hemi) {
   return m === 11 || m === 12 || m === 1 || m === 2;
 }
 
+/**
+ * Feeding happens in spring and summer only: no fertilizer Oct–Feb up north, Apr–Aug down
+ * south, any time in the tropics. (Iowa State Extension: fertilize only while houseplants
+ * are actively growing, spring and summer; aloe's growing season is about March–September.)
+ */
+export function isNoFeedSeason(day, hemi) {
+  const m = Number(String(day).slice(5, 7));
+  if (hemi === 'tropics') return false;
+  if (hemi === 'south') return m >= 4 && m <= 8;
+  return m >= 10 || m <= 2;
+}
+
 /** First day of the next growing season after `day`. */
 export function seasonStart(day, hemi) {
   const y = Number(String(day).slice(0, 4));
@@ -46,12 +58,12 @@ export function seasonStart(day, hemi) {
 
 export function nextAfter(day, key, task, hemi) {
   let next = addDays(day, Math.max(1, Number(task?.every_days) || 30));
-  if (key === 'fertilize' && task?.winter_pause !== false && isDormant(next, hemi)) next = seasonStart(next, hemi);
+  if (key === 'fertilize' && task?.winter_pause !== false && isNoFeedSeason(next, hemi)) next = seasonStart(next, hemi);
   return next;
 }
 
 export function isPausedForWinter(key, task, hemi, today = localToday()) {
-  return key === 'fertilize' && task?.on && task.winter_pause !== false && isDormant(today, hemi);
+  return key === 'fertilize' && task?.on && task.winter_pause !== false && isNoFeedSeason(today, hemi);
 }
 
 /**
@@ -64,11 +76,11 @@ export function effectiveNext(key, task, hemi, today = localToday()) {
   const next = String(task?.next || '').slice(0, 10);
   if (!next) return next;
   if (key === 'fertilize' && task?.winter_pause !== false && hemi !== 'tropics') {
-    if (isDormant(today, hemi)) {
+    if (isNoFeedSeason(today, hemi)) {
       const spring = seasonStart(today, hemi);
       if (next < spring) return spring;
     }
-    if (isDormant(next, hemi)) return seasonStart(next, hemi);
+    if (isNoFeedSeason(next, hemi)) return seasonStart(next, hemi);
   }
   return next;
 }
@@ -85,7 +97,7 @@ export function scheduleFromSuggestion(plant, s, hemi, today = localToday()) {
   const cs = {};
   const fert = { on: true, every_days: s.fertilize.every_days, winter_pause: s.fertilize.winter_pause !== false };
   let fNext = addDays(today, stagger(plant.id, 7));
-  if (fert.winter_pause && isDormant(fNext, hemi)) fNext = seasonStart(fNext, hemi);
+  if (fert.winter_pause && isNoFeedSeason(fNext, hemi)) fNext = seasonStart(fNext, hemi);
   cs.fertilize = { ...fert, next: fNext, last: null };
   cs.mist = { on: !!s.mist.useful, every_days: s.mist.every_days, next: addDays(today, 1), last: null };
   cs.rotate = { on: !!s.rotate.useful, every_days: s.rotate.every_days, next: addDays(today, 2 + stagger(plant.id, 7)), last: null };
