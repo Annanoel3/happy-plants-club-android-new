@@ -124,10 +124,10 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
         await undoWateringQuiet(done[p.id]);
         setDone((d) => { const n = { ...d }; delete n[p.id]; return n; });
       } else {
+        celebrate(); // right on the tap, not after the save (~1s later)
         const info = await waterPlantQuiet(p);
         wateredAny.current = true;
         setDone((d) => ({ ...d, [p.id]: info }));
-        celebrate();
       }
     } catch {
       toast.error(`Couldn't save ${name(p)}. Try again.`);
@@ -140,6 +140,7 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
     const todo = g.plants.filter((p) => !done[p.id]);
     if (!todo.length || busy[g.key]) return;
     setBusy((b) => ({ ...b, [g.key]: true }));
+    celebrate();
     let failed = 0;
     // A few at a time so a big area doesn't hammer the server
     for (let i = 0; i < todo.length; i += 4) {
@@ -147,7 +148,7 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
       const res = await Promise.allSettled(chunk.map((p) => waterPlantQuiet(p)));
       const ok = {};
       res.forEach((r, j) => { if (r.status === 'fulfilled') ok[chunk[j].id] = r.value; else failed++; });
-      if (Object.keys(ok).length) { wateredAny.current = true; setDone((d) => ({ ...d, ...ok })); celebrate(); }
+      if (Object.keys(ok).length) { wateredAny.current = true; setDone((d) => ({ ...d, ...ok })); }
     }
     setBusy((b) => { const n = { ...b }; delete n[g.key]; return n; });
     refreshPlantData();
