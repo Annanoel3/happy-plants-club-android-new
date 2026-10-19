@@ -43,7 +43,13 @@ function eggPath(day: string): string {
     const pages = ['/Dashboard', '/Schedule', '/Feed', '/PlantChat'];
     const dn = (d: string) => Math.floor(Date.parse(`${d}T12:00:00Z`) / 86400000);
     let idx = 0;
-    for (let d = dn('2026-01-01') + 1; d <= dn(day); d++) idx = (idx + 1 + (hash(`egg${d}`) % 3)) % 4;
+    const mix = (n: number) => {
+        let x = (n * 2654435761) >>> 0;
+        x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
+        x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
+        return (x ^ (x >>> 16)) >>> 0;
+    };
+    for (let d = dn('2026-01-01') + 1; d <= dn(day); d++) idx = (idx + 1 + (mix(d) % 3)) % 4;
     return pages[idx];
 }
 
