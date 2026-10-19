@@ -41,6 +41,7 @@ export default function Schedule() {
   const [vacationStartDate, setVacationStartDate] = useState("");
   const [vacationEndDate, setVacationEndDate] = useState("");
   const [vacationNotes, setVacationNotes] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null); // first tap arms, second deletes
 
   useEffect(() => {
     loadUser();
@@ -712,11 +713,15 @@ export default function Schedule() {
                       </Button>
                       <Button
                         size="sm"
-                        variant="ghost"
-                        aria-label="Delete this vacation"
-                        onClick={() => { if (window.confirm('Delete this vacation?')) deleteVacationMutation.mutate(vacation.id); }}
+                        variant={confirmDeleteId === vacation.id ? 'destructive' : 'ghost'}
+                        aria-label={confirmDeleteId === vacation.id ? 'Tap again to delete' : 'Delete this vacation'}
+                        onClick={() => {
+                          if (confirmDeleteId === vacation.id) { setConfirmDeleteId(null); deleteVacationMutation.mutate(vacation.id); }
+                          else { setConfirmDeleteId(vacation.id); setTimeout(() => setConfirmDeleteId((id) => (id === vacation.id ? null : id)), 4000); }
+                        }}
                       >
                         <Trash2 className="w-4 h-4" />
+                        {confirmDeleteId === vacation.id && <span className="ml-1">Delete?</span>}
                       </Button>
                     </div>
                   </div>
