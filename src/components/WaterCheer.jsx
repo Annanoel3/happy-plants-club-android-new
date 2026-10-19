@@ -180,7 +180,7 @@ const CSS = `
 .hpwc-wrap{position:fixed;left:50%;bottom:0;z-index:320;width:210px;margin-left:-105px;pointer-events:none;
   padding-bottom:env(safe-area-inset-bottom,0px);animation:hpwc-pop 3.1s both;will-change:transform}
 .hpwc-svg{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 6px 10px rgba(0,0,0,.18))}
-.hpwc-svg *{transform-box:fill-box}
+.hpwc-bob,.hpwc-tilt,.hpwc-wiggle,.hpwc-sway,.hpwc-drop,.hpwc-bloom,.hpwc-bigdrop,.hpwc-squish,.hpwc-spark{transform-box:fill-box}
 @keyframes hpwc-pop{
   0%{transform:translateY(110%);animation-timing-function:cubic-bezier(.34,1.5,.64,1)}
   16%{transform:translateY(0);animation-timing-function:linear}
