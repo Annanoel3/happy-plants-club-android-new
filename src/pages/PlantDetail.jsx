@@ -37,6 +37,7 @@ import { prepareImageForUpload } from "@/lib/imageResize";
 import { usePlus, usePlusReady, useMe } from "@/lib/plus";
 import { hintLine } from "@/lib/weather";
 import { logWaterings } from "@/lib/watering";
+import { withPendingWaterings } from "@/lib/outbox";
 import { POT_SIZES, WATER_METHODS, waterMethod, scheduleText, waterAmount, methodInfo } from "@/lib/waterAmount";
 import { CARE_META } from "@/lib/care";
 import PlantWaterPanel from "@/components/plus/PlantWaterPanel";
@@ -142,9 +143,13 @@ export default function PlantDetail() {
           // If no plant found or it doesn't belong to the user, return null
           return null;
         }
-        return result[0];
+        // A watering still waiting on this phone (no signal) shows as done
+        return withPendingWaterings([result[0]])[0];
       } catch (err) {
         console.error("Error fetching plant:", err);
+        // No signal: keep showing the plant we already have instead of "not found"
+        const status = err?.response?.status;
+        if (!status || status >= 500) throw err;
         return null;
       }
     },
