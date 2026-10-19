@@ -337,7 +337,7 @@ Deno.serve(async (req) => {
         const subs = (await base44.asServiceRole.entities.Subscription.filter({ user_id: user.id }).catch(() => [])) || [];
         const s = subs[0];
         const plus = !!(s && s.active && (!s.expires_at || Date.parse(s.expires_at) > Date.now()));
-        const plan = makePlan(plants, vac, every, plus, localDay(user.timezone));
+        const plan = makePlan(plants, vac, every, plus, localDay(body.tz || user.timezone));
 
         if (action === 'plan') return Response.json({ success: true, plan });
 
