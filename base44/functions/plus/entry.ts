@@ -4,7 +4,7 @@ import OpenAI from 'npm:openai@4.73.1';
 // Happy Plants Plus: weather-smart watering and care-schedule pushes.
 //
 // Called by:
-//  - the hourly "Plus Daily" workflow → { action: 'sweep' } (no user needed)
+//  - the hourly "Plus Daily" workflow → { action: 'sweep', key: PLUS_SWEEP_KEY } (no user needed)
 //  - the app, signed in:
 //      { action: 'geocode', location? }        save/look up the user's city
 //      { action: 'weather' }                   today's weather + apply it to outdoor plants (Plus)
@@ -537,6 +537,10 @@ Deno.serve(async (req) => {
         const memo = new Map<string, any>();
 
         if (action === 'sweep') {
+            // Only the Plus Daily workflow may run the sweep (it passes this key in its args),
+            // so nobody can hammer the weather/map services through it.
+            const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
+            if (!sweepKey || body.key !== sweepKey) return Response.json({ error: 'Unauthorized' }, { status: 401 });
             const subs = (await db.Subscription.filter({ active: true }, '-updated_date', 1000)) || [];
             const plusIds = new Set(subs
                 .filter((s: any) => !s.expires_at || Date.parse(s.expires_at) > now)
