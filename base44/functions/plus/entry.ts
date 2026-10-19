@@ -234,7 +234,8 @@ function summarize(hours: Record<string, any>, now: number, tz: string) {
     const today = dayOf(now, tz);
     const start = dayStartUtc(today, tz);
     const end = dayStartUtc(addDays(today, 1), tz);
-    const lowUntil = end + 10 * H; // through tomorrow ~10 AM
+    const lowFrom = Math.max(now, start + 15 * H); // "tonight" = from 3 PM today…
+    const lowUntil = end + 10 * H; // …through tomorrow ~10 AM
     const curHour = Math.floor(now / H) * H;
     let past = 0, pastN = 0, rest = 0, restN = 0, hi = -Infinity, lo = Infinity;
     for (const [k, v] of Object.entries(hours)) {
@@ -245,7 +246,7 @@ function summarize(hours: Record<string, any>, now: number, tz: string) {
         if (ms >= curHour - 24 * H && ms < curHour) { past += p; pastN++; }
         if (ms >= curHour && ms < end) { rest += p; restN++; }
         if (t !== null && ms >= start && ms < end) hi = Math.max(hi, t);
-        if (t !== null && ms >= curHour && ms < lowUntil) lo = Math.min(lo, t);
+        if (t !== null && ms >= Math.floor(lowFrom / H) * H && ms < lowUntil) lo = Math.min(lo, t);
     }
     return {
         day: today,
@@ -294,7 +295,9 @@ function decide(plants: any[], s: any, today: string) {
                 if (p.status === 'wilted') patch.status = 'healthy';
                 counts.rain_credit++;
             }
-        } else if (rainOk && due && due <= today && lastW !== today && s.rain_today_in >= thr) {
+        } else if (rainOk && due && due <= today && lastW !== today && s.rain_today_in >= thr && prev?.kind !== 'rain_hold') {
+            // Hold at most one day: if yesterday's rain didn't add up, it gets watered today
+            // even if more rain is forecast, so a drizzly week can't keep it dry for days.
             hint = {
                 kind: 'rain_hold', rain_in: s.rain_today_in,
                 text: `Rain is on the way today (about ${fmtIn(s.rain_today_in)}). Skip watering; we'll check again tomorrow.`,
@@ -303,7 +306,7 @@ function decide(plants: any[], s: any, today: string) {
             patch.next_watering_due = addDays(today, 1);
             counts.rain_hold++;
         } else if (rainOk && prev?.kind === 'rain_hold' && due && due <= today && lastW !== today) {
-            hint = { kind: 'rain_missed', text: "The rain didn't come through. Water it today." };
+            hint = { kind: 'rain_missed', text: 'Not enough rain fell. Water it today.' };
             counts.rain_missed++;
         } else if (heatOk && s.high_f !== null && s.high_f >= HOT_F && due === addDays(today, 1) && lastW !== today) {
             hint = {
@@ -366,7 +369,39 @@ function careLine(type: string, name: string): string {
     if (type === 'rotate') return `Give ${name} a quarter turn`;
     return `Check if ${name} needs a bigger pot`;
 }
-function careDueToday(plants: any[], today: string) {
+// Same winter rule as src/lib/care.js: fertilizing rests Nov–Feb up north, May–Aug down
+// south, never in the tropics, and a resting task is never due before spring.
+function hemisphereOf(lat: any): 'north' | 'south' | 'tropics' {
+    if (typeof lat !== 'number') return 'north';
+    if (Math.abs(lat) < 23.5) return 'tropics';
+    return lat < 0 ? 'south' : 'north';
+}
+function isDormant(day: string, hemi: string): boolean {
+    const m = Number(day.slice(5, 7));
+    if (hemi === 'tropics') return false;
+    if (hemi === 'south') return m >= 5 && m <= 8;
+    return m === 11 || m === 12 || m === 1 || m === 2;
+}
+function seasonStart(day: string, hemi: string): string {
+    const y = Number(day.slice(0, 4));
+    const m = Number(day.slice(5, 7));
+    if (hemi === 'south') return m >= 9 ? `${y + 1}-09-01` : `${y}-09-01`;
+    return m >= 3 ? `${y + 1}-03-01` : `${y}-03-01`;
+}
+function effectiveNext(type: string, task: any, hemi: string, today: string): string {
+    const next = String(task?.next || '').slice(0, 10);
+    if (!next) return next;
+    if (type === 'fertilize' && task?.winter_pause !== false && hemi !== 'tropics') {
+        if (isDormant(today, hemi)) {
+            const spring = seasonStart(today, hemi);
+            if (next < spring) return spring;
+        }
+        if (isDormant(next, hemi)) return seasonStart(next, hemi);
+    }
+    return next;
+}
+function careDueToday(plants: any[], today: string, lat?: any) {
+    const hemi = hemisphereOf(lat);
     const due: { plant: any; type: string; next: string }[] = [];
     for (const p of plants) {
         if (onVacation(p, today)) continue;
@@ -374,7 +409,8 @@ function careDueToday(plants: any[], today: string) {
         for (const t of CARE_TYPES) {
             const task = cs[t];
             if (!task?.on || !task.next) continue;
-            if (String(task.next).slice(0, 10) <= today) due.push({ plant: p, type: t, next: String(task.next).slice(0, 10) });
+            const next = effectiveNext(t, task, hemi, today);
+            if (next <= today) due.push({ plant: p, type: t, next });
         }
     }
     due.sort((a, b) => a.next.localeCompare(b.next));
@@ -531,7 +567,7 @@ Deno.serve(async (req) => {
                     const today = dayOf(now, tz);
                     if (hour >= CARE_FROM_HOUR && hour <= CARE_UNTIL_HOUR && u.care_push_day !== today && u.notifications_care !== false) {
                         const plants = (await db.Plant.filter({ created_by: u.email }, '-created_date', 500)) || [];
-                        const due = careDueToday(plants, today);
+                        const due = careDueToday(plants, today, u.location_lat);
                         if (due.length) {
                             await db.User.update(u.id, { care_push_day: today }); // claim first: never twice
                             const s = await sendCarePush(u.email, due);
