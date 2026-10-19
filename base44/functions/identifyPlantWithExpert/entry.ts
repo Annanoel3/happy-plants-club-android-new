@@ -298,20 +298,29 @@ Deno.serve(async (req) => {
     const rid = Math.random().toString(36).slice(2, 7);
     try {
         const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
         const body = await req.json().catch(() => ({}));
-        const today = aiLocalDay(user.timezone);
+        // The hourly sweep retries plants that got stuck mid-add (app closed, no signal):
+        // it calls with the sweep key and works as the plant's owner.
+        const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
+        const svc = !!(sweepKey && body?.key && body.key === sweepKey && body?.plant_id);
+        let user: any = null;
+        if (!svc) {
+            try { user = await base44.auth.me(); } catch { user = null; }
+            if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const db = svc ? base44.asServiceRole.entities : base44.entities;
 
         // ---- New flow: the plant record already exists; do the work here and save it,
         // so it finishes even if the phone closes the app or loses signal.
         if (body?.plant_id) {
             let plant: any = null;
-            try { plant = (await base44.entities.Plant.filter({ id: String(body.plant_id) }))?.[0]; } catch { plant = null; }
-            if (!plant || plant.created_by !== user.email) return Response.json({ error: 'Not found' }, { status: 404 });
+            try { plant = (await db.Plant.filter({ id: String(body.plant_id) }))?.[0]; } catch { plant = null; }
+            if (svc && plant) user = (await db.User.filter({ email: plant.created_by }))?.[0] || null;
+            if (!plant || !user || plant.created_by !== user.email) return Response.json({ error: 'Not found' }, { status: 404 });
+            const today = aiLocalDay(user.timezone);
             const aiQuota = await useAiQuota(base44, user, 'identify');
             if (!aiQuota.allowed) {
-                await base44.entities.Plant.update(plant.id, { add_status: 'failed', add_info: { ...(plant.add_info || {}), error: 'limit_reached' } }).catch(() => {});
+                await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...(plant.add_info || {}), error: 'limit_reached' } }).catch(() => {});
                 return aiLimitResponse('identify', aiQuota);
             }
             const info = { ...(plant.add_info || {}) };
@@ -334,9 +343,9 @@ Deno.serve(async (req) => {
                 };
                 // Seasonal numbers belonged to the old name
                 if (!prof.user_interval) { patch.water_days_grow = null; patch.water_days_rest = null; patch.water_rest_season = null; patch.water_season = null; }
-                await base44.entities.Plant.update(plant.id, patch);
-                await profileNow(base44, plant.id);
-                const fresh = (await base44.entities.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
+                await db.Plant.update(plant.id, patch);
+                if (!svc) await profileNow(base44, plant.id);
+                const fresh = (await db.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
                 return Response.json({ success: true, plant: fresh });
             }
 
@@ -345,7 +354,7 @@ Deno.serve(async (req) => {
             info.tries = (Number(info.tries) || 0) + 1;
             info.started_at = new Date().toISOString();
             delete info.error;
-            await base44.entities.Plant.update(plant.id, { add_status: 'identifying', add_info: info });
+            await db.Plant.update(plant.id, { add_status: 'identifying', add_info: info });
             try {
                 const r = await identify(rid, plant.image_url, context);
                 const d = cleanPlantData(r.plantData);
@@ -357,18 +366,19 @@ Deno.serve(async (req) => {
                     add_status: 'review',
                     add_info: { ...info, ...r.identification, done_at: new Date().toISOString() },
                 };
-                await base44.entities.Plant.update(plant.id, patch);
-                await profileNow(base44, plant.id);
-                const fresh = (await base44.entities.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
+                await db.Plant.update(plant.id, patch);
+                if (!svc) await profileNow(base44, plant.id);
+                const fresh = (await db.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
                 return Response.json({ success: true, plant: fresh });
             } catch (e) {
                 console.error(`[${rid}] identify failed`, (e as Error).message);
-                await base44.entities.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: (e as Error).message.slice(0, 200) } }).catch(() => {});
+                await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: (e as Error).message.slice(0, 200) } }).catch(() => {});
                 return Response.json({ error: "Couldn't identify this plant", detail: (e as Error).message }, { status: 502 });
             }
         }
 
         // ---- Old flow (older app screens): identify a photo and return the data
+        const today = aiLocalDay(user.timezone);
         const { image_url } = body || {};
         const aiQuota = await useAiQuota(base44, user, 'identify');
         if (!aiQuota.allowed) return aiLimitResponse('identify', aiQuota);
