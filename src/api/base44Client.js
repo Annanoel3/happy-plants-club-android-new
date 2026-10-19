@@ -77,6 +77,7 @@ const QUERY_KEYS_BY_ENTITY = {
   DailyWateringReminder: ['todayWateringReminder'],
   GameEvent: ['activeEvents'],
   PlantProgressPhoto: ['progressPhotos'],
+  HealthCheck: ['healthChecks'],
   VacationDay: ['vacations', 'vacation'],
   UserPlantCategory: ['customCategories'],
   Follow: ['following', 'followers', 'followingCount', 'followerCount'],
