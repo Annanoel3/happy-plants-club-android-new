@@ -172,7 +172,11 @@ export default function Settings() {
     mutationFn: async () => {
       const value = location.trim();
       if (!value) {
-        await base44.auth.updateMe({ location: '' });
+        // No location: forget the old map spot too, so weather stops using it
+        await base44.auth.updateMe({
+          location: '', location_lat: null, location_lon: null, location_label: null,
+          location_status: null, location_geocoded_for: null,
+        });
         return { status: 'missing' };
       }
       return await saveLocation(value);
