@@ -89,6 +89,8 @@ export default function OnionSkinCamera({ open, ghostUrl, onClose, onCapture, on
       await onCapture(file);
       stop();
       onClose();
+    } catch {
+      // onCapture already said what went wrong; stay open so they can try again
     } finally {
       setSaving(false);
     }
