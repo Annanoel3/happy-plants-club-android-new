@@ -37,6 +37,10 @@
       },
       "type": "object"
     },
+    "care_profile": {
+      "description": "Watering profile filled in once per plant: {v, group, why, at, source, prev_every, prev_next_due, user_method, user_strict, user_interval}",
+      "type": "object"
+    },
     "care_schedule": {
       "description": "Plus care schedule. Each task: {on, every_days, next (date), last (date), winter_pause}",
       "properties": {
@@ -227,8 +231,48 @@
       "format": "date",
       "type": "string"
     },
+    "water_days_grow": {
+      "description": "Days between waterings in the growing season (drought-tolerant plants with seasonal watering).",
+      "type": "number"
+    },
+    "water_days_rest": {
+      "description": "Days between waterings in the rest season.",
+      "type": "number"
+    },
     "water_frequency_days": {
       "type": "number"
+    },
+    "water_method": {
+      "description": "How this plant gets its water. Unset = pour (normal watering).",
+      "enum": [
+        "pour",
+        "reservoir",
+        "soak",
+        "mist",
+        "bottom",
+        "in_water"
+      ],
+      "type": "string"
+    },
+    "water_rest_season": {
+      "description": "When this plant rests: winter (most) or summer (winter growers like Aeonium).",
+      "enum": [
+        "winter",
+        "summer"
+      ],
+      "type": "string"
+    },
+    "water_season": {
+      "description": "Which interval water_frequency_days currently holds.",
+      "enum": [
+        "grow",
+        "rest"
+      ],
+      "type": "string"
+    },
+    "water_strict": {
+      "description": "Finicky about watering timing: 'Even out my schedule' never moves it.",
+      "type": "boolean"
     },
     "weather_hint": {
       "description": "Plus weather-smart watering: what today's weather changed for this plant (valid only when day = today)",
