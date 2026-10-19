@@ -15,6 +15,7 @@ const MAX_TIMES = 3;
 export default function LocationPrompt({ plantCount }) {
   const user = useMe(); // reloads after the app looks the location up on the map
   const [open, setOpen] = useState(false);
+  useEffect(() => () => releasePopup('location'), []);
 
   useEffect(() => {
     if (!user?.email || !plantCount) return;
