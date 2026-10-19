@@ -72,8 +72,11 @@ export async function syncWateringPopups() {
         plants: snapshot,
       });
       // Tell the server this phone does its own pop-up, so the 8 AM push doesn't double up.
+      // Only when the pop-up can actually show: reminders on and notifications allowed.
+      // (The pop-up itself also refreshes this each morning it checks in.)
       const last = String(user.watering_popups_native_at || '').slice(0, 10);
-      if (state && last !== today) {
+      const canShow = state && state.enabled !== false && state.notificationsAllowed !== false;
+      if (canShow && last !== today) {
         base44.auth.updateMe({ watering_popups_native_at: new Date().toISOString() }).catch(() => {});
       }
       return state;
@@ -100,6 +103,8 @@ export async function signOutWateringPopups() {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('hp-data-write', () => scheduleWateringPopupSync());
+  // Plus just started or ended: the widget and pop-up show amounts only for Plus
+  window.addEventListener('hp-plus', () => scheduleWateringPopupSync(500));
   // Coming back to the app: refresh the session the pop-up uses and the due list
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') scheduleWateringPopupSync(1500);
