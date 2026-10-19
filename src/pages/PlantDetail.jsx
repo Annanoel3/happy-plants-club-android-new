@@ -36,7 +36,7 @@ import { showAdForEvent } from "@/lib/admob";
 import { prepareImageForUpload } from "@/lib/imageResize";
 import { usePlus, usePlusReady, useMe } from "@/lib/plus";
 import { hintLine } from "@/lib/weather";
-import { POT_SIZES } from "@/lib/waterAmount";
+import { POT_SIZES, WATER_METHODS, waterMethod, scheduleText, waterAmount, methodInfo } from "@/lib/waterAmount";
 import { CARE_META } from "@/lib/care";
 import PlantWaterPanel from "@/components/plus/PlantWaterPanel";
 import CareScheduleCard from "@/components/plus/CareScheduleCard";
@@ -228,7 +228,10 @@ export default function PlantDetail() {
         substrate_type: plant.substrate_type || "",
         notes: plant.notes || "",
         water_frequency_days: plant.water_frequency_days || 7,
-        plant_type: plant.plant_type || "Other"
+        plant_type: plant.plant_type || "Other",
+        water_method: waterMethod(plant),
+        water_strict: !!plant.water_strict,
+        water_days_rest: plant.water_days_rest || "",
       });
       setVacationModeEnabled(plant.vacation_mode_enabled || false);
       setVacationStartDate(plant.vacation_start_date || "");
@@ -356,6 +359,26 @@ export default function PlantDetail() {
         if (clean.pot_diameter_in === '' || clean.pot_diameter_in === undefined) delete clean.pot_diameter_in;
         else clean.pot_diameter_in = Number(clean.pot_diameter_in);
       }
+      // Watering profile: remember what the owner chose so the app never overrides it
+      const prof = { ...(plant?.care_profile || {}) };
+      if (clean.water_method === waterMethod(plant)) delete clean.water_method; else prof.user_method = true;
+      if (!!clean.water_strict === !!plant?.water_strict) delete clean.water_strict; else prof.user_strict = true;
+      const every = Number(clean.water_frequency_days) || 7;
+      const seasonal = Number(plant?.water_days_grow) > 0 && Number(plant?.water_days_rest) > 0;
+      if (seasonal) {
+        const rest = Number(clean.water_days_rest) || Number(plant.water_days_rest);
+        if (every !== Number(plant.water_frequency_days) || rest !== Number(plant.water_days_rest)) {
+          prof.user_interval = true;
+          // The number they typed is for the season it's in now
+          if (plant.water_season === 'rest') { clean.water_days_rest = every; }
+          else { clean.water_days_grow = every; clean.water_days_rest = Math.max(rest, every); }
+        } else {
+          delete clean.water_days_rest;
+        }
+      } else {
+        delete clean.water_days_rest;
+      }
+      if (prof.user_method || prof.user_strict || prof.user_interval) clean.care_profile = prof;
       await base44.entities.Plant.update(plantId, clean);
     },
     onSuccess: () => {
@@ -901,14 +924,21 @@ export default function PlantDetail() {
                         </span>
                       </div>
                     )}
-                    {plant.water_frequency_days && (
-                      <div className="flex items-center gap-3">
-                        <Droplets className={`w-5 h-5 ${getSecondaryTextColor()}`} />
-                        <span className={getTextColor()}>
-                          Water every {plant.water_frequency_days} days
-                        </span>
-                      </div>
-                    )}
+                    {plant.water_frequency_days && (() => {
+                      const st = scheduleText(plant);
+                      const amt = waterAmount(plant);
+                      const special = !['oz', 'ground', 'unknown'].includes(amt.kind);
+                      return (
+                        <div className="flex items-start gap-3">
+                          <span className="w-5 text-center text-base leading-6 shrink-0" aria-hidden>{methodInfo(plant).icon}</span>
+                          <div className="min-w-0">
+                            <p className={getTextColor()}>{st?.main}</p>
+                            {st?.note && <p className={`text-xs ${getSecondaryTextColor()}`}>{st.note}</p>}
+                            {special && <p className={`text-xs ${getSecondaryTextColor()}`}>{amt.text}</p>}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div className="flex items-center gap-3">
                       <Badge className={isThemeLight(theme) ? 'bg-purple-100 text-purple-800' : 'bg-purple-700 text-white'}>
                         {plant.total_waterings || 0} waterings
@@ -1244,8 +1274,53 @@ export default function PlantDetail() {
                 className="theme-input"
               />
               <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>
-                How many days between waterings
+                {Number(plant?.water_days_rest) > 0 && Number(plant?.water_days_grow) > 0
+                  ? (plant?.water_season === 'rest' ? 'Days between waterings while it rests (now)' : 'Days between waterings while it grows (now)')
+                  : 'How many days between waterings'}
               </p>
+            </div>
+            {Number(plant?.water_days_rest) > 0 && Number(plant?.water_days_grow) > 0 && plant?.water_season !== 'rest' && (
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>
+                  While it rests ({plant?.water_rest_season === 'summer' ? 'summer' : 'winter'}), water every
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={editData.water_days_rest || plant?.water_days_rest || ''}
+                  onChange={(e) => setEditData({...editData, water_days_rest: parseInt(e.target.value) || ''})}
+                  className="theme-input"
+                />
+                <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>The app switches to this on its own when the season changes.</p>
+              </div>
+            )}
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>How it's watered</label>
+              <Select
+                value={editData.water_method || 'pour'}
+                onValueChange={(value) => setEditData({...editData, water_method: value})}
+              >
+                <SelectTrigger className="theme-input">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WATER_METHODS.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>{m.icon} {m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className={`text-sm font-medium ${getTextColor()}`}>Keep its exact watering days</p>
+                <p className={`text-xs ${getSecondaryTextColor()}`}>For finicky plants. "Even out my schedule" won't move this one.</p>
+              </div>
+              <Switch
+                checked={!!editData.water_strict}
+                onCheckedChange={(v) => setEditData({...editData, water_strict: v})}
+                aria-label="Keep its exact watering days"
+              />
             </div>
             <div>
               <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Environment</label>
