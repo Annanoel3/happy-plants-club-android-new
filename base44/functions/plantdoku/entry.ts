@@ -11,6 +11,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 //   { action: 'finish', date, plants }   → time, rank, top 5, stats
 //   { action: 'board', date }            → top 5 + your place
 //   { action: 'new_name' }               → a new leaderboard name (names are made up, never typed)
+//   { action: 'remove', key, ids }       → (owner only, PLUS_SWEEP_KEY) take runs off the leaderboard,
+//                                          e.g. a cheater or test data; { key, date } lists that day's runs
 //
 // The engine below is a copy of src/lib/plantdoku/engine.js (exports removed). If you change
 // the engine, regenerate this file the same way, or the server and app will disagree.
@@ -552,11 +554,25 @@ async function statsFor(db: any, userId: string, today: string) {
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me().catch(() => null);
-        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
         const body = await req.json().catch(() => ({}));
         const db = base44.asServiceRole.entities;
         const now = Date.now();
+
+        // Owner tools: see or remove leaderboard entries
+        const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
+        if (body.action === 'remove' || body.action === 'list') {
+            if (!sweepKey || body.key !== sweepKey) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+            if (body.action === 'list') {
+                const rows = (await db.PlantdokuRun.filter({ date: String(body.date || '').slice(0, 10) }, 'seconds', 5000)) || [];
+                return Response.json({ success: true, runs: rows.map((r: any) => ({ id: r.id, name: r.board_name, email: r.user_email, seconds: r.seconds, raw: r.raw_seconds, hints: r.hints, finished_at: r.finished_at })) });
+            }
+            const ids = (Array.isArray(body.ids) ? body.ids : []).map(String).slice(0, 200);
+            const res = await Promise.allSettled(ids.map((id: string) => db.PlantdokuRun.delete(id)));
+            return Response.json({ success: true, removed: res.filter((r) => r.status === 'fulfilled').length });
+        }
+
+        const user = await base44.auth.me().catch(() => null);
+        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
         if (body.action === 'new_name') {
             const n = (Number(user.plantdoku_name_n) || 0) + 1;
