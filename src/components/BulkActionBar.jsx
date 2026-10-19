@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { showAdForEvent } from "@/lib/admob";
+import { logWaterings } from "@/lib/watering";
 import { toast } from "sonner";
 
 // One request for the whole selection. Base44's PUT /bulk applies every change
@@ -78,30 +79,10 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
     setLoading('water');
     const today = dateStr || todayStr;
     try {
-      const plantRows = selectedPlants.map(plant => {
-        const freq = plant.water_frequency_days || 7;
-        // Next due date counts from the day it was actually watered, not from today.
-        const next = new Date(today + 'T12:00:00');
-        next.setDate(next.getDate() + freq);
-        // Logging an OLDER day than the plant's latest watering must not move its
-        // schedule backwards: keep the log, but leave last_watered / next due alone.
-        const isNewest = !plant.last_watered || today >= plant.last_watered;
-        return {
-          id: plant.id,
-          total_waterings: (plant.total_waterings || 0) + 1,
-          ...(isNewest ? { last_watered: today, next_watering_due: toLocalDateString(next) } : {}),
-        };
-      });
-      const logRows = selectedPlants.map(plant => ({
-        plant_id: plant.id,
-        plant_name: plant.nickname || plant.name,
-        watered_date: today,
-        method: 'bulk',
-      }));
-      await Promise.all([
-        bulkUpdatePlants(plantRows),
-        base44.entities.WateringLog.bulkCreate(logRows),
-      ]);
+      // Saved on the phone first, then sent in one request; the server skips repeats and
+      // never moves a schedule backwards for an older day. No signal: it's sent later.
+      const r = await logWaterings(selectedPlants, { date: today, method: 'bulk' });
+      if (!r.synced) toast.success("Watered! No signal right now, so it'll sync when you're back online.");
       onDone();
       // Bulk watering = one ad
       showAdForEvent('water');
