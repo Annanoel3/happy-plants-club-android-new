@@ -5,6 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { scheduleStatsSync } from "@/lib/stats";
 import { getPremiumStatus } from "@/lib/premium";
 import { syncWateringPopups } from "@/lib/wateringPopups";
+import "@/lib/outbox"; // sends waterings saved while offline, on every page
 import { ensureGeocoded, ensureTodayWeather } from "@/lib/weather";
 import { useQuery } from "@tanstack/react-query";
 import {
