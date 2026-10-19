@@ -108,7 +108,7 @@ export default function Premium() {
 
         <div className="rounded-3xl p-6 mb-4 text-white bg-gradient-to-br from-green-700 to-emerald-900 shadow-lg">
           <div className="flex items-center gap-2 text-green-100 text-sm font-semibold"><Sparkles className="w-4 h-4" /> Happy Plants Plus</div>
-          <h1 className="text-2xl font-bold mt-2 leading-tight">{plus ? "You're Plus 🌿" : "No ads. Way more AI."}</h1>
+          <h1 className="text-2xl font-bold mt-2 leading-tight">{plus ? "You're Plus 🌿" : "Smarter care. No ads."}</h1>
           <p className="text-green-50 mt-2 text-[15px]">
             {plus ? "Thanks for supporting a one-person plant app." : "Keep every plant alive with fewer limits — and support a one-person plant app."}
           </p>
@@ -116,8 +116,13 @@ export default function Premium() {
 
         <div className={`rounded-2xl p-5 mb-4 ${card}`}>
           <ul className="space-y-3">
-            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>No ads</b> — ever</span></li>
-            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>Way more</b> plant IDs, health checks and AI chat</span></li>
+            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>Weather-smart watering</b>: rain counts as watering, hot days move it up, frost warnings</span></li>
+            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>How much to water</b>, in ounces, for each plant</span></li>
+            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>Care schedules</b> to fertilize, mist, rotate and repot</span></li>
+            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>Plant doctor follow-ups</b> with a treatment plan and re-check reminders</span></li>
+            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>Growth time-lapse</b> with a photo guide that lines up every shot</span></li>
+            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>Home-screen widget</b> with one-tap watering</span></li>
+            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>No ads</b>, and <b>way more</b> plant IDs, health checks and AI chat</span></li>
             <li className="flex gap-3"><Leaf className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}>Everything else in Happy Plants stays free</span></li>
           </ul>
           {limits && (
@@ -143,14 +148,16 @@ export default function Premium() {
             <div className="flex items-center gap-2 text-green-600 font-semibold"><ShieldCheck className="w-5 h-5" /> Active</div>
             {s?.expires_at && (
               <p className={`text-sm mt-2 ${sub}`}>
-                {s.will_renew ? "Renews" : "Ends"} {new Date(s.expires_at).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+                {s.store === "promotional" ? "Free Plus until" : s.will_renew ? "Renews" : "Ends"} {new Date(s.expires_at).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
                 {s.sandbox ? " (test purchase)" : ""}
               </p>
             )}
-            <a href={manageSubscriptionUrl(s?.product_id)} target="_blank" rel="noreferrer"
-               className="mt-4 block text-center w-full rounded-full border border-green-600 text-green-700 font-semibold py-2.5 bg-white">
-              Manage or cancel in Google Play
-            </a>
+            {s?.store !== "promotional" && (
+              <a href={manageSubscriptionUrl(s?.product_id)} target="_blank" rel="noreferrer"
+                 className="mt-4 block text-center w-full rounded-full border border-green-600 text-green-700 font-semibold py-2.5 bg-white">
+                Manage or cancel in Google Play
+              </a>
+            )}
           </div>
         ) : !billing?.available ? (
           <div className={`rounded-2xl p-5 mb-4 text-center ${card}`}>
