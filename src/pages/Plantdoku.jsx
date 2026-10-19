@@ -286,8 +286,11 @@ export default function Plantdoku() {
       if (!d.already) countFinish();
       setDaily((x) => ({ ...(x || {}), finished: true, hints: d.hints }));
       setResult({ daily: true, seconds: d.seconds, raw: d.raw_seconds, hints: d.hints, board: d.board, stats: d.stats, name: daily?.name });
-    } catch {
-      setFinishError(true);
+    } catch (e) {
+      const code = e?.response?.data?.error;
+      setFinishError(code === 'too_fast' ? "Solved! The clock hadn't started yet, so give it a second and tap Try again."
+        : code === 'not_solved' ? "Hmm, the server doesn't see a finished board. Check for a red pot."
+          : "Solved! But your time didn't save. Check your signal.");
     } finally {
       setFinishing(false);
     }
@@ -462,7 +465,7 @@ export default function Plantdoku() {
         {finishing && <p className={`text-sm mt-3 text-center ${ui.sub}`}><Loader2 className="w-4 h-4 inline animate-spin" /> Checking your time…</p>}
         {finishError && (
           <div className={`rounded-2xl border p-4 mt-3 ${ui.card}`}>
-            <p className={`font-semibold ${ui.text}`}>Solved! But your time didn't save. Check your signal.</p>
+            <p className={`font-semibold ${ui.text}`}>{finishError}</p>
             <button onClick={finish} className="mt-2 text-sm font-bold text-green-600 flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Try again</button>
           </div>
         )}
@@ -484,7 +487,7 @@ export default function Plantdoku() {
                     : `Faster than ${result.board.faster_than ?? 0}% of players today`}
                 </p>
                 {result.board.me && result.board.total > 1 && (
-                  <p className={`text-sm ${ui.sub}`}>#{result.board.me.rank} of {result.board.total} · average player {fmt(result.board.median)}</p>
+                  <p className={`text-sm ${ui.sub}`}>#{result.board.me.rank} of {result.board.total} · typical time {fmt(result.board.median)}</p>
                 )}
 
                 <div className="mt-4">
