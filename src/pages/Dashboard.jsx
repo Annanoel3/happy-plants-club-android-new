@@ -35,7 +35,7 @@ export default function Dashboard() {
     try { return localStorage.getItem('hp_round_later') === localToday(); } catch { return false; }
   });
   const plus = usePlus();
-  const { me } = useMe();
+  const me = useMe();
   const [selectedIds, setSelectedIds] = useState([]);
   const [categorizing, setCategorizing] = useState(false);
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('garden_sortBy') || null);
