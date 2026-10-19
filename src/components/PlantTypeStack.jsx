@@ -9,6 +9,7 @@ import { usePlus } from "@/lib/plus";
 import { hintChip } from "@/lib/weather";
 import { waterAmount } from "@/lib/waterAmount";
 import { dueCare, CARE_META } from "@/lib/care";
+import { localToday } from "@/lib/dates";
 
 // Plus extras on a card: today's weather note, how much water, care that's due.
 function plusChips(plant) {
@@ -18,8 +19,12 @@ function plusChips(plant) {
   const due = dueCare(plant);
   if (due.length === 1) chips.push({ key: 'care', icon: CARE_META[due[0].key].icon, text: CARE_META[due[0].key].label });
   else if (due.length > 1) chips.push({ key: 'care', icon: '🗓️', text: `${due.length} care tasks` });
-  const amt = waterAmount(plant);
-  if (amt.kind === 'oz' && !wateredToday(plant)) chips.push({ key: 'amt', icon: '💧', text: amt.short });
+  // How much to give, only when it's actually due
+  const dueDay = String(plant.next_watering_due || '').slice(0, 10);
+  if (dueDay && dueDay <= localToday() && !wateredToday(plant)) {
+    const amt = waterAmount(plant);
+    if (amt.kind === 'oz') chips.push({ key: 'amt', icon: '💧', text: amt.short });
+  }
   return chips;
 }
 
