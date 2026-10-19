@@ -214,7 +214,14 @@ export default function Plantdoku() {
       if (!d?.success) throw new Error(d?.error || 'failed');
       setDaily(d);
       clock.current = { ms: d.elapsed_ms || 0, at: Date.now(), running: !d.finished };
-      if (d.finished) setResult({ daily: true, seconds: d.seconds, hints: d.hints, board: d.board, stats: d.stats, name: d.name });
+      if (d.finished) {
+        setResult({ daily: true, seconds: d.seconds, raw: Math.round((d.elapsed_ms || 0) / 1000), hints: d.hints, board: d.board, stats: d.stats, name: d.name });
+        // Solved on another phone (or this one was cleared): show the finished board
+        const sol = makePuzzle(dailySeed(today), dailySize(today));
+        const done = new Array(sol.size * sol.size).fill(0);
+        sol.solution.forEach((c, r) => { done[r * sol.size + c] = 2; });
+        setMarks((m) => (isSolved(sol.size, sol.regions, m.flatMap((v, i) => (v === 2 ? [[Math.floor(i / sol.size), i % sol.size]] : []))) ? m : done));
+      }
     } catch {
       setDailyError("Couldn't reach Happy Plants. Check your signal.");
     }
@@ -280,12 +287,13 @@ export default function Plantdoku() {
     }
   };
   useEffect(() => {
-    const key = `${mode}:${seed}:${today}`;
+    const key = mode === 'daily' ? `daily:${today}` : `practice:${seed}`;
     if (!solved || result || finishedRef.current === key) return;
+    if (mode === 'daily' && !daily) return; // wait for the server clock to load
     finishedRef.current = key;
     finish();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [solved]);
+  }, [solved, !!daily, mode]);
 
   // Editing the board
   const push = () => setHistory((h) => [...h.slice(-199), marks]);
@@ -344,6 +352,7 @@ export default function Plantdoku() {
   const backToDaily = () => {
     adBeforeNext();
     setResult(null);
+    clock.current = { ms: 0, at: Date.now(), running: false };
     setMode('daily');
   };
   const newName = async () => {
@@ -374,7 +383,7 @@ export default function Plantdoku() {
     <div className="min-h-screen theme-bg pb-28">
       <div className="max-w-xl mx-auto px-4 pt-4">
         <div className="flex items-center justify-between mb-2">
-          <button onClick={() => navigate(-1)} className={`flex items-center gap-1.5 py-2 -ml-1 text-sm font-semibold ${ui.text}`}>
+          <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/Dashboard'))} className={`flex items-center gap-1.5 py-2 -ml-1 text-sm font-semibold ${ui.text}`}>
             <ArrowLeft className="w-5 h-5" /> Back
           </button>
           <button onClick={() => setShowRules((s) => !s)} className={`flex items-center gap-1 text-sm font-semibold ${ui.text}`}>
