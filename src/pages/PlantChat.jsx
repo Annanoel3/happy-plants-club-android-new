@@ -314,6 +314,7 @@ export default function PlantChat() {
           </button>
         </div>
       </div>
+      <PlantdokuEgg page="expert" className="py-1" />
 
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-4xl mx-auto space-y-4">
