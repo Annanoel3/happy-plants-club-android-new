@@ -91,39 +91,124 @@ Deno.serve(async (req) => {
         const tz = body.tz || user.timezone;
         const today = localDay(tz);
 
+        // Log waterings. Safe to send twice (a retry after a lost connection, the app's
+        // outbox, a double tap): one watering per plant per day, the second is skipped.
+        //   { action: 'water', plant_ids: [...] }                       (phone pop-up, widget)
+        //   { action: 'water', items: [{ plant_id, date?, notes?, method? }] }  (the app)
         if (body.action === 'water') {
-            const ids: string[] = Array.isArray(body.plant_ids) ? body.plant_ids.filter((x: any) => typeof x === 'string').slice(0, 200) : [];
-            if (!ids.length) return Response.json({ success: true, watered: 0, skipped: 0 });
+            const DATE = /^\d{4}-\d{2}-\d{2}$/;
+            const oldest = addDays(today, -60);
+            const raw: any[] = Array.isArray(body.items) ? body.items
+                : Array.isArray(body.plant_ids) ? body.plant_ids.map((id: any) => ({ plant_id: id })) : [];
+            const items = raw
+                .filter((x: any) => x && typeof x.plant_id === 'string')
+                .slice(0, 200)
+                .map((x: any) => ({
+                    plant_id: x.plant_id,
+                    // a day that's been queued on the phone keeps its own date; never the future
+                    date: typeof x.date === 'string' && DATE.test(x.date) && x.date <= today && x.date >= oldest ? x.date : today,
+                    notes: typeof x.notes === 'string' && x.notes.trim() ? x.notes.trim().slice(0, 1000) : null,
+                    method: typeof x.method === 'string' ? x.method.slice(0, 20) : (Array.isArray(body.items) ? 'quick' : 'reminder'),
+                }));
+            if (!items.length) return Response.json({ success: true, watered: 0, skipped: 0, results: [] });
             // User-scoped reads: RLS only returns this user's own plants
+            const ids = [...new Set(items.map((x) => x.plant_id))];
             const plants = (await base44.entities.Plant.filter({ id: { $in: ids } })) || [];
-            const already = new Set(
-                ((await base44.entities.WateringLog.filter({ plant_id: { $in: plants.map((p: any) => p.id) }, watered_date: today })) || [])
-                    .map((l: any) => l.plant_id),
-            );
+            const byId = new Map(plants.map((p: any) => [p.id, p]));
+            const dates = [...new Set(items.map((x) => x.date))];
+            const logs = (await base44.entities.WateringLog.filter({ plant_id: { $in: ids }, watered_date: { $in: dates } }, '-created_date', 1000)) || [];
+            const logged = new Map<string, any>();
+            for (const l of logs) logged.set(`${l.plant_id}|${String(l.watered_date).slice(0, 10)}`, l);
             let watered = 0, skipped = 0;
-            for (const p of plants) {
-                if (already.has(p.id)) { skipped++; continue; }
+            const results: any[] = [];
+            const wateredIds: string[] = [];
+            for (const it of items) {
+                const p: any = byId.get(it.plant_id);
+                if (!p) { results.push({ plant_id: it.plant_id, status: 'not_found' }); continue; }
+                const key = `${p.id}|${it.date}`;
+                const prior = logged.get(key);
+                if (prior) {
+                    skipped++;
+                    if (it.notes && !String(prior.notes || '').includes(it.notes)) {
+                        await base44.entities.WateringLog.update(prior.id, { notes: prior.notes ? `${prior.notes}\n${it.notes}` : it.notes }).catch(() => {});
+                    }
+                    results.push({ plant_id: p.id, status: 'already', date: it.date, log_id: prior.id, last_watered: p.last_watered, next_watering_due: p.next_watering_due, stage: p.growth_stage });
+                    continue;
+                }
                 const total = (p.total_waterings || 0) + 1;
                 const computed = STAGES.find(([min]) => total >= min)![1];
                 const stage = (rank[p.growth_stage] ?? 0) > rank[computed] ? p.growth_stage : computed;
-                const isNewest = !p.last_watered || today >= String(p.last_watered).slice(0, 10);
-                await Promise.all([
+                // Logging an older day than the latest watering keeps the log but doesn't
+                // move the schedule backwards
+                const isNewest = !p.last_watered || it.date >= String(p.last_watered).slice(0, 10);
+                const patch: any = {
+                    total_waterings: total,
+                    growth_stage: stage,
+                    status: p.status === 'wilted' ? 'healthy' : (p.status || 'healthy'),
+                    ...(isNewest ? { last_watered: it.date, next_watering_due: addDays(it.date, p.water_frequency_days || 7) } : {}),
+                };
+                const [log] = await Promise.all([
                     base44.entities.WateringLog.create({
                         plant_id: p.id,
                         plant_name: p.nickname || p.name,
-                        watered_date: today,
-                        method: 'reminder',
+                        watered_date: it.date,
+                        method: it.method,
+                        ...(it.notes ? { notes: it.notes } : {}),
                     }),
-                    base44.entities.Plant.update(p.id, {
-                        total_waterings: total,
-                        growth_stage: stage,
-                        status: p.status === 'wilted' ? 'healthy' : (p.status || 'healthy'),
-                        ...(isNewest ? { last_watered: today, next_watering_due: addDays(today, p.water_frequency_days || 7) } : {}),
-                    }),
+                    base44.entities.Plant.update(p.id, patch),
                 ]);
+                logged.set(key, log);
+                byId.set(p.id, { ...p, ...patch });
+                wateredIds.push(p.id);
                 watered++;
+                results.push({
+                    plant_id: p.id, status: 'watered', date: it.date, log_id: log?.id || null,
+                    grew: stage !== (p.growth_stage || 'seedling'), stage,
+                    last_watered: patch.last_watered ?? p.last_watered, next_watering_due: patch.next_watering_due ?? p.next_watering_due,
+                });
             }
-            return Response.json({ success: true, watered, skipped, today });
+            // Game events ("thirsty plants") are solved by watering the plants in them
+            if (wateredIds.length) {
+                try {
+                    const events = (await base44.entities.GameEvent.filter({ resolved: false })) || [];
+                    for (const ev of events) {
+                        const ids2: string[] = Array.isArray(ev.affected_plant_ids) ? ev.affected_plant_ids : [];
+                        if (!ids2.some((id) => wateredIds.includes(id))) continue;
+                        const left = ids2.filter((id) => !wateredIds.includes(id));
+                        await base44.entities.GameEvent.update(ev.id, left.length ? { affected_plant_ids: left } : { resolved: true });
+                    }
+                } catch (e) { console.warn('game events', (e as Error).message); }
+            }
+            return Response.json({ success: true, watered, skipped, today, results });
+        }
+
+        // Take back one watering (Undo): { action: 'unwater', plant_id, date, log_id?, before? }
+        if (body.action === 'unwater') {
+            const pid = String(body.plant_id || '');
+            const date = /^\d{4}-\d{2}-\d{2}$/.test(String(body.date || '')) ? String(body.date) : today;
+            let p: any = null;
+            try { p = (await base44.entities.Plant.filter({ id: pid }))?.[0]; } catch { p = null; }
+            if (!p) return Response.json({ error: 'Not found' }, { status: 404 });
+            const logs = (await base44.entities.WateringLog.filter({ plant_id: pid, watered_date: date })) || [];
+            const log = (body.log_id && logs.find((l: any) => l.id === body.log_id)) || logs[0];
+            if (!log) return Response.json({ success: true, status: 'nothing_to_undo' });
+            await base44.entities.WateringLog.delete(log.id);
+            const patch: any = { total_waterings: Math.max(0, (p.total_waterings || 1) - 1) };
+            if (String(p.last_watered || '').slice(0, 10) === date) {
+                const b = body.before && typeof body.before === 'object' ? body.before : null;
+                if (b && 'last_watered' in b) {
+                    patch.last_watered = b.last_watered ?? null;
+                    patch.next_watering_due = b.next_watering_due ?? null;
+                    if (b.growth_stage) patch.growth_stage = b.growth_stage;
+                } else {
+                    const prev = ((await base44.entities.WateringLog.filter({ plant_id: pid }, '-watered_date', 1)) || [])[0];
+                    const last = prev ? String(prev.watered_date).slice(0, 10) : null;
+                    patch.last_watered = last;
+                    patch.next_watering_due = last ? addDays(last, p.water_frequency_days || 7) : null;
+                }
+            }
+            await base44.entities.Plant.update(pid, patch);
+            return Response.json({ success: true, status: 'undone', ...patch });
         }
 
         // 'due' (default)
