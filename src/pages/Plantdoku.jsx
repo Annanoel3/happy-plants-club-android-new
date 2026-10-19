@@ -95,16 +95,22 @@ function Board({ puzzle, marks, conflicts, hint, dark, locked, onTap, onStroke, 
     const i = cellAt(e.clientX, e.clientY);
     if (i === null) return;
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ }
-    drag.current = { start: i, moved: false, seen: new Set([i]) };
+    drag.current = { start: i, last: i, moved: false, seen: new Set([i]) };
   };
   const move = (e) => {
     const d = drag.current;
     if (!d) return;
     const i = cellAt(e.clientX, e.clientY);
-    if (i === null || d.seen.has(i)) return;
+    if (i === null || i === d.last) return;
     if (!d.moved) { d.moved = true; onStroke(); onDragX(d.start); }
-    d.seen.add(i);
-    onDragX(i);
+    // A quick swipe can skip squares: fill everything between along a row or column
+    const r0 = Math.floor(d.last / N), c0 = d.last % N, r1 = Math.floor(i / N), c1 = i % N;
+    const path = [];
+    if (r0 === r1) for (let c = Math.min(c0, c1); c <= Math.max(c0, c1); c++) path.push(r0 * N + c);
+    else if (c0 === c1) for (let r = Math.min(r0, r1); r <= Math.max(r0, r1); r++) path.push(r * N + c0);
+    else path.push(i);
+    for (const j of path) if (!d.seen.has(j)) { d.seen.add(j); onDragX(j); }
+    d.last = i;
   };
   const up = () => {
     const d = drag.current;
