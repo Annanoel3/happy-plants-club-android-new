@@ -68,6 +68,7 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
 
   const failed = local?.add_status === 'failed';
   const info = local?.add_info || {};
+  const waitingForId = failed && info.error === 'limit_reached';
   const alts = (Array.isArray(info.alternatives) ? info.alternatives : [])
     .filter((a) => a?.scientific_name && a.scientific_name !== local?.scientific_name).slice(0, 3);
   const showAlts = !failed && info.confidence && info.confidence !== 'high' && alts.length > 0;
@@ -158,10 +159,14 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
           <div className="min-w-0 flex-1">
             {failed ? (
               <>
-                <p className={`font-bold ${ui.text}`}>We couldn't name this one</p>
-                <p className={`text-xs ${ui.sub}`}>Try again, or type its name below.</p>
+                <p className={`font-bold ${ui.text}`}>{waitingForId ? 'Waiting for a photo ID' : "We couldn't name this one"}</p>
+                <p className={`text-xs ${ui.sub}`}>
+                  {waitingForId
+                    ? "You were out of photo IDs for the day. It gets named on its own when they're back, or type its name below (always free)."
+                    : 'Try again, or type its name below.'}
+                </p>
                 <button onClick={retry} disabled={retrying} className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-green-600">
-                  {retrying ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} Try again
+                  {retrying ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} {waitingForId ? 'Name it now' : 'Try again'}
                 </button>
               </>
             ) : (
