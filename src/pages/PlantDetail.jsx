@@ -36,6 +36,7 @@ import { showAdForEvent } from "@/lib/admob";
 import { prepareImageForUpload } from "@/lib/imageResize";
 import { usePlus, usePlusReady, useMe } from "@/lib/plus";
 import { hintLine } from "@/lib/weather";
+import { logWaterings } from "@/lib/watering";
 import { POT_SIZES, WATER_METHODS, waterMethod, scheduleText, waterAmount, methodInfo } from "@/lib/waterAmount";
 import { CARE_META } from "@/lib/care";
 import PlantWaterPanel from "@/components/plus/PlantWaterPanel";
@@ -241,85 +242,14 @@ export default function PlantDetail() {
 
   const waterPlantMutation = useMutation({
     mutationFn: async () => {
-      console.log('🚰 Starting watering mutation...');
-      
-      // Direct implementation instead of calling external function
+      // Saved on the phone first, then sent (lib/watering): if the app closes or there's
+      // no signal, it's sent later. The server also clears this plant from game events.
       const waterDate = wateringDate || localToday();
-      
-      // Use the plant this page already loaded instead of re-fetching it (one less round trip).
-      // It is refetched after every watering via invalidateQueries({ queryKey: ['plant'] }), so it's current.
       const plantData = plant || await base44.entities.Plant.get(plantId);
-      
-      if (!plantData) {
-        throw new Error('Plant not found');
-      }
-      
-      const newTotalWaterings = (plantData.total_waterings || 0) + 1;
-      let newGrowthStage = plantData.growth_stage || 'seedling';
-      let grewThisWatering = false;
-
-      if (newTotalWaterings >= 20 && newGrowthStage !== 'mature') {
-        newGrowthStage = 'mature';
-        grewThisWatering = true;
-      } else if (newTotalWaterings >= 15 && newGrowthStage !== 'large' && newGrowthStage !== 'mature') {
-        newGrowthStage = 'large';
-        grewThisWatering = true;
-      } else if (newTotalWaterings >= 10 && newGrowthStage !== 'medium' && newGrowthStage !== 'large' && newGrowthStage !== 'mature') {
-        newGrowthStage = 'medium';
-        grewThisWatering = true;
-      } else if (newTotalWaterings >= 5 && newGrowthStage !== 'small' && newGrowthStage !== 'medium' && newGrowthStage !== 'large' && newGrowthStage !== 'mature') {
-        newGrowthStage = 'small';
-        grewThisWatering = true;
-      }
-
-      // Noon local, not new Date('YYYY-MM-DD') which is UTC midnight = the evening BEFORE in the US.
-      const nextWatering = new Date(waterDate + 'T12:00:00');
-      nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
-
-      // Your stats, tier and achievements are recomputed on the server from your
-      // watering history right after this (lib/stats.js) — no +1 counters to drift.
-
-      // These four writes/reads don't depend on each other, so they go out together.
-      // Previously each one waited for the last (plant -> log -> user -> events), which
-      // is why a single watering felt slow on a phone connection.
-      // Logging an older day than the latest watering must not move the schedule backwards.
-      const isNewest = !plantData.last_watered || waterDate >= plantData.last_watered;
-      const [, , events] = await Promise.all([
-        base44.entities.Plant.update(plantId, {
-          total_waterings: newTotalWaterings,
-          growth_stage: newGrowthStage,
-          status: 'healthy',
-          ...(isNewest ? { last_watered: waterDate, next_watering_due: toLocalDateString(nextWatering) } : {}),
-        }),
-        base44.entities.WateringLog.create({
-          plant_id: plantId,
-          plant_name: plantData.name,
-          watered_date: waterDate,
-          method: 'manual',
-          notes: wateringNotes || null,
-        }),
-        base44.entities.GameEvent.filter({ resolved: false }),
-      ]);
-
-      // Resolve events
-      const plantEvents = events.filter(e => e.affected_plant_ids && e.affected_plant_ids.includes(plantId));
-
-      if (plantEvents.length > 0) {
-        await Promise.all(plantEvents.map((event) => {
-          const remainingPlants = event.affected_plant_ids.filter(id => id !== plantId);
-          return remainingPlants.length === 0
-            ? base44.entities.GameEvent.update(event.id, { resolved: true })
-            : base44.entities.GameEvent.update(event.id, { affected_plant_ids: remainingPlants });
-        }));
-      }
-      
-      console.log('✅ Watering complete!');
-      
-      return {
-        success: true,
-        grew: grewThisWatering,
-        growth_stage: newGrowthStage,
-      };
+      if (!plantData) throw new Error('Plant not found');
+      const r = await logWaterings([plantData], { date: waterDate, notes: wateringNotes || null, method: 'manual' });
+      const info = r.infos[0] || {};
+      return { success: true, synced: r.synced, grew: !!info.grew, growth_stage: info.stage };
     },
     onSuccess: (data) => {
       console.log('✅ Watering success! Data:', data);
@@ -337,7 +267,9 @@ export default function PlantDetail() {
       setWateringDate(localToday());
 
       // Then show success messages
-      if (data?.grew) {
+      if (data && data.synced === false) {
+        toast.success("Plant watered! 💧 No signal right now, so it'll sync when you're back online.");
+      } else if (data?.grew) {
         toast.success(`🌱 Your plant grew to ${data.growth_stage}!`);
       } else {
         toast.success('Plant watered! 💧');
