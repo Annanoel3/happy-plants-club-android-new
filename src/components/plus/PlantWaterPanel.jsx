@@ -85,7 +85,7 @@ export default function PlantWaterPanel({ plant, user, plus, plusReady, ui }) {
               <p className={`text-lg font-bold ${ui.text}`}>{amount.headline}</p>
               <p className={`text-sm ${ui.sub}`}>
                 Pour slowly; stop when a little drains out the bottom.{' '}
-                {amount.guessed ? 'This is a rough guess from the plant’s size. Pick the pot width below for a better number.' : `Estimate for a ${plant.pot_diameter_in}-inch pot.`}
+                {amount.guessed ? 'This is a rough guess from the plant’s size. Pick the pot width below for a better number.' : `Estimate for your ${plant.pot_diameter_in}-inch pot.`}
               </p>
             </>
           )}
