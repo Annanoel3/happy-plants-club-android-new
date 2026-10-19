@@ -83,7 +83,7 @@ const mmToIn = (mm: number) => Math.round((mm / 25.4) * 100) / 100;
 const cToF = (c: number) => Math.round((c * 9) / 5 + 32);
 function fmtIn(inches: number): string {
     if (inches < 0.1) return 'a little rain';
-    return `${inches.toFixed(inches < 1 ? 2 : 1).replace(/0$/, '')} in`;
+    return `${Math.round(inches * 100) / 100} in`;
 }
 
 // ---------------------------------------------------------------- plants
