@@ -99,8 +99,11 @@ ${context}`
                 next_watering_due: nextWatering.toISOString().split('T')[0],
                 ...(location ? { location } : {}),
                 ...(environment ? { environment } : {}),
-                // The app asks the owner to check where it is, the pot and the name
+                // One plant: the app asks right away where it is, the pot and the name.
+                // Several: no question per plant; they wait under "Newly added" in the garden
+                // until the owner opens each one and says where it lives.
                 add_status: 'review',
+                add_info: { bulk: plantsData.length > 1, added_at: new Date().toISOString() },
             });
 
             addedPlants.push(newPlant);
