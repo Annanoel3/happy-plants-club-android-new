@@ -98,6 +98,15 @@ function onVacation(p: any, today: string): boolean {
     if (end && today > end) return false;
     return true;
 }
+// Garden-wide vacation (Schedule > Vacations): the trip that covers `today` (trip days only;
+// the watering functions also pause 2 days after a trip with an unanswered sitter plan).
+function awayOn(trips: any[] | undefined, today: string): any | null {
+    for (const v of trips || []) {
+        const s = String(v.start_date || '').slice(0, 10), e = String(v.end_date || '').slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s) && /^\d{4}-\d{2}-\d{2}$/.test(e) && today >= s && today <= e) return v;
+    }
+    return null;
+}
 const plantName = (p: any) => p.nickname || p.name || 'Your plant';
 function rainThreshold(p: any): number {
     const d = Number(p.pot_diameter_in);
@@ -447,14 +456,18 @@ async function sendCarePush(email: string, due: any[]) {
     return { id: j?.id || null, detail: j };
 }
 
-async function sendFrostPush(email: string, cold: any[], lowF: number) {
+async function sendFrostPush(email: string, cold: any[], lowF: number, away = false) {
     const appId = (Deno.env.get('ONESIGNAL_APP_ID') || '').trim();
     const key = Deno.env.get('ONESIGNAL_REST_API_KEY');
     if (!appId || !key) return { id: null, detail: 'no onesignal' };
     const first = plantName(cold[0]);
-    const body = cold.length === 1
-        ? `Cover ${first} or bring it inside.`
-        : `Cover or bring in ${first} + ${cold.length - 1} more outdoor plant${cold.length === 2 ? '' : 's'}.`;
+    const body = away
+        ? (cold.length === 1
+            ? `At home: ask your sitter to cover ${first} or bring it inside.`
+            : `At home: ask your sitter to cover or bring in ${first} + ${cold.length - 1} more outdoor plant${cold.length === 2 ? '' : 's'}.`)
+        : cold.length === 1
+            ? `Cover ${first} or bring it inside.`
+            : `Cover or bring in ${first} + ${cold.length - 1} more outdoor plant${cold.length === 2 ? '' : 's'}.`;
     const res = await fetch('https://api.onesignal.com/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: osAuth(key) },
@@ -864,6 +877,13 @@ Deno.serve(async (req) => {
                 .filter((s: any) => !s.expires_at || Date.parse(s.expires_at) > now)
                 .map((s: any) => s.user_id));
             const users = (await db.User.list('-created_date', 1000)) || [];
+            // Trips by owner, for the garden-wide vacation pause
+            const tripsBy = new Map<string, any[]>();
+            for (const v of ((await db.VacationDay.list('-created_date', 1000).catch(() => [])) || [])) {
+                if (!v.created_by || String(v.end_date || '').slice(0, 10) < addDays(dayOf(now, 'UTC'), -2)) continue;
+                if (!tripsBy.has(v.created_by)) tripsBy.set(v.created_by, []);
+                tripsBy.get(v.created_by)!.push(v);
+            }
             const stats: Record<string, number> = {};
             const bump = (k: string) => { stats[k] = (stats[k] || 0) + 1; };
             let geocodes = 0;
@@ -885,9 +905,11 @@ Deno.serve(async (req) => {
                     const r = await evaluateUser(db, u, now, memo);
                     bump(`weather_${r.status}`);
 
-                    // One care push a day, max.
+                    // One care push a day, max. None while away (frost alerts still come).
                     const today = dayOf(now, tz);
-                    if (hour >= CARE_FROM_HOUR && hour <= CARE_UNTIL_HOUR && u.care_push_day !== today && u.notifications_care !== false) {
+                    const away = awayOn(tripsBy.get(u.email), today);
+                    if (away) bump('away');
+                    if (!away && hour >= CARE_FROM_HOUR && hour <= CARE_UNTIL_HOUR && u.care_push_day !== today && u.notifications_care !== false) {
                         const plants = (await db.Plant.filter({ created_by: u.email }, '-created_date', 500)) || [];
                         const due = careDueToday(plants, today, u.location_lat);
                         if (due.length) {
@@ -923,7 +945,7 @@ Deno.serve(async (req) => {
                                     const next = { ...(h || { kind: 'frost' }), day: today, frost_low_f: low, frost_text: frostText };
                                     try { await db.Plant.update(p.id, { weather_hint: next }); } catch { /* the push still goes */ }
                                 }
-                                const f = await sendFrostPush(u.email, cold, low);
+                                const f = await sendFrostPush(u.email, cold, low, !!away);
                                 bump(f.id ? 'frost_sent' : 'frost_failed');
                                 if (!f.id) console.warn('frost push failed', u.email, JSON.stringify(f.detail).slice(0, 200));
                             }
