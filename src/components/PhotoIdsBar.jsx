@@ -43,7 +43,7 @@ export default function PhotoIdsBar({ ids, mode = 'add', waitingCount = 0, text 
       {!ids.plus && (
         <button onClick={() => navigate('/Premium')}
           className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold border border-amber-400/60 active:scale-95 ${text}`}>
-          <Sparkles className="w-4 h-4 text-amber-500" /> Plus: {200} a day
+          <Sparkles className="w-4 h-4 text-amber-500" /> Get Plus (200 a day)
         </button>
       )}
     </div>
