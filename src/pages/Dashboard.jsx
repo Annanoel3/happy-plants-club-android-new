@@ -10,6 +10,7 @@ import SortFilterBar from "@/components/SortFilterBar";
 import AddCategoryModal from "@/components/AddCategoryModal";
 
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
+import LocationPrompt from "@/components/plus/LocationPrompt";
 import QuickLogModal from "@/components/QuickLogModal";
 
 import PlantTypeStack from "@/components/PlantTypeStack";
@@ -482,6 +483,7 @@ export default function Dashboard() {
   return (
     <>
       <DailyWeatherPopup />
+      <LocationPrompt plantCount={plants?.length || 0} />
       <div className={`min-h-screen theme-bg overflow-y-auto ${selectMode ? 'pb-72' : 'pb-28'}`}>
         <div className="max-w-6xl mx-auto px-4 pt-6">
 
