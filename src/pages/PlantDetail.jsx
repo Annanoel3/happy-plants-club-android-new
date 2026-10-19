@@ -34,10 +34,22 @@ import { Switch } from "@/components/ui/switch";
 import { chatWithPlant } from "@/functions/chatWithPlant";
 import { showAdForEvent } from "@/lib/admob";
 import { prepareImageForUpload } from "@/lib/imageResize";
+import { usePlus, usePlusReady, useMe } from "@/lib/plus";
+import { hintChip } from "@/lib/weather";
+import { POT_SIZES } from "@/lib/waterAmount";
+import { CARE_META } from "@/lib/care";
+import PlantWaterPanel from "@/components/plus/PlantWaterPanel";
+import CareScheduleCard from "@/components/plus/CareScheduleCard";
+import HealthHistoryCard from "@/components/plus/HealthHistoryCard";
+import GrowthTimeline from "@/components/plus/GrowthTimeline";
 
 export default function PlantDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const plus = usePlus();
+  const plusReady = usePlusReady();
+  const me = useMe();
+  const [healthOpenKey, setHealthOpenKey] = useState(0);
   const urlParams = new URLSearchParams(window.location.search);
   const plantId = urlParams.get('id');
 
@@ -212,6 +224,7 @@ export default function PlantDetail() {
         sun_exposure: plant.sun_exposure || "",
         pot_type: plant.pot_type || "",
         pot_size: plant.pot_size || "",
+        pot_diameter_in: (plant.pot_diameter_in === 0 || plant.pot_diameter_in) ? String(plant.pot_diameter_in) : "",
         substrate_type: plant.substrate_type || "",
         notes: plant.notes || "",
         water_frequency_days: plant.water_frequency_days || 7,
@@ -338,7 +351,12 @@ export default function PlantDetail() {
 
   const updatePlantMutation = useMutation({
     mutationFn: async (updates) => {
-      await base44.entities.Plant.update(plantId, updates);
+      const clean = { ...updates };
+      if ('pot_diameter_in' in clean) {
+        if (clean.pot_diameter_in === '' || clean.pot_diameter_in === undefined) delete clean.pot_diameter_in;
+        else clean.pot_diameter_in = Number(clean.pot_diameter_in);
+      }
+      await base44.entities.Plant.update(plantId, clean);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['plant'] });
