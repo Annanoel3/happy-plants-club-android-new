@@ -11,6 +11,7 @@ import { showAdForEvent } from '@/lib/admob';
 import { waterAmount, methodInfo } from '@/lib/waterAmount';
 import { careTasks } from '@/components/plus/CareTaskList';
 import CareTaskList from '@/components/plus/CareTaskList';
+import WaterCheer from '@/components/WaterCheer';
 
 // "Watering round": only what's due, grouped by area (biggest group first), one button
 // per area, a running count, and finished areas fold away. One ad at the end of the
@@ -56,6 +57,8 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
   const [busy, setBusy] = useState({}); // plantId or area key -> true
   const [collapsed, setCollapsed] = useState({});
   const wateredAny = useRef(false);
+  const cheered = useRef(false); // the little pop-up shows once per round, on the first plant checked
+  const [cheer, setCheer] = useState(null);
 
   useEffect(() => {
     if (!open) return;
@@ -65,6 +68,8 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
     setBusy({});
     setCollapsed({});
     wateredAny.current = false;
+    cheered.current = false;
+    setCheer(null);
     // Only when it opens: rows stay put (checked) instead of vanishing as you go
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialView]);
@@ -105,6 +110,12 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
     onClose();
   };
 
+  const celebrate = () => {
+    if (cheered.current) return;
+    cheered.current = true;
+    setCheer(Date.now());
+  };
+
   const toggle = async (p) => {
     if (busy[p.id]) return;
     setBusy((b) => ({ ...b, [p.id]: true }));
@@ -116,6 +127,7 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
         const info = await waterPlantQuiet(p);
         wateredAny.current = true;
         setDone((d) => ({ ...d, [p.id]: info }));
+        celebrate();
       }
     } catch {
       toast.error(`Couldn't save ${name(p)}. Try again.`);
@@ -135,7 +147,7 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
       const res = await Promise.allSettled(chunk.map((p) => waterPlantQuiet(p)));
       const ok = {};
       res.forEach((r, j) => { if (r.status === 'fulfilled') ok[chunk[j].id] = r.value; else failed++; });
-      if (Object.keys(ok).length) { wateredAny.current = true; setDone((d) => ({ ...d, ...ok })); }
+      if (Object.keys(ok).length) { wateredAny.current = true; setDone((d) => ({ ...d, ...ok })); celebrate(); }
     }
     setBusy((b) => { const n = { ...b }; delete n[g.key]; return n; });
     refreshPlantData();
@@ -278,6 +290,7 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
           </>
         )}
       </div>
+      {cheer && <WaterCheer key={cheer} onDone={() => setCheer(null)} />}
     </div>,
     document.body,
   );
