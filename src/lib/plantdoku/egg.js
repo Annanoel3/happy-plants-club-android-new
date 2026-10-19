@@ -19,11 +19,17 @@ function h32(s) {
 }
 const dayNumber = (day) => Math.floor(Date.parse(`${day}T12:00:00Z`) / 86400000);
 
+// A random walk from Jan 1 2026: every day moves to one of the other three screens
+function eggIndex(day) {
+  const n = dayNumber(day);
+  let idx = 0;
+  for (let d = dayNumber('2026-01-01') + 1; d <= n; d++) idx = (idx + 1 + (h32(`egg${d}`) % 3)) % 4;
+  return idx;
+}
+
 /** eggFor('YYYY-MM-DD') → { page: 'garden' | 'schedule' | 'community' | 'expert', path, text, align } */
 export function eggFor(day) {
-  const n = dayNumber(day);
-  const offset = h32(`week${Math.floor(n / 7)}`) % 4;
-  const page = EGG_PAGES[(n + offset) % 4];
+  const page = EGG_PAGES[eggIndex(day)];
   const x = h32(`egg${day}`);
   return { page: page.key, path: page.path, text: TEXTS[x % TEXTS.length], align: ['left', 'center', 'right'][(x >>> 4) % 3] };
 }
