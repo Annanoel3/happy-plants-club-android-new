@@ -101,8 +101,9 @@ ${context}`
                 ...(environment ? { environment } : {}),
                 // One plant: the app asks right away where it is, the pot and the name.
                 // Several: no question per plant; they wait under "Newly added" in the garden
-                // until the owner opens each one and says where it lives.
-                add_status: 'review',
+                // until the owner opens each one and says where it lives (or skip it when
+                // the area was already picked on the Add screen; the names were typed).
+                add_status: plantsData.length > 1 && location ? 'done' : 'review',
                 add_info: { bulk: plantsData.length > 1, added_at: new Date().toISOString() },
             });
 
