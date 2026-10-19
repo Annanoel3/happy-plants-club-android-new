@@ -554,6 +554,216 @@ Rules:
     return out;
 }
 
+// ---------------------------------------------------------------- watering profiles (everyone)
+// For each plant, once: how it gets its water (pour / self-watering reservoir / soak /
+// mist / bottom / lives in water), whether it's finicky about watering timing (then
+// "Even out my schedule" never moves it), and for succulents, cacti and other
+// drought-tolerant plants a growing-season and a rest-season interval, switched
+// automatically with the seasons. Filled in by the hourly sweep for every user's new
+// plants, or right away from the app. A person's own edits are never overwritten.
+//
+// Anchors for the intervals (see the report to Anna for sources):
+//  - outdoor potted succulents in warm, dry weather: about every 5-7 days (Gardenia)
+//  - indoors: every 2-3 weeks; winter: only a couple of times (Illinois Extension)
+//  - fall/winter rest: every 3-4 weeks or less (Gardenia)
+const PROFILE_V = 1;
+const WATER_METHODS = ['pour', 'reservoir', 'soak', 'mist', 'bottom', 'in_water'];
+const PROFILE_GROUPS = ['succulent', 'cactus', 'caudiciform', 'forest_cactus', 'tropical_foliage', 'fern', 'orchid', 'air_plant', 'carnivorous', 'aquatic', 'bulb', 'herb_vegetable', 'flowering', 'tree_shrub', 'other'];
+
+function inRestSeason(day: string, hemi: string, rest: string | null | undefined): boolean {
+    if (!rest || hemi === 'tropics') return false;
+    const m = Number(day.slice(5, 7));
+    if (rest === 'summer') return hemi === 'south' ? [12, 1, 2].includes(m) : [6, 7, 8].includes(m);
+    return isDormant(day, hemi); // winter: Nov-Feb north, May-Aug south
+}
+
+// Put the right season's interval in water_frequency_days (and move the next date to
+// match). Returns null when nothing needs to change.
+function seasonalPatch(p: any, today: string, hemi: string): any {
+    const grow = Number(p.water_days_grow) || 0, rest = Number(p.water_days_rest) || 0;
+    if (!grow || !rest) return null;
+    const season = inRestSeason(today, hemi, p.water_rest_season || 'winter') ? 'rest' : 'grow';
+    const every = season === 'rest' ? rest : grow;
+    if (p.water_season === season && Number(p.water_frequency_days) === every) return null;
+    const patch: any = { water_season: season, water_frequency_days: every };
+    const last = String(p.last_watered || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(last)) {
+        let next = addDays(last, every);
+        if (next < today) next = today; // overdue stays due today; never a date in the past
+        patch.next_watering_due = next;
+    }
+    return patch;
+}
+
+async function aiProfiles(plants: any[], ctx: { today: string; place: string | null; hemi: string }) {
+    const key = Deno.env.get('OPENAI_API_KEY');
+    if (!key || !plants.length) return null;
+    const list = plants.slice(0, 25).map((p) => ({
+        id: p.id,
+        name: p.name,
+        scientific_name: p.scientific_name || null,
+        type: p.plant_type || null,
+        environment: p.environment || null,
+        pot_type: p.pot_type || null,
+        substrate: p.substrate_type || null,
+        sun: p.sun_exposure || null,
+        size: p.plant_size || null,
+        current_every_days: Number(p.water_frequency_days) || null,
+        watering_notes: String(p.care_instructions?.watering || '').slice(0, 400) || null,
+    }));
+    const openai = new OpenAI({ apiKey: key });
+    const r = await openai.chat.completions.create({
+        model: 'gpt-6-luna',
+        response_format: { type: 'json_object' },
+        messages: [
+            {
+                role: 'system',
+                content: `You are a careful horticulturist setting up a plant-care app's watering schedule.
+Today is ${ctx.today}. The owner's location: ${ctx.place || 'unknown'} (${ctx.hemi === 'tropics' ? 'tropics' : ctx.hemi + 'ern hemisphere'}).
+Return JSON: {"plants":[{"id":"...","group":"succulent","method":"pour","strict":false,"drought_tolerant":true,"rest_season":"winter","grow_days":7,"rest_days":21,"watering_text":"...","why":"..."}]}
+Fields:
+- group: one of ${PROFILE_GROUPS.join(', ')}.
+- method: how the plant gets its water.
+  "pour" = normal watering of the soil (most plants).
+  "soak" = dunk or soak the whole plant or its mount: mounted staghorn ferns, mounted orchids, air plants (Tillandsia).
+  "mist" = only when misting IS the plant's watering (rare).
+  "bottom" = usually watered from below: African violets and other gesneriads that rot if the crown gets wet.
+  "in_water" = the plant lives in water: lucky bamboo in water, cuttings in water, aquatic plants.
+  Never answer "reservoir" (the app sets that from the pot type).
+- strict: true if the plant is finicky about watering timing, so moving its watering day by one or two days could hurt it: tropical and humidity-loving plants, ferns, orchids, carnivorous plants, air plants, rare or collector plants (when unsure about a collector plant, say true), plants with unusual growth cycles (living stones, winter-growing bulbs), seedlings and cuttings, and anything that needs water every 3 days or less. false for tough, forgiving plants (most succulents and cacti, snake plants, ZZ, pothos, dracaenas).
+- drought_tolerant: true for succulents, cacti, caudiciforms and other plants that should dry out fully between waterings.
+- rest_season, grow_days, rest_days: ONLY for drought_tolerant plants whose needs follow a simple growing season and rest season; otherwise null.
+  rest_season: "winter" for most (they grow in the warm months), "summer" for winter growers (Aeonium, many mesembs).
+  grow_days: days between waterings in its growing season, for THIS plant's spot (indoor/outdoor, pot, sun) in the owner's climate. Guide: outdoor potted succulents in warm, dry weather about every 5-7 days; indoors about every 10-21 days. Small pots and terracotta dry faster.
+  rest_days: days between waterings in its rest season. Guide: every 21-30 days or less often.
+  If the plant's watering depends on its own cycle in a way two seasons can't capture (Lithops and other living stones, Conophytum, winter bulbs), use null for all three.
+- watering_text: for plants where you gave grow_days and rest_days, 2-3 short plain sentences the owner will read: how to water (soak until it drains, then let it dry out completely), about how often in the growing season and in the rest season, and to check the soil first. Otherwise null.
+- why: one short sentence.
+Keep the same ids. Be realistic, not cautious-to-a-fault: overwatering kills more succulents than underwatering.`,
+            },
+            { role: 'user', content: JSON.stringify(list) },
+        ],
+    });
+    const j = JSON.parse(r.choices?.[0]?.message?.content || '{}');
+    const out: Record<string, any> = {};
+    for (const s of j?.plants || []) if (s?.id) out[s.id] = s;
+    return out;
+}
+
+// What to save for one plant, given the AI's answer. Never undoes a person's own choices.
+function profilePatch(p: any, ai: any, today: string, hemi: string): any {
+    const prof = p.care_profile || {};
+    const patch: any = {};
+    const every = Number(p.water_frequency_days) || 7;
+    if (!prof.user_method) {
+        const m = p.pot_type === 'Self-watering' ? 'reservoir'
+            : (WATER_METHODS.includes(ai?.method) && ai.method !== 'reservoir' ? ai.method : 'pour');
+        patch.water_method = m;
+    }
+    if (!prof.user_strict) patch.water_strict = !!ai?.strict || every <= 3;
+    const grow = clampInt(ai?.grow_days, 3, 45, 0);
+    const rest = clampInt(ai?.rest_days, 7, 60, 0);
+    const seasonal = !!ai?.drought_tolerant && grow > 0 && rest > 0 && !prof.user_interval && p.water_method !== 'in_water';
+    if (seasonal) {
+        patch.water_days_grow = grow;
+        patch.water_days_rest = Math.max(rest, grow);
+        patch.water_rest_season = ai.rest_season === 'summer' ? 'summer' : 'winter';
+        if (typeof ai.watering_text === 'string' && ai.watering_text.trim()) {
+            patch.care_instructions = { ...(p.care_instructions || {}), watering: ai.watering_text.trim().slice(0, 600) };
+        }
+        Object.assign(patch, seasonalPatch({ ...p, ...patch, water_season: null }, today, hemi) || {});
+    }
+    patch.care_profile = {
+        ...prof,
+        v: PROFILE_V,
+        group: PROFILE_GROUPS.includes(ai?.group) ? ai.group : 'other',
+        why: typeof ai?.why === 'string' ? ai.why.slice(0, 200) : null,
+        at: new Date().toISOString(),
+        source: 'ai',
+        prev_every: every,
+        prev_next_due: p.next_watering_due || null,
+    };
+    return patch;
+}
+
+function ownerCtx(u: any, now: number) {
+    const tz = validTz(u?.timezone);
+    return {
+        today: dayOf(now, tz),
+        place: u?.location_label || u?.location || null,
+        hemi: hemisphereOf(u?.location_lat),
+    };
+}
+
+// Profile up to `limit` plants that don't have one yet (oldest first per owner batch).
+async function profilePlants(db: any, plants: any[], owner: any, now: number) {
+    const ctx = ownerCtx(owner, now);
+    let done = 0;
+    for (let i = 0; i < plants.length; i += 25) {
+        const batch = plants.slice(i, i + 25);
+        let ai: Record<string, any> | null = null;
+        try { ai = await aiProfiles(batch, ctx); } catch (e) { console.warn('profile AI failed', (e as Error).message); }
+        if (!ai) break; // try again on the next run
+        for (const p of batch) {
+            if (!ai[p.id]) continue;
+            try { await db.Plant.update(p.id, profilePatch(p, ai[p.id], ctx.today, ctx.hemi)); done++; } catch (e) { console.warn('profile save failed', p.id, (e as Error).message); }
+        }
+    }
+    return done;
+}
+
+const needsProfile = (p: any) => !p?.care_profile || (Number(p.care_profile.v) || 0) < PROFILE_V;
+
+// Spread out a pile-up of watering days. Moves only forgiving plants (not strict, not on
+// vacation, watered every 5+ days), by at most 1-3 days depending on how long they go
+// between waterings, and never to a day in the past. Overdue plants are never pushed later.
+function planEvenOut(plants: any[], today: string, horizon = 14) {
+    const days: string[] = [];
+    for (let i = 0; i < horizon; i++) days.push(addDays(today, i));
+    const last = days[days.length - 1];
+    const due = (p: any) => {
+        const d = String(p.next_watering_due || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+        return d < today ? today : d;
+    };
+    const active = plants.filter((p) => !onVacation(p, today) && due(p) && due(p)! <= last);
+    const count: Record<string, number> = {};
+    for (const d of days) count[d] = 0;
+    for (const p of active) count[due(p)!]++;
+    const before = Math.max(0, ...Object.values(count));
+    const cap = Math.max(3, Math.ceil((active.length / horizon) * 1.25));
+    const movable = (p: any) => !p.water_strict && (Number(p.water_frequency_days) || 7) >= 5
+        && p.water_method !== 'in_water' && String(p.last_watered || '').slice(0, 10) !== today;
+    const maxShift = (p: any) => { const e = Number(p.water_frequency_days) || 7; return e >= 14 ? 3 : e >= 7 ? 2 : 1; };
+    const moves: any[] = [];
+    const moved = new Set<string>();
+    for (const d of days) {
+        if (count[d] <= cap) continue;
+        const here = active.filter((p) => due(p) === d && movable(p) && !moved.has(p.id))
+            .sort((a, b) => (Number(b.water_frequency_days) || 7) - (Number(a.water_frequency_days) || 7));
+        for (const p of here) {
+            if (count[d] <= cap) break;
+            const overdue = String(p.next_watering_due).slice(0, 10) < today;
+            const s = maxShift(p);
+            let best: string | null = null;
+            for (let k = 1; k <= s && !best; k++) {
+                const later = addDays(d, k), earlier = addDays(d, -k);
+                const opts = [!overdue ? later : null, earlier >= today ? earlier : null]
+                    .filter((t): t is string => !!t && t <= last && count[t] < cap)
+                    .sort((a, b) => count[a] - count[b]);
+                if (opts.length) best = opts[0];
+            }
+            if (!best) continue;
+            count[d]--; count[best]++;
+            moved.add(p.id);
+            moves.push({ id: p.id, name: plantName(p), area: (p.location || '').trim() || null, from: String(p.next_watering_due).slice(0, 10), to: best });
+        }
+    }
+    const after = Math.max(0, ...Object.values(count));
+    const strictCount = active.filter((p) => p.water_strict).length;
+    return { moves, before_max: before, after_max: after, cap, strict_skipped: strictCount, per_day: days.map((d) => ({ day: d, count: count[d] })) };
+}
+
 // ---------------------------------------------------------------- handler
 Deno.serve(async (req) => {
     try {
