@@ -531,6 +531,7 @@ async function suggestCare(plants: any[]) {
         scientific_name: p.scientific_name || null,
         type: p.plant_type || null,
         environment: p.environment || null,
+        drought_tolerant: !!p.care_profile?.drought_tolerant,
         fertilizing_notes: String(p.care_instructions?.fertilizing || '').slice(0, 200) || null,
         humidity_notes: String(p.care_instructions?.humidity || '').slice(0, 200) || null,
     }));
