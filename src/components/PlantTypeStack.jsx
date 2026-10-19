@@ -5,18 +5,18 @@ import { quickWaterPlant, wateredToday } from "@/lib/watering";
 import { toast } from "sonner";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { usePlus } from "@/lib/plus";
+import { usePlus, useMe } from "@/lib/plus";
 import { hintChip } from "@/lib/weather";
 import { waterAmount } from "@/lib/waterAmount";
-import { dueCare, CARE_META } from "@/lib/care";
+import { dueCare, CARE_META, hemisphere } from "@/lib/care";
 import { localToday } from "@/lib/dates";
 
 // Plus extras on a card: today's weather note, how much water, care that's due.
-function plusChips(plant) {
+function plusChips(plant, hemi) {
   const chips = [];
   const h = hintChip(plant);
   if (h) chips.push({ key: 'wx', icon: h.icon, text: h.text });
-  const due = dueCare(plant);
+  const due = dueCare(plant, hemi);
   if (due.length === 1) chips.push({ key: 'care', icon: CARE_META[due[0].key].icon, text: CARE_META[due[0].key].label });
   else if (due.length > 1) chips.push({ key: 'care', icon: '🗓️', text: `${due.length} care tasks` });
   // How much to give, only when it's actually due
@@ -77,9 +77,9 @@ function WaterButton({ plant, compact = false }) {
 }
 
 // Tile card — compact 2-per-row grid
-function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex, plus }) {
+function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex, plus, hemi }) {
   const navigate = useNavigate();
-  const chips = plus ? plusChips(plant).filter((c) => c.key !== 'amt') : [];
+  const chips = plus ? plusChips(plant, hemi).filter((c) => c.key !== 'amt') : [];
   const watering = getWateringStatus(plant, wateringRemindersEnabled);
   const displayName = plant.nickname || plant.name || 'Unknown Plant';
   const needsWater = watering && (watering.status === 'today' || watering.status === 'overdue' || watering.status === 'wilted');
@@ -244,9 +244,9 @@ function FadeImage({ src, alt, gradientIndex }) {
   );
 }
 
-function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick, gradientIndex, plus }) {
+function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick, gradientIndex, plus, hemi }) {
   const navigate = useNavigate();
-  const chips = plus ? plusChips(plant) : [];
+  const chips = plus ? plusChips(plant, hemi) : [];
   const watering = getWateringStatus(plant, wateringRemindersEnabled);
   const displayName = plant.nickname || plant.name || 'Unknown Plant';
   const scientificName = plant.scientific_name;
@@ -396,6 +396,8 @@ function ScrollReveal({ children, index }) {
 export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect, onSelectGroup, stackIndex = 0, viewMode = 'stack', showHeader = true }) {
   const [expanded, setExpanded] = useState(false);
   const plus = usePlus();
+  const me = useMe();
+  const hemi = hemisphere(me);
   const groupIds = plants.map(p => p.id);
   const allGroupSelected = selectMode && groupIds.length > 0 && groupIds.every(id => selectedIds?.includes(id));
 
@@ -463,6 +465,7 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
               wateringRemindersEnabled={wateringRemindersEnabled}
               gradientIndex={index}
               plus={plus}
+              hemi={hemi}
             />
           ))}
         </div>
@@ -484,6 +487,7 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
               onClick={() => setExpanded(true)}
               gradientIndex={index}
               plus={plus}
+              hemi={hemi}
             />
           ))}
         </motion.div>
