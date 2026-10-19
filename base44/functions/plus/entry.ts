@@ -663,7 +663,8 @@ function profilePatch(p: any, ai: any, today: string, hemi: string): any {
     if (!prof.user_strict) patch.water_strict = !!ai?.strict || every <= 3;
     const grow = clampInt(ai?.grow_days, 3, 45, 0);
     const rest = clampInt(ai?.rest_days, 7, 60, 0);
-    const seasonal = !!ai?.drought_tolerant && grow > 0 && rest > 0 && !prof.user_interval && p.water_method !== 'in_water';
+    const seasonal = !!ai?.drought_tolerant && grow > 0 && rest > 0 && !prof.user_interval
+        && (patch.water_method || p.water_method) !== 'in_water';
     if (seasonal) {
         patch.water_days_grow = grow;
         patch.water_days_rest = Math.max(rest, grow);
@@ -860,6 +861,39 @@ Deno.serve(async (req) => {
                     console.error('plus sweep user error', u.email, (e as Error).message);
                 }
             }
+            // Watering profiles and seasons: everyone, not just Plus.
+            try {
+                const byEmail = new Map<string, any>();
+                for (const u of users) if (u?.email) byEmail.set(u.email, u);
+                // 1) New plants get a profile (up to 50 a run, in per-owner batches)
+                let pending: any[] = [];
+                try {
+                    pending = (await db.Plant.filter({ 'care_profile.v': { $exists: false } }, 'created_date', 50)) || [];
+                } catch {
+                    pending = ((await db.Plant.list('-created_date', 1000)) || []).filter(needsProfile).slice(0, 50);
+                }
+                const byOwner = new Map<string, any[]>();
+                for (const p of pending) {
+                    if (!p?.created_by || !needsProfile(p)) continue;
+                    if (!byOwner.has(p.created_by)) byOwner.set(p.created_by, []);
+                    byOwner.get(p.created_by)!.push(p);
+                }
+                for (const [email, list] of byOwner) {
+                    const n = await profilePlants(db, list, byEmail.get(email), now);
+                    if (n) stats.profiled = (stats.profiled || 0) + n;
+                }
+                // 2) Season changes (checked every run; writes only on the switch day)
+                const seasonal = (await db.Plant.filter({ water_days_rest: { $gt: 0 } }, '-created_date', 2000)) || [];
+                for (const p of seasonal) {
+                    const ctx = ownerCtx(byEmail.get(p.created_by), now);
+                    const patch = seasonalPatch(p, ctx.today, ctx.hemi);
+                    if (!patch) continue;
+                    try { await db.Plant.update(p.id, patch); bump('season_switched'); } catch { bump('season_failed'); }
+                }
+            } catch (e) {
+                bump('profile_error');
+                console.error('profile/season sweep error', (e as Error).message);
+            }
             return Response.json({ success: true, at: new Date(now).toISOString(), plus_users: plusIds.size, stats });
         }
 
@@ -913,6 +947,34 @@ Deno.serve(async (req) => {
                 label: user.location_label || null,
                 weather_today: user.weather_day === today ? user.weather_today : null,
             });
+        }
+
+        // Profile the signed-in user's own plants that don't have one yet (right after adding
+        // plants, so they don't wait for the hourly sweep). Everyone, not just Plus.
+        if (action === 'profile') {
+            const mine = ((await db.Plant.filter({ created_by: user.email }, '-created_date', 500)) || []).filter(needsProfile);
+            const ids = Array.isArray(body.plant_ids) ? new Set(body.plant_ids.map(String)) : null;
+            const todo = (ids ? mine.filter((p: any) => ids.has(p.id)) : mine).slice(0, 50);
+            const n = await profilePlants(db, todo, user, now);
+            return Response.json({ success: true, profiled: n, remaining: Math.max(0, mine.length - n) });
+        }
+
+        // Even out my schedule: { apply?: boolean }. Without apply it's only a preview.
+        if (action === 'even_out') {
+            const today = dayOf(now, validTz(user.timezone));
+            const mine = (await db.Plant.filter({ created_by: user.email }, '-created_date', 1000)) || [];
+            const plan = planEvenOut(mine, today);
+            if (body.apply === true) {
+                const byId = new Map(mine.map((p: any) => [p.id, p]));
+                let applied = 0;
+                for (const m of plan.moves) {
+                    const p: any = byId.get(m.id);
+                    if (!p || String(p.next_watering_due || '').slice(0, 10) !== m.from) continue;
+                    try { await db.Plant.update(m.id, { next_watering_due: m.to }); applied++; } catch { /* skip */ }
+                }
+                return Response.json({ success: true, applied, ...plan });
+            }
+            return Response.json({ success: true, ...plan });
         }
 
         if (action === 'rain_toggle') {
