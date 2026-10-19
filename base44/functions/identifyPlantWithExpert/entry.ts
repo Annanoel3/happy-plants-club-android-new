@@ -97,7 +97,9 @@ const JSON_FULL = `Return ONLY JSON:
     "fertilizing": "fertilizing schedule",
     "tips": "care tips and warnings, including toxicity to pets and people"
   },
-  "water_frequency_days": number
+  "plant_size": "Seedling" | "Small" | "Medium" | "Large" | "Mature",
+  "plant_type": "Houseplants" | "Succulents & Cacti" | "Flowers" | "Herbs" | "Vegetables" | "Trees & Shrubs" | "Perennials" | "Annuals" | "Seedlings",
+  "water_frequency_days": number (days between waterings RIGHT NOW: this time of year, in the owner's location, in the spot it's kept)
 }`;
 
 function imageMessage(imageUrl, text) {
@@ -179,30 +181,69 @@ function aiLimitResponse(kind: string, q: any) {
     return Response.json({ error: 'limit_reached', limit_reached: true, kind, limit: q.limit, plus: q.plus }, { status: 429 });
 }
 
-Deno.serve(async (req) => {
-    const rid = Math.random().toString(36).slice(2, 7);
+// ---- Context: where the owner lives, what season it is there, where the plant sits ----
+function seasonOf(day: string, lat: any): string {
+    const m = Number(day.slice(5, 7));
+    const south = typeof lat === 'number' && lat < -23.5;
+    const tropics = typeof lat === 'number' && Math.abs(lat) < 23.5;
+    if (tropics) return 'the tropics (no real winter)';
+    const n = m === 12 || m <= 2 ? 'winter' : m <= 5 ? 'spring' : m <= 8 ? 'summer' : 'fall';
+    const flip: Record<string, string> = { winter: 'summer', summer: 'winter', spring: 'fall', fall: 'spring' };
+    return `${south ? flip[n] : n} (${south ? 'southern' : 'northern'} hemisphere)`;
+}
+function contextFor(user: any, plant: any, day: string): string {
+    const place = user?.location_label || user?.location || null;
+    const lines = [
+        `Today is ${day}; at the owner's location it is ${seasonOf(day, user?.location_lat)}.`,
+        `Owner's location: ${place || 'unknown (assume a temperate climate in the northern hemisphere)'}.`,
+    ];
+    if (plant?.location || plant?.environment) lines.push(`Where the plant is kept: ${plant?.location || 'not given'} (${plant?.environment || 'not given'}).`);
+    lines.push('water_frequency_days is for THIS time of year in this location and spot. Do not assume summer heat unless it is summer there. Describe how watering changes in other seasons in care_instructions.watering.');
+    return lines.join('\n');
+}
+function addDays(day: string, n: number): string {
+    const d = new Date(day + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+}
+const PLANT_TYPES = ['Houseplants', 'Succulents & Cacti', 'Flowers', 'Herbs', 'Vegetables', 'Trees & Shrubs', 'Perennials', 'Annuals', 'Seedlings'];
+const PLANT_SIZES = ['Seedling', 'Small', 'Medium', 'Large', 'Mature'];
+function cleanPlantData(d: any) {
+    const freq = Math.round(Number(d?.water_frequency_days));
+    return {
+        name: String(d?.name || 'Plant').slice(0, 80),
+        scientific_name: d?.scientific_name ? String(d.scientific_name).slice(0, 120) : null,
+        care_instructions: d?.care_instructions && typeof d.care_instructions === 'object' ? d.care_instructions : {},
+        water_frequency_days: Number.isFinite(freq) ? Math.min(60, Math.max(1, freq)) : 7,
+        ...(PLANT_SIZES.includes(d?.plant_size) ? { plant_size: d.plant_size } : {}),
+        ...(PLANT_TYPES.includes(d?.plant_type) ? { plant_type: d.plant_type } : {}),
+    };
+}
+
+// Give the plant its watering profile right away (how it's watered, finicky or not,
+// seasonal intervals). If this fails, the garden page and the hourly sweep do it later.
+async function profileNow(req: Request, plantId: string) {
     try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        const url = new URL(req.url);
+        const base = url.pathname.replace(/\/functions\/[^/]+\/?$/, '/functions/plus');
+        await fetch(`${url.origin}${base}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('Authorization') || '' },
+            body: JSON.stringify({ action: 'profile', plant_ids: [plantId] }),
+        });
+    } catch (e) {
+        console.warn('profile call failed', (e as Error).message);
+    }
+}
 
-        const { image_url } = await req.json();
-        const aiQuota = await useAiQuota(base44, user, 'identify');
-        if (!aiQuota.allowed) return aiLimitResponse('identify', aiQuota);
-        if (!image_url) return Response.json({ error: 'No image_url provided' }, { status: 400 });
-
-        console.log(`[${rid}] 🌱 identifyPlantWithExpert`, image_url);
-
-        // Steps 1 and 2 run in parallel and independently.
-        const [pn, blind] = await Promise.all([
-            identifyWithPlantNet(image_url),
-            askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, image_url, "Identify this plant following the method. Return the JSON.", 1200).catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; })
-        ]);
-        console.log(`[${rid}] 🌿 PlantNet:`, pn ? pn.map(c => `${c.scientific_name} ${c.score.toFixed(2)}`).join(' | ') : 'none');
-        console.log(`[${rid}] 🌿 Blind LLM:`, blind ? `${blind.scientific_name} (${blind.confidence})` : 'none');
-
-        // Step 3: judge.
-        const judgePrompt = `${BOTANIST}
+async function identify(rid: string, imageUrl: string, context: string) {
+    const [pn, blind] = await Promise.all([
+        identifyWithPlantNet(imageUrl),
+        askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, imageUrl, "Identify this plant following the method. Return the JSON.", 1200).catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; })
+    ]);
+    console.log(`[${rid}] 🌿 PlantNet:`, pn ? pn.map(c => `${c.scientific_name} ${c.score.toFixed(2)}`).join(' | ') : 'none');
+    console.log(`[${rid}] 🌿 Blind LLM:`, blind ? `${blind.scientific_name} (${blind.confidence})` : 'none');
+    const judgePrompt = `${BOTANIST}
 
 You are now the JUDGE. Two independent identifications of this photo were made:
 
@@ -217,29 +258,131 @@ c) If they disagree, the photo decides. Pl@ntNet wins on wild/garden plants it s
 d) You may override both if the photo clearly shows something else - say why in identification_notes.
 e) Set plantnet_agreement true if your final answer is one of Pl@ntNet's candidates, false if Pl@ntNet gave candidates and you chose otherwise, null if Pl@ntNet was unavailable.
 f) Confidence: high only when the visible features clearly match one species; medium when genus is certain but species is a best guess, or the photo is a mixed planting; low for cuttings, seedlings and leafless plants.
-Then write the care instructions for the plant you settled on.
+Then assess its size and write the care instructions for the plant you settled on.
+
+${context}
 
 ${JSON_FULL}`;
+    const parsed = await askJson(judgePrompt, imageUrl, "Judge the identification and write the care information. Return the JSON.", 4000);
+    const { confidence, identification_notes, alternatives, plantnet_agreement, ...plantData } = parsed;
+    console.log(`[${rid}] 🌿 Final:`, plantData.name, '|', plantData.scientific_name, '| confidence:', confidence);
+    return {
+        plantData,
+        identification: {
+            source: pn ? 'plantnet+llm' : 'llm',
+            plantnet_top: pn ? pn[0].scientific_name : null,
+            plantnet_score: pn ? pn[0].score : null,
+            blind_llm: blind ? blind.scientific_name : null,
+            plantnet_agreement: pn ? (plantnet_agreement ?? null) : null,
+            confidence: confidence || null,
+            notes: identification_notes || null,
+            alternatives: Array.isArray(alternatives) ? alternatives.slice(0, 4) : [],
+        },
+    };
+}
 
-        const parsed = await askJson(judgePrompt, image_url, "Judge the identification and write the care information. Return the JSON.", 4000);
+// The owner corrected the scientific name: trust them, and redo the care for that plant.
+async function careForName(imageUrl: string | null, scientificName: string, context: string) {
+    const prompt = `${BOTANIST}
 
-        const { confidence, identification_notes, alternatives, plantnet_agreement, ...plantData } = parsed;
-        console.log(`[${rid}] 🌿 Final:`, plantData.name, '|', plantData.scientific_name, '| confidence:', confidence, '| agrees with PlantNet:', plantnet_agreement);
+The owner says this plant is "${scientificName}". Trust the owner's name (they may know a cultivar or hybrid you can't see). If it is clearly misspelled, use the correct spelling of the same plant. Give its usual common name and write the care instructions for THAT plant.
 
-        return Response.json({
-            success: true,
-            plantData,
-            identification: {
-                source: pn ? 'plantnet+llm' : 'llm',
-                plantnet_top: pn ? pn[0].scientific_name : null,
-                plantnet_score: pn ? pn[0].score : null,
-                blind_llm: blind ? blind.scientific_name : null,
-                plantnet_agreement: pn ? (plantnet_agreement ?? null) : null,
-                confidence: confidence || null,
-                notes: identification_notes || null,
-                alternatives: Array.isArray(alternatives) ? alternatives : []
+${context}
+
+${JSON_FULL}`;
+    if (imageUrl) return askJson(prompt, imageUrl, `This is my ${scientificName}. Return the JSON.`, 3500);
+    const response = await openai.chat.completions.create({
+        model: MODEL,
+        messages: [{ role: 'system', content: prompt }, { role: 'user', content: `My plant is ${scientificName}. Return the JSON.` }],
+        response_format: { type: 'json_object' },
+        max_completion_tokens: 3500,
+    });
+    return JSON.parse(response.choices[0].message.content || '{}');
+}
+
+Deno.serve(async (req) => {
+    const rid = Math.random().toString(36).slice(2, 7);
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        const body = await req.json().catch(() => ({}));
+        const today = aiLocalDay(user.timezone);
+
+        // ---- New flow: the plant record already exists; do the work here and save it,
+        // so it finishes even if the phone closes the app or loses signal.
+        if (body?.plant_id) {
+            let plant: any = null;
+            try { plant = (await base44.entities.Plant.filter({ id: String(body.plant_id) }))?.[0]; } catch { plant = null; }
+            if (!plant || plant.created_by !== user.email) return Response.json({ error: 'Not found' }, { status: 404 });
+            const aiQuota = await useAiQuota(base44, user, 'identify');
+            if (!aiQuota.allowed) {
+                await base44.entities.Plant.update(plant.id, { add_status: 'failed', add_info: { ...(plant.add_info || {}), error: 'limit_reached' } }).catch(() => {});
+                return aiLimitResponse('identify', aiQuota);
             }
-        });
+            const info = { ...(plant.add_info || {}) };
+            const context = contextFor(user, plant, today);
+
+            // a) Owner typed a different scientific name
+            const corrected = typeof body.scientific_name === 'string' ? body.scientific_name.trim().slice(0, 120) : '';
+            if (corrected) {
+                const raw = await careForName(plant.image_url || null, corrected, context);
+                const d = cleanPlantData({ ...raw, scientific_name: raw?.scientific_name || corrected });
+                const last = String(plant.last_watered || '').slice(0, 10) || today;
+                const prof = { ...(plant.care_profile || {}) };
+                delete prof.v; // re-profile for the new plant, keeping the owner's own choices
+                const patch: any = {
+                    ...d,
+                    // keep a nickname the owner gave it
+                    ...(plant.nickname ? {} : {}),
+                    next_watering_due: addDays(last, d.water_frequency_days),
+                    care_profile: prof,
+                    add_info: { ...info, renamed_from: plant.scientific_name || null, renamed_at: new Date().toISOString() },
+                };
+                // Seasonal numbers belonged to the old name
+                if (!prof.user_interval) { patch.water_days_grow = null; patch.water_days_rest = null; patch.water_rest_season = null; patch.water_season = null; }
+                await base44.entities.Plant.update(plant.id, patch);
+                await profileNow(req, plant.id);
+                const fresh = (await base44.entities.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
+                return Response.json({ success: true, plant: fresh });
+            }
+
+            // b) Identify from the photo
+            if (!plant.image_url) return Response.json({ error: 'No photo on this plant' }, { status: 400 });
+            info.tries = (Number(info.tries) || 0) + 1;
+            info.started_at = new Date().toISOString();
+            delete info.error;
+            await base44.entities.Plant.update(plant.id, { add_status: 'identifying', add_info: info });
+            try {
+                const r = await identify(rid, plant.image_url, context);
+                const d = cleanPlantData(r.plantData);
+                const last = String(plant.last_watered || '').slice(0, 10) || today;
+                const patch = {
+                    ...d,
+                    last_watered: last,
+                    next_watering_due: addDays(last, d.water_frequency_days),
+                    add_status: 'review',
+                    add_info: { ...info, ...r.identification, done_at: new Date().toISOString() },
+                };
+                await base44.entities.Plant.update(plant.id, patch);
+                await profileNow(req, plant.id);
+                const fresh = (await base44.entities.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
+                return Response.json({ success: true, plant: fresh });
+            } catch (e) {
+                console.error(`[${rid}] identify failed`, (e as Error).message);
+                await base44.entities.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: (e as Error).message.slice(0, 200) } }).catch(() => {});
+                return Response.json({ error: "Couldn't identify this plant", detail: (e as Error).message }, { status: 502 });
+            }
+        }
+
+        // ---- Old flow (older app screens): identify a photo and return the data
+        const { image_url } = body || {};
+        const aiQuota = await useAiQuota(base44, user, 'identify');
+        if (!aiQuota.allowed) return aiLimitResponse('identify', aiQuota);
+        if (!image_url) return Response.json({ error: 'No image_url provided' }, { status: 400 });
+        console.log(`[${rid}] 🌱 identifyPlantWithExpert`, image_url);
+        const r = await identify(rid, image_url, contextFor(user, null, today));
+        return Response.json({ success: true, plantData: r.plantData, identification: r.identification });
     } catch (error) {
         console.error(`[${rid}] Error in identifyPlantWithExpert:`, error.message);
         return Response.json({ error: error.message }, { status: 500 });
