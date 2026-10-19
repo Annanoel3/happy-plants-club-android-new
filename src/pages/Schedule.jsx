@@ -24,11 +24,13 @@ import { Switch } from "@/components/ui/switch";
 import { usePlus } from "@/lib/plus";
 import { localToday } from "@/lib/dates";
 import CareTaskList, { careTasks, BulkCareSetup } from "@/components/plus/CareTaskList";
+import WateringRound from "@/components/WateringRound";
 
 export default function Schedule() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const plus = usePlus();
+  const [evenOpen, setEvenOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -626,7 +628,15 @@ export default function Schedule() {
             )}
             <Card className={getThemedClasses()}>
               <CardContent className="p-6">
-                <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>Upcoming Watering</h2>
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <h2 className={`text-2xl font-bold ${getTextColor()}`}>Upcoming Watering</h2>
+                  {plants.filter(p => p.next_watering_due).length > 1 && (
+                    <button onClick={() => setEvenOpen(true)} className={`shrink-0 text-xs font-semibold underline ${getSecondaryTextColor()}`}>
+                      Even out
+                    </button>
+                  )}
+                </div>
+                <WateringRound open={evenOpen} onClose={() => setEvenOpen(false)} plants={plants} user={user} plus={plus} ui={careUi} initialView="even" />
                 {plants.filter(p => p.next_watering_due).length === 0 ? (
                   <p className={getSecondaryTextColor()}>No upcoming watering scheduled</p>
                 ) : (
