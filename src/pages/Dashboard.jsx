@@ -17,6 +17,8 @@ import PlantTypeStack from "@/components/PlantTypeStack";
 import BulkActionBar from "@/components/BulkActionBar";
 import WateringRound, { dueNow } from "@/components/WateringRound";
 import NewPlantReview from "@/components/NewPlantReview";
+import WelcomeBack from "@/components/WelcomeBack";
+import { fetchTrips, tripCovering, welcomeBackTrip, niceDay, addDays } from "@/lib/vacation";
 import { whenPopupFree, releasePopup } from "@/lib/popupGate";
 import { showAdForEvent } from "@/lib/admob";
 import { usePlus, useMe } from "@/lib/plus";
@@ -44,6 +46,9 @@ export default function Dashboard() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewSkip, setReviewSkip] = useState(() => new Set()); // "Later" (this visit) or just saved
   const reviewWaitRef = useRef(null);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [welcomeLater, setWelcomeLater] = useState(false);
+  const welcomeWaitRef = useRef(null);
   const retriedRef = useRef(new Set());
   const [selectedIds, setSelectedIds] = useState([]);
   const [categorizing, setCategorizing] = useState(false);
@@ -212,6 +217,20 @@ export default function Dashboard() {
     enabled: authChecked && !!user && !!user.location,
     retry: 1,
   });
+
+  // Trips (Schedule > Vacations): away = garden-wide pause on watering reminders
+  const { data: trips = [] } = useQuery({
+    queryKey: ['vacations', user?.email],
+    queryFn: () => fetchTrips(user.email),
+    enabled: authChecked && !!user?.email,
+    placeholderData: [],
+    retry: 1,
+  });
+  const todayStr = localToday();
+  const awayTrip = tripCovering(trips, todayStr);
+  // Just back, sitter's waterings not logged yet: the welcome-back question comes first
+  const holdTrip = tripCovering(trips, todayStr, true);
+  const backTrip = welcomeLater ? null : welcomeBackTrip(trips, todayStr);
 
   // Check for today's watering reminder
   const { data: todayReminder, refetch: refetchTodayReminder } = useQuery({
@@ -482,6 +501,34 @@ export default function Dashboard() {
     if (pending) setTimeout(() => showAdForEvent('add'), 800);
   };
 
+  // After a trip with a sitter plan: "Did your sitter water as planned?" (one popup at a time)
+  useEffect(() => {
+    if (!backTrip || welcomeOpen || welcomeWaitRef.current) return;
+    try { if (sessionStorage.getItem(`hp_welcome_later_${backTrip.id}`)) return; } catch { /* ignore */ }
+    welcomeWaitRef.current = whenPopupFree('welcome', () => { welcomeWaitRef.current = null; setWelcomeOpen(true); }, { firstDelay: 900 });
+  }, [backTrip?.id, welcomeOpen]);
+  useEffect(() => () => { welcomeWaitRef.current?.(); releasePopup('welcome'); }, []);
+  const closeWelcome = (how) => {
+    if (how === 'later') {
+      try { sessionStorage.setItem(`hp_welcome_later_${backTrip?.id}`, '1'); } catch { /* ignore */ }
+      setWelcomeLater(true);
+    }
+    setWelcomeOpen(false);
+    releasePopup('welcome');
+    welcomeWaitRef.current = null;
+    queryClient.invalidateQueries({ queryKey: ['vacations'] });
+  };
+  // Home early: the trip ends yesterday, reminders start again today
+  const endTripEarly = async () => {
+    if (!awayTrip) return;
+    try {
+      await base44.entities.VacationDay.update(awayTrip.id, { end_date: addDays(todayStr, -1) });
+      queryClient.invalidateQueries({ queryKey: ['vacations'] });
+    } catch {
+      toast.error("Couldn't reach Happy Plants. Try again in a moment.");
+    }
+  };
+
   // A plant stuck "naming" for 3+ minutes (app was closed, signal dropped): ask the
   // server to try again. The server also retries on its own every hour.
   const identifyingKey = identifyingPlants.map((p) => p.id).join(',');
@@ -570,7 +617,7 @@ export default function Dashboard() {
     : dueAreas.slice(0, 2).map((a) => `${a.label} ${a.n}`).join(' · ') + (dueAreas.length > 2 ? ` · +${dueAreas.length - 2} more` : '');
 
   // Shows for everyone with something due (not only on days the 8 AM push went out)
-  const showWateringReminder = dueToday.length > 0 && !laterToday && !todayReminder?.dismissed;
+  const showWateringReminder = dueToday.length > 0 && !laterToday && !todayReminder?.dismissed && !holdTrip;
 
   const roundUi = {
     card: getThemedClasses(),
@@ -591,6 +638,9 @@ export default function Dashboard() {
     <>
       <DailyWeatherPopup />
       <LocationPrompt plantCount={plants?.length || 0} />
+      {welcomeOpen && backTrip && (
+        <WelcomeBack trip={backTrip} ui={roundUi} onClose={closeWelcome} />
+      )}
       {reviewOpen && reviewPlant && (
         <NewPlantReview
           plant={reviewPlant}
@@ -666,7 +716,7 @@ export default function Dashboard() {
               </button>
             )}
             {/* Watering round: only what's due, by area */}
-            {dueToday.length > 0 && (
+            {dueToday.length > 0 && !holdTrip && (
               <button
                 onClick={() => setRoundOpen(true)}
                 className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-blue-600 text-white active:scale-95"
@@ -720,6 +770,35 @@ export default function Dashboard() {
               {wateringRemindersEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
             </button>
           </div>
+
+          {/* Away: watering reminders paused for the whole garden */}
+          {awayTrip && (
+            <div className="mb-5 rounded-2xl shadow-lg border border-cyan-400/30 bg-gradient-to-r from-cyan-500/20 to-blue-500/10 backdrop-blur-md">
+              <div className="flex items-center gap-3 p-4">
+                <span className="text-2xl" aria-hidden>🏖️</span>
+                <div className="flex-1 min-w-0">
+                  <p className={`font-bold text-sm ${getTextColor()}`}>On vacation until {niceDay(awayTrip.end_date)}</p>
+                  <p className={`text-xs ${getSecondaryTextColor()}`}>Watering reminders are paused. Frost alerts still come.</p>
+                </div>
+                <div className="flex flex-col gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => navigate(`/VacationReview?id=${awayTrip.id}`)}
+                    className="px-3 py-1.5 rounded-xl bg-cyan-600 text-white text-xs font-bold"
+                  >
+                    Sitter plan
+                  </button>
+                  {String(awayTrip.start_date).slice(0, 10) < todayStr && (
+                    <button
+                      onClick={endTripEarly}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${getThemedClasses()} ${getTextColor()}`}
+                    >
+                      I'm back
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Watering Reminder Banner */}
           {showWateringReminder && wateringRemindersEnabled && (
