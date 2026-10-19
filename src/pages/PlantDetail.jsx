@@ -1165,6 +1165,8 @@ export default function PlantDetail() {
                 )}
               </CardContent>
             </Card>
+            </>
+            )}
           </TabsContent>
         </Tabs>
       </div>
