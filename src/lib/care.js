@@ -131,8 +131,8 @@ export function completeCare(plant, key, hemi, opts = {}) {
   return run;
 }
 
-async function saveCompletion(plant, key, hemi, { skip = false } = {}) {
-  const today = localToday();
+async function saveCompletion(plant, key, hemi, { skip = false, date = null, replay = false } = {}) {
+  const today = date || localToday();
   // Start from the saved plant, not the copy on screen: two quick taps (Fertilize, then
   // Mist) would otherwise each write their own stale copy and undo each other.
   let current = plant;
@@ -142,15 +142,26 @@ async function saveCompletion(plant, key, hemi, { skip = false } = {}) {
   } catch { /* offline: fall back to what's on screen */ }
   const cs = { ...(current.care_schedule || {}) };
   const task = { ...(cs[key] || {}) };
+  // Already saved (a replay after a lost connection): nothing to do
+  if (!skip && task.last === today && task.next && task.next > today) return task.next;
   task.next = nextAfter(today, key, task, hemi);
   if (!skip) task.last = today;
   cs[key] = task;
   const patch = { care_schedule: cs };
   if (!skip) patch.care_history = pushHistory(current.care_history, { type: key, date: today });
-  await base44.entities.Plant.update(plant.id, patch);
+  try {
+    await base44.entities.Plant.update(plant.id, patch);
+  } catch (e) {
+    // No signal: keep it on the phone and send it when the app is back online
+    if (replay || !isOfflineError(e)) throw e;
+    queueOp('care', { plant_id: plant.id, key, hemi, skip, date: today });
+    return task.next;
+  }
   refreshPlantData();
   return task.next;
 }
+
+registerOutboxHandler('care', (p) => saveCompletion({ id: p.plant_id }, p.key, p.hemi, { skip: p.skip, date: p.date, replay: true }));
 
 export async function saveCareSchedule(plant, cs) {
   await base44.entities.Plant.update(plant.id, { care_schedule: cs });
