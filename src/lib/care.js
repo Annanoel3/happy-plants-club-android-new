@@ -119,8 +119,19 @@ function pushHistory(list, entry) {
   return arr;
 }
 
+// One save at a time per plant, so quick taps on the same plant line up instead of racing.
+const saving = new Map();
+
 /** Mark a care task done today (or skip it: moves it on without logging). */
-export async function completeCare(plant, key, hemi, { skip = false } = {}) {
+export function completeCare(plant, key, hemi, opts = {}) {
+  const prev = saving.get(plant.id) || Promise.resolve();
+  const run = prev.catch(() => {}).then(() => saveCompletion(plant, key, hemi, opts));
+  saving.set(plant.id, run);
+  run.finally(() => { if (saving.get(plant.id) === run) saving.delete(plant.id); }).catch(() => {});
+  return run;
+}
+
+async function saveCompletion(plant, key, hemi, { skip = false } = {}) {
   const today = localToday();
   // Start from the saved plant, not the copy on screen: two quick taps (Fertilize, then
   // Mist) would otherwise each write their own stale copy and undo each other.
