@@ -57,6 +57,8 @@ export async function syncWateringPopups() {
               : String(p.next_watering_due || '').slice(0, 10),
             // Plus: "6 oz" on the pop-up and widget (used when the phone is offline)
             detail: amt && amt.short ? amt.short : null,
+            // so a watering from the widget/pop-up can set the right next date offline
+            every: Number(p.water_frequency_days) || 7,
           };
         });
       const state = await b.syncWatering({
