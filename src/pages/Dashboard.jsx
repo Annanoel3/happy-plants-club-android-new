@@ -137,7 +137,8 @@ export default function Dashboard() {
     queryKey: ['plants', user?.email],
     queryFn: async () => {
       try {
-        const result = await base44.entities.Plant.filter({ created_by: user.email });
+        // Explicit limit: without one the server stops at 100 plants
+        const result = await base44.entities.Plant.filter({ created_by: user.email }, '-created_date', 1000);
         return Array.isArray(result) ? result : (result?.data || []);
       } catch (err) {
         console.error("❌ Error fetching plants:", err);
