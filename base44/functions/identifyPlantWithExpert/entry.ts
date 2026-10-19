@@ -222,15 +222,9 @@ function cleanPlantData(d: any) {
 
 // Give the plant its watering profile right away (how it's watered, finicky or not,
 // seasonal intervals). If this fails, the garden page and the hourly sweep do it later.
-async function profileNow(req: Request, plantId: string) {
+async function profileNow(base44: any, plantId: string) {
     try {
-        const url = new URL(req.url);
-        const base = url.pathname.replace(/\/functions\/[^/]+\/?$/, '/functions/plus');
-        await fetch(`${url.origin}${base}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('Authorization') || '' },
-            body: JSON.stringify({ action: 'profile', plant_ids: [plantId] }),
-        });
+        await base44.functions.invoke('plus', { action: 'profile', plant_ids: [plantId] });
     } catch (e) {
         console.warn('profile call failed', (e as Error).message);
     }
@@ -331,10 +325,9 @@ Deno.serve(async (req) => {
                 const last = String(plant.last_watered || '').slice(0, 10) || today;
                 const prof = { ...(plant.care_profile || {}) };
                 delete prof.v; // re-profile for the new plant, keeping the owner's own choices
+                prof.prev_every = d.water_frequency_days;
                 const patch: any = {
                     ...d,
-                    // keep a nickname the owner gave it
-                    ...(plant.nickname ? {} : {}),
                     next_watering_due: addDays(last, d.water_frequency_days),
                     care_profile: prof,
                     add_info: { ...info, renamed_from: plant.scientific_name || null, renamed_at: new Date().toISOString() },
@@ -342,7 +335,7 @@ Deno.serve(async (req) => {
                 // Seasonal numbers belonged to the old name
                 if (!prof.user_interval) { patch.water_days_grow = null; patch.water_days_rest = null; patch.water_rest_season = null; patch.water_season = null; }
                 await base44.entities.Plant.update(plant.id, patch);
-                await profileNow(req, plant.id);
+                await profileNow(base44, plant.id);
                 const fresh = (await base44.entities.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
                 return Response.json({ success: true, plant: fresh });
             }
@@ -365,7 +358,7 @@ Deno.serve(async (req) => {
                     add_info: { ...info, ...r.identification, done_at: new Date().toISOString() },
                 };
                 await base44.entities.Plant.update(plant.id, patch);
-                await profileNow(req, plant.id);
+                await profileNow(base44, plant.id);
                 const fresh = (await base44.entities.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
                 return Response.json({ success: true, plant: fresh });
             } catch (e) {
