@@ -92,7 +92,7 @@ const JSON_FULL = `Return ONLY JSON:
     "tips": "MUST include: climate-specific and environment-specific care tips. Explain how the location, pot type, sun exposure, substrate and plant size affect the watering frequency you calculated. Include toxicity to pets and people.",
     "growth_optimization": "Growth tips if applicable"
   },
-  "water_frequency_days": number (BE REALISTIC - consider hot climate, pot type, sun exposure, plant size. Austin summer outdoor medium plant in terracotta might need water every 3-4 days!)
+  "water_frequency_days": number (days between waterings RIGHT NOW: this month, in this owner's location and spot - consider climate and season, indoor/outdoor, pot type, sun exposure, plant size. Don't assume summer heat unless it is summer there.)
 }`;
 
 function imageMessage(imageUrl, text) {
@@ -223,7 +223,7 @@ Then assess the plant's size/maturity (Seedling, Small, Medium, Large, or Mature
 ${contextStr}
 
 CRITICAL: Calculate watering frequency considering ALL these factors:
-- Climate/location (hot climates like Austin, TX need MORE frequent watering)
+- Climate/location AND the current season there (hot weather means more water; cool or dormant months mean much less, especially for succulents and cacti)
 - Indoor vs outdoor (outdoor plants dry faster)
 - Sun exposure (more sun = more water needed)
 - Pot material (terracotta dries faster than plastic)
@@ -232,7 +232,7 @@ CRITICAL: Calculate watering frequency considering ALL these factors:
 - Plant species natural needs
 - PLANT SIZE/MATURITY (larger/older plants need more water, seedlings need less)
 
-For context: In hot climates like Austin, Texas (90-100°F summers), most indoor plants need watering every 5-7 days, outdoor plants every 3-5 days or even daily for full sun plants.
+Today's date is ${new Date().toISOString().slice(0, 10)}. Give the interval for this time of year in the owner's location (if no location is given, assume a temperate climate in the northern hemisphere). Describe how it changes in other seasons in care_instructions.watering.
 
 ${JSON_FULL}`;
 
