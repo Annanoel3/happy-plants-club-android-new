@@ -43,6 +43,23 @@ export function dropQueued(opId, plantId = null) {
   return true;
 }
 
+/** Plants as the server sent them, plus waterings still waiting on this phone. */
+export function withPendingWaterings(plants) {
+  const ops = load();
+  if (!ops.length || !Array.isArray(plants)) return plants;
+  const latest = new Map();
+  for (const op of ops) for (const it of op.items || []) {
+    if (!latest.has(it.plant_id) || it.date > latest.get(it.plant_id)) latest.set(it.plant_id, it.date);
+  }
+  return plants.map((p) => {
+    const d = p && latest.get(p.id);
+    if (!d || (p.last_watered && String(p.last_watered).slice(0, 10) >= d)) return p;
+    const next = new Date(d + 'T12:00:00Z');
+    next.setUTCDate(next.getUTCDate() + (p.water_frequency_days || 7));
+    return { ...p, last_watered: d, next_watering_due: next.toISOString().slice(0, 10) };
+  });
+}
+
 function isNetworkError(e) {
   // No response at all (offline, timeout) or the server had a bad moment
   const status = e?.response?.status;
