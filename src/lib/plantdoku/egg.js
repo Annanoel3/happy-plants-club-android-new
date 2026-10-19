@@ -12,11 +12,6 @@ export const EGG_PAGES = [
 // (not "don't click": the garden already has a hidden "don't click this" for secret themes)
 const TEXTS = ["what's this?", "psst… what's this?", "ooh, what's this?", '🌱 what\'s this?'];
 
-function h32(s) {
-  let x = 0;
-  for (const ch of String(s)) x = (x * 31 + ch.charCodeAt(0)) >>> 0;
-  return x;
-}
 // Scrambles a day number so the screens don't follow a pattern
 function mix(n) {
   let x = (n * 2654435761) >>> 0;
@@ -37,8 +32,8 @@ function eggIndex(day) {
 /** eggFor('YYYY-MM-DD') → { page: 'garden' | 'schedule' | 'community' | 'expert', path, text, align } */
 export function eggFor(day) {
   const page = EGG_PAGES[eggIndex(day)];
-  const x = h32(`egg${day}`);
-  return { page: page.key, path: page.path, text: TEXTS[x % TEXTS.length], align: ['left', 'center', 'right'][(x >>> 4) % 3] };
+  const x = mix(dayNumber(day) + 7777);
+  return { page: page.key, path: page.path, text: TEXTS[x % TEXTS.length], align: ['left', 'center', 'right'][(x >>> 8) % 3] };
 }
 
 const FOUND_KEY = 'hp_pd_found';
