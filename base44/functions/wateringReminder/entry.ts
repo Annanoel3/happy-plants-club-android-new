@@ -34,6 +34,20 @@ function onVacation(p: any, today: string): boolean {
 // Plus: how much to water, in US fl oz. Same formula as src/lib/waterAmount.js:
 // ~10% of the pot's volume (RHS rule of thumb); volume ≈ 0.545 × width³ in³; 1 in³ = 0.554 fl oz.
 const GUESS_BY_PLANT_SIZE: Record<string, number> = { Seedling: 3, Small: 4, Medium: 6, Large: 10, Mature: 12 };
+// Garden-wide vacation (Schedule > Vacations): the trip that covers `today`. An unconfirmed
+// sitter plan also covers the 2 days after the trip, so the first morning home doesn't say
+// "16 plants need water" before the app has asked "did your sitter water as planned?".
+// Same rule in sendWateringReminders and src/lib/vacation.js: keep in sync.
+function tripCovering(trips: any[], today: string): any | null {
+    for (const v of trips || []) {
+        const s = String(v.start_date || '').slice(0, 10), e = String(v.end_date || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || !/^\d{4}-\d{2}-\d{2}$/.test(e)) continue;
+        const pending = v.sitter_plan?.visits?.length && (!v.status || v.status === 'planned');
+        if (today >= s && today <= (pending ? addDays(e, 2) : e)) return v;
+    }
+    return null;
+}
+
 // How it's watered (same rule as src/lib/waterAmount.js waterMethod)
 const METHODS = ['pour', 'reservoir', 'soak', 'mist', 'bottom', 'in_water'];
 const METHOD_SHORT: Record<string, string> = {
@@ -222,10 +236,17 @@ Deno.serve(async (req) => {
                 try { await base44.auth.updateMe({ watering_popups_native_at: new Date().toISOString() }); } catch { /* not worth failing the pop-up over */ }
             }
         }
-        const [plants, plus] = await Promise.all([
+        const [plants, plus, trips] = await Promise.all([
             base44.entities.Plant.filter({ created_by: user.email }, '-created_date', 500).then((r: any) => r || []),
             isPlus(base44, user.id),
+            base44.entities.VacationDay.filter({ created_by: user.email }, '-start_date', 100).then((r: any) => r || []).catch(() => []),
         ]);
+        // Away (or just back with the sitter's waterings not logged yet): no pop-up, and the
+        // widget shows nothing due
+        const trip = tripCovering(trips, today);
+        if (trip) {
+            return Response.json({ success: true, today, enabled: false, vacation: true, vacation_end: String(trip.end_date).slice(0, 10), plus, plants: [] });
+        }
         const due = plants
             .filter((p: any) => p.next_watering_due && String(p.next_watering_due).slice(0, 10) <= today)
             .filter((p: any) => !onVacation(p, today))
