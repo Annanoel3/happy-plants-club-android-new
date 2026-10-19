@@ -82,7 +82,7 @@ export default function PlantWaterPanel({ plant, user, plus, plusReady, ui }) {
         <div>
           {amount.kind === 'oz' && (
             <>
-              <p className={`text-lg font-bold ${ui.text}`}>{amount.text.split('.')[0]}</p>
+              <p className={`text-lg font-bold ${ui.text}`}>{amount.headline}</p>
               <p className={`text-sm ${ui.sub}`}>
                 Pour slowly; stop when a little drains out the bottom.{' '}
                 {amount.guessed ? 'This is a rough guess from the plant’s size. Pick the pot width below for a better number.' : `Estimate for a ${plant.pot_diameter_in}-inch pot.`}
