@@ -128,7 +128,8 @@ export default function AddPlant() {
             last_watered: today,
             total_waterings: 0,
             add_status: 'identifying',
-            add_info: { tries: 0, started_at: new Date().toISOString() },
+            // Several photos at once: no question per plant, they wait under "Newly added"
+            add_info: { tries: 0, started_at: new Date().toISOString(), bulk: files.length > 1 },
             ...(area ? { location: area.value, environment: area.environment } : {}),
           });
         })
