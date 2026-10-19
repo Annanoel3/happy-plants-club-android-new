@@ -394,6 +394,14 @@ function isDormant(day: string, hemi: string): boolean {
     if (hemi === 'south') return m >= 5 && m <= 8;
     return m === 11 || m === 12 || m === 1 || m === 2;
 }
+// Feeding: spring and summer only (no fertilizer Oct-Feb north, Apr-Aug south, any time in
+// the tropics). Same rule in src/lib/care.js. Watering seasons still use isDormant.
+function isNoFeedSeason(day: string, hemi: string): boolean {
+    const m = Number(day.slice(5, 7));
+    if (hemi === 'tropics') return false;
+    if (hemi === 'south') return m >= 4 && m <= 8;
+    return m >= 10 || m <= 2;
+}
 function seasonStart(day: string, hemi: string): string {
     const y = Number(day.slice(0, 4));
     const m = Number(day.slice(5, 7));
@@ -404,11 +412,11 @@ function effectiveNext(type: string, task: any, hemi: string, today: string): st
     const next = String(task?.next || '').slice(0, 10);
     if (!next) return next;
     if (type === 'fertilize' && task?.winter_pause !== false && hemi !== 'tropics') {
-        if (isDormant(today, hemi)) {
+        if (isNoFeedSeason(today, hemi)) {
             const spring = seasonStart(today, hemi);
             if (next < spring) return spring;
         }
-        if (isDormant(next, hemi)) return seasonStart(next, hemi);
+        if (isNoFeedSeason(next, hemi)) return seasonStart(next, hemi);
     }
     return next;
 }
@@ -496,15 +504,16 @@ function fallbackCare(p: any) {
     const type = p.plant_type || '';
     const indoor = !p.environment || INDOORISH.includes(p.environment);
     const humid = /high humidity|humid|mist/i.test(String(p.care_instructions?.humidity || ''));
-    let fert = 30, repotMonths = 18, mist = false;
-    if (type === 'Succulents & Cacti') { fert = 45; repotMonths = 24; }
+    let fert = 30, repotMonths = 18, mist = false, rotateEvery = 14;
+    // Slow growers: feed once or twice a growing season, turn every couple of months
+    if (type === 'Succulents & Cacti' || p.care_profile?.drought_tolerant) { fert = 180; repotMonths = 24; rotateEvery = 60; }
     else if (['Herbs', 'Vegetables', 'Annuals', 'Flowers'].includes(type)) { fert = 14; repotMonths = 12; }
     else if (['Trees & Shrubs', 'Perennials'].includes(type)) { fert = 60; repotMonths = 24; }
     else if (type === 'Houseplants') { mist = humid && indoor; }
     return {
         fertilize: { every_days: fert, winter_pause: true },
         mist: { useful: mist, every_days: 3 },
-        rotate: { useful: indoor, every_days: 14 },
+        rotate: { useful: indoor, every_days: rotateEvery },
         repot: { every_days: repotMonths * 30 },
         note: null,
         source: 'default',
@@ -536,10 +545,10 @@ async function suggestCare(plants: any[]) {
                     content: `You are a careful horticulturist. For each plant, suggest a simple home-care schedule.
 Return JSON: {"plants":[{"id":"...","fertilize":{"every_days":30,"winter_pause":true},"mist":{"useful":false,"every_days":3},"rotate":{"useful":true,"every_days":14},"repot":{"every_months":18},"note":"one short sentence, or null"}]}
 Rules:
-- fertilize.every_days between 7 and 90, for the growing season. winter_pause true unless the plant actively grows in winter.
+- fertilize.every_days between 7 and 365: how often to feed DURING the growing season (spring and summer; the app never schedules feeding in fall or winter). Slow growers need very little: succulents, cacti, aloe, snake plant, ZZ plant 120-365 (once or twice a season); most foliage houseplants 28-60; heavy feeders (herbs, vegetables, annual flowers) 14-21. winter_pause true unless the plant actively grows in winter.
 - mist.useful true ONLY for plants that benefit from extra humidity (ferns, calatheas, orchids, air plants...). Never for succulents, cacti or fuzzy-leaved plants.
-- rotate.useful true only for plants kept indoors near a window (they lean toward light). False for outdoor plants.
-- repot.every_months between 6 and 36 (this is a "check if it needs a bigger pot" reminder).
+- rotate.useful true only for plants kept indoors near a window (they lean toward light). False for outdoor plants. rotate.every_days between 7 and 90: fast growers that lean (pothos, monstera, fiddle-leaf fig) 14-30; slow growers (succulents, cacti, aloe, snake plant) 60-90.
+- repot.every_months between 6 and 60 (this is a "check if it needs a bigger pot" reminder; slow growers like aloe 24-36).
 - Use the given notes when they say something specific. Keep the same ids.`,
                 },
                 { role: 'user', content: JSON.stringify(list) },
@@ -551,12 +560,12 @@ Rules:
             const fb = out[s.id];
             out[s.id] = {
                 fertilize: {
-                    every_days: clampInt(s.fertilize?.every_days, 7, 90, fb.fertilize.every_days),
+                    every_days: clampInt(s.fertilize?.every_days, 7, 365, fb.fertilize.every_days),
                     winter_pause: s.fertilize?.winter_pause !== false,
                 },
                 mist: { useful: !!s.mist?.useful, every_days: clampInt(s.mist?.every_days, 1, 14, 3) },
-                rotate: { useful: !!s.rotate?.useful, every_days: clampInt(s.rotate?.every_days, 7, 30, 14) },
-                repot: { every_days: clampInt(s.repot?.every_months, 6, 36, 18) * 30 },
+                rotate: { useful: !!s.rotate?.useful, every_days: clampInt(s.rotate?.every_days, 7, 90, fb.rotate.every_days) },
+                repot: { every_days: clampInt(s.repot?.every_months, 6, 60, 18) * 30 },
                 note: typeof s.note === 'string' ? s.note.slice(0, 160) : null,
                 source: 'ai',
             };
