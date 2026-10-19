@@ -53,6 +53,25 @@ export function isPausedForWinter(key, task, hemi, today = localToday()) {
   return key === 'fertilize' && task?.on && task.winter_pause !== false && isDormant(today, hemi);
 }
 
+/**
+ * The day a task is really due. A fertilize task that rests in winter is never due
+ * before spring, even when its saved date is earlier (it came due right before winter
+ * and wasn't done, or the date was typed into winter). Same rule on the server
+ * (functions/plus careDueToday).
+ */
+export function effectiveNext(key, task, hemi, today = localToday()) {
+  const next = String(task?.next || '').slice(0, 10);
+  if (!next) return next;
+  if (key === 'fertilize' && task?.winter_pause !== false && hemi !== 'tropics') {
+    if (isDormant(today, hemi)) {
+      const spring = seasonStart(today, hemi);
+      if (next < spring) return spring;
+    }
+    if (isDormant(next, hemi)) return seasonStart(next, hemi);
+  }
+  return next;
+}
+
 // Spread first dates so a whole garden doesn't land on one day.
 function stagger(id, spread) {
   let h = 0;
@@ -77,13 +96,13 @@ export function scheduleFromSuggestion(plant, s, hemi, today = localToday()) {
 }
 
 /** Tasks that are due today or overdue: [{key, next, late}] */
-export function dueCare(plant, today = localToday()) {
+export function dueCare(plant, hemi = 'north', today = localToday()) {
   const cs = plant?.care_schedule || {};
   const out = [];
   for (const t of CARE_TYPES) {
     const task = cs[t.key];
     if (!task?.on || !task.next) continue;
-    const next = String(task.next).slice(0, 10);
+    const next = effectiveNext(t.key, task, hemi, today);
     if (next <= today) out.push({ key: t.key, next, late: next < today });
   }
   return out;
@@ -103,13 +122,20 @@ function pushHistory(list, entry) {
 /** Mark a care task done today (or skip it: moves it on without logging). */
 export async function completeCare(plant, key, hemi, { skip = false } = {}) {
   const today = localToday();
-  const cs = { ...(plant.care_schedule || {}) };
+  // Start from the saved plant, not the copy on screen: two quick taps (Fertilize, then
+  // Mist) would otherwise each write their own stale copy and undo each other.
+  let current = plant;
+  try {
+    const rows = await base44.entities.Plant.filter({ id: plant.id });
+    if (rows?.[0]) current = rows[0];
+  } catch { /* offline: fall back to what's on screen */ }
+  const cs = { ...(current.care_schedule || {}) };
   const task = { ...(cs[key] || {}) };
   task.next = nextAfter(today, key, task, hemi);
   if (!skip) task.last = today;
   cs[key] = task;
   const patch = { care_schedule: cs };
-  if (!skip) patch.care_history = pushHistory(plant.care_history, { type: key, date: today });
+  if (!skip) patch.care_history = pushHistory(current.care_history, { type: key, date: today });
   await base44.entities.Plant.update(plant.id, patch);
   refreshPlantData();
   return task.next;
