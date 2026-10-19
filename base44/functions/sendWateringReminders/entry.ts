@@ -41,8 +41,21 @@ function onVacation(p: any, today: string): boolean {
 
 // Plus: ounces to give (same formula as src/lib/waterAmount.js)
 const GUESS_BY_PLANT_SIZE: Record<string, number> = { Seedling: 3, Small: 4, Medium: 6, Large: 10, Mature: 12 };
+// How it's watered (same rule as src/lib/waterAmount.js waterMethod)
+const METHODS = ['pour', 'reservoir', 'soak', 'mist', 'bottom', 'in_water'];
+function waterMethod(p: any): string {
+    const set = METHODS.includes(p.water_method) ? p.water_method : null;
+    if (set && p.care_profile?.user_method) return set;
+    if (p.pot_type === 'Self-watering') return 'reservoir';
+    return set || 'pour';
+}
+// One plant due: "Staghorn fern needs a soak (about 20 min)" instead of "needs water"
+const METHOD_PHRASE: Record<string, string> = {
+    reservoir: 'needs its reservoir filled', soak: 'needs a soak (about 20 min)', mist: 'needs misting',
+    bottom: 'needs water from below (about 30 min)', in_water: 'needs fresh water',
+};
 function ozText(p: any): string | null {
-    if (p.pot_type === 'Self-watering' || p.pot_diameter_in === 0) return null;
+    if (waterMethod(p) !== 'pour' || p.pot_diameter_in === 0) return null;
     let w = Number(p.pot_diameter_in) > 0 ? Number(p.pot_diameter_in) : (GUESS_BY_PLANT_SIZE[p.plant_size] || null);
     if (!w) return null;
     const raw = 0.545 * w * w * w * 0.10 * 0.554;
@@ -154,6 +167,8 @@ Deno.serve(async (req) => {
             let notificationText;
             if (plantCount > 0 && reminderCount > 0) {
                 notificationText = `${plantCount} plant${plantCount === 1 ? '' : 's'} + ${reminderCount} reminder${reminderCount === 1 ? '' : 's'}`;
+            } else if (plantCount === 1 && METHOD_PHRASE[waterMethod(userPlants[0])]) {
+                notificationText = `${userPlants[0].nickname || userPlants[0].name || 'A plant'} ${METHOD_PHRASE[waterMethod(userPlants[0])]}`;
             } else if (plantCount === 1 && plus && ozText(userPlants[0])) {
                 notificationText = `${userPlants[0].nickname || userPlants[0].name || 'A plant'} needs water (${ozText(userPlants[0])})`;
             } else if (plantCount > 0) {
