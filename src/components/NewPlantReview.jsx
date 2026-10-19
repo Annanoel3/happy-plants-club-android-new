@@ -283,7 +283,7 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
 
   if (inline) {
     return (
-      <section className={`rounded-2xl border-2 border-green-500/60 mb-6 overflow-hidden ${ui.card}`} aria-label="Finish setting up this plant">
+      <section className={`rounded-2xl border-2 border-green-500/60 overflow-hidden ${ui.card}`} aria-label="Finish setting up this plant">
         <div className="px-4 pt-4 pb-3">
           <p className={`text-lg font-bold ${ui.text}`}>🌱 New plant: finish setting it up</p>
           <p className={`text-sm ${ui.sub}`}>Pick where it lives and check how it's watered. It stays under Newly added until you save.</p>
