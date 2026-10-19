@@ -229,9 +229,14 @@ export default function Dashboard() {
   });
   const todayStr = localToday();
   const awayTrip = tripCovering(trips, todayStr);
-  // Just back, sitter's waterings not logged yet: the welcome-back question comes first
-  const holdTrip = tripCovering(trips, todayStr, true);
-  const backTrip = welcomeLater ? null : welcomeBackTrip(trips, todayStr);
+  // Back from a trip with a sitter plan nobody has answered yet
+  const pendingBack = welcomeBackTrip(trips, todayStr);
+  let askedLater = welcomeLater;
+  try { askedLater = askedLater || (!!pendingBack && !!sessionStorage.getItem(`hp_welcome_later_${pendingBack.id}`)); } catch { /* ignore */ }
+  const backTrip = askedLater ? null : pendingBack;
+  // Away, or just back (first 2 days) with the question still open: the watering banner
+  // waits, since the sitter's waterings aren't logged yet. "Ask me later" shows it again.
+  const holdTrip = awayTrip || (backTrip ? tripCovering(trips, todayStr, true) : null);
 
   // Check for today's watering reminder
   const { data: todayReminder, refetch: refetchTodayReminder } = useQuery({
