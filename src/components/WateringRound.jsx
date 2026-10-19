@@ -143,15 +143,15 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
     else setCollapsed((c) => ({ ...c, [g.key]: true }));
   };
 
+  // { text: "6 oz", late: "1 day late" } — the late part shows in red so overdue plants stand out
   const rowDetail = (p) => {
     const amt = waterAmount(p);
     const bits = [];
     if (amt.kind === 'oz' || amt.kind === 'ground') { if (plus && amt.short) bits.push(amt.short); }
     else if (amt.kind !== 'unknown' && amt.short) bits.push(amt.short);
     const d = String(p.next_watering_due).slice(0, 10);
-    const late = differenceInCalendarDays(parseISO(today), parseISO(d));
-    if (late > 0) bits.push(`${late} day${late === 1 ? '' : 's'} late`);
-    return bits.join(' · ');
+    const days = differenceInCalendarDays(parseISO(today), parseISO(d));
+    return { text: bits.join(' · '), late: days > 0 ? `${days} day${days === 1 ? '' : 's'} late` : null };
   };
 
   const pct = total ? Math.round((doneCount / total) * 100) : 0;
@@ -237,7 +237,12 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
                                 {name(p)}
                                 {p.scientific_name && <span className={`ml-1.5 font-normal italic text-[11px] ${ui.sub}`}>{p.scientific_name}</span>}
                               </p>
-                              {detail && <p className={`text-xs truncate ${ui.sub}`}>{icon} {detail}</p>}
+                              {(detail.text || detail.late) && (
+                                <p className={`text-xs truncate ${ui.sub}`}>
+                                  {icon} {detail.text}{detail.text && detail.late ? ' · ' : ''}
+                                  {detail.late && <span className={`font-bold ${isDone ? '' : ui.light ? 'text-red-600' : 'text-red-400'}`}>{detail.late}</span>}
+                                </p>
+                              )}
                             </div>
                             <button onClick={() => toggle(p)} disabled={!!busy[p.id] || !!busy[g.key]}
                               aria-label={isDone ? `Undo ${name(p)}` : `Mark ${name(p)} done`}
