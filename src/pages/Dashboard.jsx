@@ -507,7 +507,8 @@ export default function Dashboard() {
     try { return new Set(JSON.parse(localStorage.getItem('hp_bulk_announced') || '[]')); } catch { return new Set(); }
   })();
   void bulkSeenTick; // re-read after "Got it"
-  const bulkUnseen = newPlants.filter((p) => p.add_info?.bulk && !bulkSeen.has(p.id));
+  // (only plants that still need a place; a batch added with its area picked doesn't)
+  const bulkUnseen = newPlants.filter((p) => p.add_info?.bulk && !String(p.location || '').trim() && !bulkSeen.has(p.id));
   useEffect(() => {
     if (!bulkUnseen.length || bulkOpen || bulkWaitRef.current) return;
     bulkWaitRef.current = whenPopupFree('bulknew', () => { bulkWaitRef.current = null; setBulkOpen(true); }, { firstDelay: 700 });
