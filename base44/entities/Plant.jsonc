@@ -1,6 +1,13 @@
 {
   "name": "Plant",
   "properties": {
+    "care_history": {
+      "description": "Care done (and rain that counted as watering): [{type, date, amount_in?}]",
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
     "care_instructions": {
       "properties": {
         "fertilizing": {
@@ -30,6 +37,27 @@
       },
       "type": "object"
     },
+    "care_schedule": {
+      "description": "Plus care schedule. Each task: {on, every_days, next (date), last (date), winter_pause}",
+      "properties": {
+        "fertilize": {
+          "type": "object"
+        },
+        "mist": {
+          "type": "object"
+        },
+        "note": {
+          "type": "string"
+        },
+        "repot": {
+          "type": "object"
+        },
+        "rotate": {
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "environment": {
       "enum": [
         "Indoor",
@@ -41,6 +69,10 @@
         "Office"
       ],
       "type": "string"
+    },
+    "gets_rain": {
+      "description": "Does rain reach this plant? Unset = decided by environment (Outdoor/Patio/Balcony = yes).",
+      "type": "boolean"
     },
     "growth_stage": {
       "default": "seedling",
@@ -109,6 +141,10 @@
         "Annuals"
       ],
       "type": "string"
+    },
+    "pot_diameter_in": {
+      "description": "Pot width across the top, in inches. 0 = planted in the ground. Used for water amounts and rain thresholds.",
+      "type": "number"
     },
     "pot_size": {
       "enum": [
@@ -193,11 +229,45 @@
     },
     "water_frequency_days": {
       "type": "number"
+    },
+    "weather_hint": {
+      "description": "Plus weather-smart watering: what today's weather changed for this plant (valid only when day = today)",
+      "properties": {
+        "day": {
+          "type": "string"
+        },
+        "frost_low_f": {
+          "type": "number"
+        },
+        "frost_text": {
+          "type": "string"
+        },
+        "high_f": {
+          "type": "number"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "prev_last_watered": {
+          "type": "string"
+        },
+        "prev_next_due": {
+          "type": "string"
+        },
+        "rain_in": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "type": "object"
     }
   },
   "required": [
     "name"
   ],
+  "type": "object",
   "rls": {
     "read": {
       "created_by": "{{user.email}}"
@@ -205,6 +275,5 @@
     "write": {
       "created_by": "{{user.email}}"
     }
-  },
-  "type": "object"
+  }
 }
