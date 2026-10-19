@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import PlantdokuEgg from "@/components/PlantdokuEgg";
 
 
 export default function Feed() {
@@ -77,6 +78,7 @@ export default function Feed() {
             <p className={`text-sm pt-4 ${getSecondaryTextColor()}`}>
               Stay tuned! We'll notify you when it's ready to launch.
             </p>
+            <PlantdokuEgg page="community" />
           </CardContent>
         </Card>
       </div>
