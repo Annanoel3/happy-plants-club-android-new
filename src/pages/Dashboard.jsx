@@ -21,6 +21,7 @@ import WelcomeBack from "@/components/WelcomeBack";
 import NewPlantsNotice from "@/components/NewPlantsNotice";
 import PhotoIdsBar from "@/components/PhotoIdsBar";
 import IdsWelcome from "@/components/IdsWelcome";
+import PlantdokuEgg from "@/components/PlantdokuEgg";
 import { getIdStatus, isWaitingForId, nameWaitingPlants } from "@/lib/plantIds";
 import { fetchTrips, tripCovering, welcomeBackTrip, niceDay, addDays } from "@/lib/vacation";
 import { whenPopupFree, releasePopup, popupBusy } from "@/lib/popupGate";
@@ -1078,6 +1079,7 @@ export default function Dashboard() {
             ))
           )}
 
+          <PlantdokuEgg page="garden" className="mt-8" />
           <div className="mt-10 flex justify-center">
             <button
               onClick={cycleSecretTheme}
