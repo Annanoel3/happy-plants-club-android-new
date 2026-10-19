@@ -1,0 +1,88 @@
+{
+  "description": "A saved plant health check (Plant doctor) with its treatment plan and follow-up",
+  "name": "HealthCheck",
+  "properties": {
+    "analysis": {
+      "type": "string"
+    },
+    "checked_date": {
+      "format": "date",
+      "type": "string"
+    },
+    "headline": {
+      "type": "string"
+    },
+    "image_url": {
+      "type": "string"
+    },
+    "issues": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "plan": {
+      "description": "[{text, done}]",
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "plant_id": {
+      "type": "string"
+    },
+    "plant_name": {
+      "type": "string"
+    },
+    "previous_id": {
+      "type": "string"
+    },
+    "progress": {
+      "enum": [
+        "first",
+        "improving",
+        "same",
+        "worse"
+      ],
+      "type": "string"
+    },
+    "progress_note": {
+      "type": "string"
+    },
+    "recheck_date": {
+      "format": "date",
+      "type": "string"
+    },
+    "reminder_id": {
+      "type": "string"
+    },
+    "resolved": {
+      "default": false,
+      "type": "boolean"
+    },
+    "status": {
+      "enum": [
+        "healthy",
+        "needs_attention",
+        "concerning"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "plant_id",
+    "checked_date"
+  ],
+  "rls": {
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    },
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    }
+  },
+  "type": "object"
+}

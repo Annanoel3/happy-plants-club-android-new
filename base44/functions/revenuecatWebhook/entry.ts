@@ -39,6 +39,12 @@ async function fetchRevenueCat(appUserId: string) {
 
 async function saveSubscription(db: any, userId: string, email: string | null, info: any, event: string) {
     const existing = (await db.Subscription.filter({ user_id: userId }))?.[0];
+    // A free Plus we gave by hand (store "promotional") isn't known to RevenueCat; don't let
+    // a "not subscribed" answer switch it off before it expires.
+    if (existing?.store === 'promotional' && existing.active && !info.active
+        && (!existing.expires_at || Date.parse(existing.expires_at) > Date.now())) {
+        return existing;
+    }
     const row = {
         user_id: userId,
         user_email: email || existing?.user_email || null,

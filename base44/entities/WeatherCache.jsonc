@@ -1,0 +1,57 @@
+{
+  "description": "Server-only cache of MET Norway hourly forecasts per ~11 km square (no user data). Past hours stay so recent rain is known.",
+  "name": "WeatherCache",
+  "properties": {
+    "expires_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "fetched_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "grid": {
+      "description": "lat,lon rounded to 0.1",
+      "type": "string"
+    },
+    "hours": {
+      "description": "'YYYY-MM-DDTHH' (UTC) \u2192 {p: rain mm in that hour, t: \u00b0C}",
+      "type": "object"
+    },
+    "last_modified": {
+      "type": "string"
+    },
+    "lat": {
+      "type": "number"
+    },
+    "lon": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "grid"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "type": "object"
+}
