@@ -6,7 +6,9 @@ let current = null;
 export function popupBusy() {
   if (current) return true;
   try {
-    return !!document.querySelector('[role="dialog"], [role="alertdialog"]');
+    // A dialog that's on its way out (closing animation) doesn't count
+    return [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')]
+      .some((el) => el.getAttribute('data-state') !== 'closed');
   } catch {
     return false;
   }
