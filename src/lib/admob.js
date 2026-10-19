@@ -2,6 +2,9 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isPlusCached } from '@/lib/premium';
 
 const AD_UNIT_ID = 'ca-app-pub-7979856440890193/9127484934';
+// Reward video ("watch a short video for 5 more photo IDs"). Empty = the option stays hidden.
+// Create it in AdMob: Apps > Happy Plants > Ad units > Add ad unit > Rewarded.
+export const REWARDED_AD_UNIT_ID = '';
 
 // Ads are event-based: one interstitial after a watering (single, bulk or voice)
 // and one after adding plants (a bulk add counts as one). No more "every 3rd open".
@@ -71,6 +74,52 @@ export async function showInterstitialAd() {
     console.warn('[AdMob] interstitial failed:', e);
     return false;
   }
+}
+
+/** Can this install show a reward video? (Android app + a rewarded ad unit set.) */
+export function rewardedAvailable() {
+  return Capacitor.isNativePlatform() && !!REWARDED_AD_UNIT_ID;
+}
+
+/**
+ * Show one reward video. Resolves { ok: true } only if the person watched it to the end.
+ * The plugin's show() only settles when the reward is earned, so closing early is caught
+ * through the "dismissed" event instead.
+ */
+export async function showRewardedAd() {
+  if (!rewardedAvailable()) return { ok: false, reason: 'unavailable' };
+  if (!AdMob) await initAdMob();
+  if (!AdMob) return { ok: false, reason: 'unavailable' };
+  try {
+    await AdMob.prepareRewardVideoAd({ adId: REWARDED_AD_UNIT_ID, isTesting: false });
+  } catch (e) {
+    console.warn('[AdMob] reward video failed to load:', e);
+    return { ok: false, reason: 'no_fill' };
+  }
+  return new Promise((resolve) => {
+    let earned = false;
+    let finished = false;
+    const subs = [];
+    const finish = (r) => {
+      if (finished) return;
+      finished = true;
+      subs.forEach((s) => { try { s?.remove?.(); } catch { /* ignore */ } });
+      markAdShown(); // no interstitial right after a reward video
+      resolve(r);
+    };
+    const listen = async (name, fn) => {
+      try { subs.push(await AdMob.addListener(name, fn)); } catch { /* ignore */ }
+    };
+    Promise.all([
+      listen('onRewardedVideoAdReward', () => { earned = true; }),
+      listen('onRewardedVideoAdDismissed', () => finish(earned ? { ok: true } : { ok: false, reason: 'closed' })),
+      listen('onRewardedVideoAdFailedToShow', () => finish({ ok: false, reason: 'failed' })),
+    ]).then(() => {
+      AdMob.showRewardVideoAd().then(() => { earned = true; }).catch(() => finish({ ok: false, reason: 'failed' }));
+    });
+    // Safety net: never leave the button spinning
+    setTimeout(() => finish(earned ? { ok: true } : { ok: false, reason: 'timeout' }), 3 * 60 * 1000);
+  });
 }
 
 let _pending = false;
