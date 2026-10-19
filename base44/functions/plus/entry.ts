@@ -601,7 +601,8 @@ Deno.serve(async (req) => {
 
         if (action === 'rain_toggle') {
             const pid = String(body.plant_id || '');
-            const p = (await db.Plant.filter({ id: pid }))?.[0];
+            let p: any = null;
+            try { p = (await db.Plant.filter({ id: pid }))?.[0]; } catch { p = null; } // malformed id
             if (!p || p.created_by !== user.email) return Response.json({ error: 'Not found' }, { status: 404 });
             const gets = body.gets_rain === true;
             const patch: any = { gets_rain: gets };
@@ -629,7 +630,8 @@ Deno.serve(async (req) => {
             if (!plus) return Response.json({ error: 'plus_required', plus: false }, { status: 402 });
             const ids: string[] = Array.isArray(body.plant_ids) ? body.plant_ids.filter((x: any) => typeof x === 'string').slice(0, 25) : [];
             if (!ids.length) return Response.json({ success: true, suggestions: {} });
-            const plants = ((await db.Plant.filter({ id: { $in: ids } })) || []).filter((p: any) => p.created_by === user.email);
+            let plants: any[] = [];
+            try { plants = ((await db.Plant.filter({ id: { $in: ids } })) || []).filter((p: any) => p.created_by === user.email); } catch { plants = []; }
             const suggestions = await suggestCare(plants);
             return Response.json({ success: true, suggestions });
         }
