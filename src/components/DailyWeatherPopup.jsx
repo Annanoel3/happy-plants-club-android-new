@@ -3,6 +3,7 @@ import { localToday, toLocalDateString } from '@/lib/dates';
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Cloud, X } from "lucide-react";
+import { whenPopupFree, releasePopup } from "@/lib/popupGate";
 
 export default function DailyWeatherPopup() {
   const [isOpen, setIsOpen] = useState(false);
@@ -168,7 +169,8 @@ export default function DailyWeatherPopup() {
             setWeatherMessage(cleanMessage);
             setLocation(data.location);
             setWeatherImage(getWeatherImage(cleanMessage));
-            setIsOpen(true);
+            // Never on top of another popup: wait for our turn
+            whenPopupFree('weather', () => setIsOpen(true));
         }
       }
     } catch (error) {
@@ -180,6 +182,7 @@ export default function DailyWeatherPopup() {
 
   const handleClose = () => {
     setIsOpen(false);
+    releasePopup('weather');
   };
 
   if (isLoading || !isOpen) {
@@ -187,7 +190,7 @@ export default function DailyWeatherPopup() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Today's plant weather">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
       
@@ -196,6 +199,7 @@ export default function DailyWeatherPopup() {
         {/* Close button */}
         <button
           onClick={handleClose}
+          aria-label="Close"
           className={`absolute top-4 right-4 ${getSecondaryTextColor()} hover:opacity-70 transition-opacity`}
         >
           <X className="w-5 h-5" />
