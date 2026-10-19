@@ -805,6 +805,16 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, rewritten: n });
         }
 
+        // Admin check: what "Even out my schedule" would move for one account (no writes).
+        if (action === 'even_out_preview') {
+            const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
+            if (!sweepKey || body.key !== sweepKey) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+            const owner = (await db.User.filter({ email: String(body.email || '') }))?.[0];
+            if (!owner) return Response.json({ error: 'Not found' }, { status: 404 });
+            const mine = (await db.Plant.filter({ created_by: owner.email }, '-created_date', 1000)) || [];
+            return Response.json({ success: true, ...planEvenOut(mine, dayOf(now, validTz(owner.timezone))) });
+        }
+
         // Admin check before rolling profiles out: what WOULD change for one account (no writes).
         if (action === 'profile_preview') {
             const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
