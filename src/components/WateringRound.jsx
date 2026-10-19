@@ -233,7 +233,10 @@ export default function WateringRound({ open, onClose, plants, user, plus, ui, i
                               <span className={`w-11 h-11 rounded-xl shrink-0 flex items-center justify-center text-xl ${ui.light ? 'bg-green-100' : 'bg-white/10'}`} aria-hidden>🪴</span>
                             )}
                             <div className="flex-1 min-w-0">
-                              <p className={`font-semibold text-sm truncate ${ui.text} ${isDone ? 'line-through opacity-60' : ''}`}>{name(p)}</p>
+                              <p className={`font-semibold text-sm truncate ${ui.text} ${isDone ? 'line-through opacity-60' : ''}`}>
+                                {name(p)}
+                                {p.scientific_name && <span className={`ml-1.5 font-normal italic text-[11px] ${ui.sub}`}>{p.scientific_name}</span>}
+                              </p>
                               {detail && <p className={`text-xs truncate ${ui.sub}`}>{icon} {detail}</p>}
                             </div>
                             <button onClick={() => toggle(p)} disabled={!!busy[p.id] || !!busy[g.key]}
