@@ -11,7 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { localToday } from '@/lib/dates';
 import {
   CARE_TYPES, hemisphere, scheduleFromSuggestion, completeCare, saveCareSchedule,
-  isPausedForWinter, hasCareSchedule, isDormant, seasonStart,
+  isPausedForWinter, hasCareSchedule, effectiveNext,
 } from '@/lib/care';
 
 export const EVERY_OPTIONS = [1, 2, 3, 4, 5, 7, 10, 14, 21, 30, 45, 60, 90, 180, 365, 540, 730];
@@ -91,9 +91,7 @@ export default function CareScheduleCard({ plant, user, plus, plusReady, ui }) {
         const task = draft[t.key];
         if (!task) continue;
         if (task.on && !task.next) task.next = today;
-        if (t.key === 'fertilize' && task.on && task.winter_pause !== false && isDormant(task.next, hemi)) {
-          task.next = seasonStart(task.next, hemi);
-        }
+        if (task.on) task.next = effectiveNext(t.key, task, hemi, today); // no winter dates for resting plants
       }
       await saveCareSchedule(plant, draft);
       setEditing(null);
@@ -132,7 +130,7 @@ export default function CareScheduleCard({ plant, user, plus, plusReady, ui }) {
             {rows.map((t) => {
               const task = cs[t.key];
               const paused = isPausedForWinter(t.key, task, hemi, today);
-              const next = String(task.next || '').slice(0, 10);
+              const next = effectiveNext(t.key, task, hemi, today);
               const due = next && next <= today && !paused;
               const late = next && next < today && !paused;
               return (
