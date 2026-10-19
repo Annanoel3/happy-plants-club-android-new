@@ -149,7 +149,7 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
   const body = (
       <div className={inline ? 'px-4 pb-4 space-y-5' : 'flex-1 overflow-y-auto px-4 py-4 space-y-5'}>
         {/* What it is */}
-        <div className={`rounded-2xl border p-3 flex gap-3 ${ui.card}`}>
+        <div className={inline ? 'flex gap-3' : `rounded-2xl border p-3 flex gap-3 ${ui.card}`}>
           {inline ? null : local?.thumbnail_url || local?.image_url ? (
             <img src={local.thumbnail_url || local.image_url} alt="" className="w-24 h-24 rounded-xl object-cover shrink-0" />
           ) : (
@@ -166,8 +166,9 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
               </>
             ) : (
               <>
-                <p className={`text-lg font-bold leading-tight ${ui.text}`}>{name(local)}</p>
-                {local?.scientific_name && !sciEdit && (
+                {/* On the plant's own page the name is already at the top */}
+                {!inline && <p className={`text-lg font-bold leading-tight ${ui.text}`}>{name(local)}</p>}
+                {local?.scientific_name && !sciEdit && !inline && (
                   <p className={`text-sm italic ${ui.sub}`}>{local.scientific_name}</p>
                 )}
                 {!sciEdit && (
