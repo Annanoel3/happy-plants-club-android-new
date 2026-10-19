@@ -14,7 +14,7 @@ import {
   isPausedForWinter, hasCareSchedule, effectiveNext,
 } from '@/lib/care';
 
-export const EVERY_OPTIONS = [1, 2, 3, 4, 5, 7, 10, 14, 21, 30, 45, 60, 90, 180, 365, 540, 730];
+export const EVERY_OPTIONS = [1, 2, 3, 4, 5, 7, 10, 14, 21, 30, 45, 60, 90, 120, 180, 365, 540, 730, 1095];
 export function everyText(days) {
   const d = Number(days) || 0;
   if (d === 1) return 'every day';
@@ -51,7 +51,7 @@ export default function CareScheduleCard({ plant, user, plus, plusReady, ui }) {
     return (
       <button onClick={() => navigate('/Premium')} className={`w-full text-left rounded-2xl p-4 border ${ui.card}`}>
         <p className={`font-semibold flex items-center gap-2 ${ui.text}`}><Lock className="w-4 h-4" /> Care schedule</p>
-        <p className={`text-sm mt-1 ${ui.sub}`}>Plus reminds you when to fertilize, mist, rotate and repot, and pauses feeding in winter.</p>
+        <p className={`text-sm mt-1 ${ui.sub}`}>Plus reminds you when to fertilize, mist, rotate and repot, and only schedules feeding in spring and summer.</p>
       </button>
     );
   }
@@ -139,7 +139,7 @@ export default function CareScheduleCard({ plant, user, plus, plusReady, ui }) {
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-semibold ${ui.text}`}>{t.label}</p>
                     <p className={`text-xs ${late ? 'text-red-500 font-semibold' : due ? 'text-orange-500 font-semibold' : ui.sub}`}>
-                      {paused ? `Resting for winter · back ${format(parseISO(next), 'MMM d')}` : `${whenText(next)} · ${everyText(task.every_days)}`}
+                      {paused ? `No feeding until spring · ${format(parseISO(next), 'MMM d')}` : `${whenText(next)} · ${everyText(task.every_days)}`}
                     </p>
                     {task.last && <p className={`text-[11px] ${ui.sub} opacity-80`}>Last done {format(parseISO(task.last), 'MMM d')}</p>}
                   </div>
@@ -192,7 +192,7 @@ export default function CareScheduleCard({ plant, user, plus, plusReady, ui }) {
                         </select>
                         {t.key === 'fertilize' && hemi !== 'tropics' && (
                           <label className="flex items-center justify-between gap-3">
-                            <span className="text-xs theme-text-secondary">Pause in winter (most plants rest then)</span>
+                            <span className="text-xs theme-text-secondary">Only in spring and summer (no feeding Oct–Feb)</span>
                             <Switch checked={task.winter_pause !== false} onCheckedChange={(v) => patchDraft(t.key, { winter_pause: v })} />
                           </label>
                         )}
