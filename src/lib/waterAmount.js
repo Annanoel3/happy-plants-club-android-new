@@ -62,6 +62,7 @@ export function waterAmount(plant) {
     guessed,
     width,
     short: `${guessed ? '~' : ''}${oz} oz`,
+    headline: `About ${oz} oz${cups ? ` (${cups})` : ''}`,
     text: `About ${oz} oz${cups ? ` (${cups})` : ''}. Pour slowly; stop when a little drains out the bottom.`,
   };
 }
