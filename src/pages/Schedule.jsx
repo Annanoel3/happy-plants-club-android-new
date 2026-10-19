@@ -171,14 +171,14 @@ export default function Schedule() {
   };
 
   // Trips to show: current and upcoming, plus ones that ended in the last 2 weeks
-  const todayStr = localToday();
+  const tripToday = localToday();
   const shownTrips = (vacations || [])
-    .filter((v) => String(v.end_date || '').slice(0, 10) >= addDays(todayStr, -14))
+    .filter((v) => String(v.end_date || '').slice(0, 10) >= addDays(tripToday, -14))
     .sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)));
   const tripLabel = (v) => {
     const s = String(v.start_date).slice(0, 10), e = String(v.end_date).slice(0, 10);
-    if (todayStr >= s && todayStr <= e) return { text: 'Away now: watering reminders paused', cls: 'bg-cyan-600 text-white' };
-    if (todayStr < s) return { text: 'Upcoming', cls: 'bg-blue-500/20 text-blue-600' };
+    if (tripToday >= s && tripToday <= e) return { text: 'Away now: watering reminders paused', cls: 'bg-cyan-600 text-white' };
+    if (tripToday < s) return { text: 'Upcoming', cls: 'bg-blue-500/20 text-blue-600' };
     if (v.status === 'confirmed') return { text: "Back home: sitter's waterings logged", cls: 'bg-green-600/20 text-green-700' };
     return { text: 'Back home', cls: 'bg-gray-500/20 text-gray-600' };
   };
