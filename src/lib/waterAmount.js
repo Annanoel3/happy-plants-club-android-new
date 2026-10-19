@@ -50,10 +50,12 @@ export const WATER_METHODS = [
 ];
 const METHOD_IDS = WATER_METHODS.map((m) => m.id);
 
+// Same rule on the server (functions/wateringReminder, sendWateringReminders): keep in sync.
 export function waterMethod(plant) {
-  if (plant?.water_method && METHOD_IDS.includes(plant.water_method)) return plant.water_method;
+  const set = plant?.water_method && METHOD_IDS.includes(plant.water_method) ? plant.water_method : null;
+  if (set && plant?.care_profile?.user_method) return set; // the owner's own choice wins
   if (plant?.pot_type === 'Self-watering') return 'reservoir';
-  return 'pour';
+  return set || 'pour';
 }
 
 export function methodInfo(plant) {
