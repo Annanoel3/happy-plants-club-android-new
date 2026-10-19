@@ -123,7 +123,7 @@ export default function LightMeter({ plant, ui, onClose }) {
         <ul className={`text-xs space-y-1.5 ${ui.sub}`}>
           <li>• Light changes a lot through the day and the year. Check around midday, and again in winter.</li>
           <li>• Phone sensors are rough, so this shows a range, not an exact number.</li>
-          <li>• Light drops fast as you move away from a window: a few feet back can be half as bright.</li>
+          <li>• Light drops sharply as you move away from a window, so measure right where the plant sits.</li>
         </ul>
       </div>
     </div>,
