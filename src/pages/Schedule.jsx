@@ -687,10 +687,10 @@ export default function Schedule() {
                   theme === 'halloween' ? 'border-orange-500/30 bg-black/30' :
                   'border-gray-200 bg-white/50'
                 }`}>
-                  <div className="flex items-start justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <button 
                       onClick={() => navigate(`/VacationReview?id=${vacation.id}`)}
-                      className="flex-1 text-left hover:opacity-70"
+                      className="flex-1 min-w-0 text-left hover:opacity-70"
                     >
                       <p className={`font-semibold ${getTextColor()}`}>
                         {niceDay(vacation.start_date)} to {niceDay(vacation.end_date)}
