@@ -1,6 +1,9 @@
 {
   "name": "VacationDay",
   "properties": {
+    "confirmed_at": {
+      "type": "string"
+    },
     "custom_instructions": {
       "description": "Custom instructions for pets, A/C, trash days, etc.",
       "type": "string"
@@ -17,15 +20,33 @@
       "description": "Plant-specific notes keyed by plant_id",
       "type": "object"
     },
+    "sitter_plan": {
+      "description": "The plan in the sitter PDF: {made_at, visits: [{date, plants: [{id, name, area}]}]}",
+      "type": "object"
+    },
     "start_date": {
       "format": "date",
       "type": "string"
+    },
+    "status": {
+      "description": "planned (default) / confirmed (owner said the sitter followed the plan; waterings logged) / dismissed",
+      "enum": [
+        "planned",
+        "confirmed",
+        "dismissed"
+      ],
+      "type": "string"
+    },
+    "visit_every": {
+      "description": "How often the sitter comes: 0 = only on days plants need water, 2 = every 2 days, 3, 3.5 = twice a week, 7 = once a week",
+      "type": "number"
     }
   },
   "required": [
     "start_date",
     "end_date"
   ],
+  "type": "object",
   "rls": {
     "delete": {
       "created_by_id": "{{user.id}}"
@@ -36,6 +57,5 @@
     "update": {
       "created_by_id": "{{user.id}}"
     }
-  },
-  "type": "object"
+  }
 }
