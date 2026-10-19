@@ -17,13 +17,20 @@ function h32(s) {
   for (const ch of String(s)) x = (x * 31 + ch.charCodeAt(0)) >>> 0;
   return x;
 }
+// Scrambles a day number so the screens don't follow a pattern
+function mix(n) {
+  let x = (n * 2654435761) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
+  return (x ^ (x >>> 16)) >>> 0;
+}
 const dayNumber = (day) => Math.floor(Date.parse(`${day}T12:00:00Z`) / 86400000);
 
 // A random walk from Jan 1 2026: every day moves to one of the other three screens
 function eggIndex(day) {
   const n = dayNumber(day);
   let idx = 0;
-  for (let d = dayNumber('2026-01-01') + 1; d <= n; d++) idx = (idx + 1 + (h32(`egg${d}`) % 3)) % 4;
+  for (let d = dayNumber('2026-01-01') + 1; d <= n; d++) idx = (idx + 1 + (mix(d) % 3)) % 4;
   return idx;
 }
 
