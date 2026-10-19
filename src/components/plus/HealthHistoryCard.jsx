@@ -76,7 +76,7 @@ export default function HealthHistoryCard({ plant, plus, plusReady, ui, onRechec
   return (
     <Card className={ui.card}>
       <CardContent className="p-5 space-y-4">
-        <h2 className={`text-xl font-semibold ${ui.text}`}>🩺 Plant doctor</h2>
+        <h2 className={`text-lg font-semibold ${ui.text}`}>Plant doctor</h2>
 
         {open && (
           <div className={`rounded-2xl p-4 ${ui.light ? 'bg-amber-50 border border-amber-200' : 'bg-amber-900/30 border border-amber-700/40'}`}>

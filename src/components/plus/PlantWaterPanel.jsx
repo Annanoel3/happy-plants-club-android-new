@@ -77,7 +77,7 @@ export default function PlantWaterPanel({ plant, user, plus, plusReady, ui }) {
   return (
     <Card className={ui.card}>
       <CardContent className="p-5 space-y-4">
-        <h2 className={`text-xl font-semibold ${ui.text}`}>💧 How to water</h2>
+        <h2 className={`text-lg font-semibold ${ui.text}`}>How to water</h2>
 
         {/* Amount */}
         <div>

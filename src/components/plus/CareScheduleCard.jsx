@@ -109,7 +109,7 @@ export default function CareScheduleCard({ plant, user, plus, plusReady, ui }) {
     <Card className={ui.card}>
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className={`text-xl font-semibold ${ui.text}`}>🗓️ Care schedule</h2>
+          <h2 className={`text-lg font-semibold ${ui.text}`}>Care schedule</h2>
           {active && (
             <button onClick={() => setEditing(JSON.parse(JSON.stringify(cs)))} aria-label="Edit care schedule"
               className={`p-2 rounded-full ${ui.light ? 'bg-gray-100 text-gray-800' : 'bg-white/10 text-white'}`}>
