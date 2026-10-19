@@ -1,0 +1,43 @@
+{
+  "name": "Feature Tips",
+  "description": "Hourly: at most two short feature tips a week per person, on their own two weekdays around 12-2 PM their time, never on a day they got another push, never while away, never about features they've used lately. Tips can be turned off in Settings.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "40 * * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {
+              "key": "hpsw_KiJ3hp3BDfdFHr54Sr4s-7TWadw5pceR"
+            },
+            "function_name": "sendFeatureTips"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "feature_tips",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
