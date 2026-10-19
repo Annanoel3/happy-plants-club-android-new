@@ -35,14 +35,65 @@ function cupsText(oz) {
   return `${n} cup${quarters > 1 ? 's' : ''}`;
 }
 
+// How a plant gets its water. Set per plant (water_method); a self-watering pot means
+// "reservoir" unless the owner picked something else; everything else is "pour".
+// Sources for the instructions: soak (air plants: Penn State Extension, 20 min-1 hr),
+// bottom watering (African violets: UW-Madison Extension, ~30 min), self-watering pots
+// (refill once the reservoir is empty), plants in water (change it at least every 3 weeks).
+export const WATER_METHODS = [
+  { id: 'pour', label: 'Water the soil', verb: 'Water', icon: '💧' },
+  { id: 'reservoir', label: 'Self-watering pot (fill the reservoir)', verb: 'Refill the reservoir', icon: '🪣' },
+  { id: 'soak', label: 'Soak or dunk (staghorns, air plants)', verb: 'Soak', icon: '🛁' },
+  { id: 'mist', label: 'Mist only', verb: 'Mist', icon: '🌫️' },
+  { id: 'bottom', label: 'Water from below (African violets)', verb: 'Water from below', icon: '⬆️' },
+  { id: 'in_water', label: 'Lives in water (lucky bamboo, cuttings)', verb: 'Change the water', icon: '🫙' },
+];
+const METHOD_IDS = WATER_METHODS.map((m) => m.id);
+
+export function waterMethod(plant) {
+  if (plant?.water_method && METHOD_IDS.includes(plant.water_method)) return plant.water_method;
+  if (plant?.pot_type === 'Self-watering') return 'reservoir';
+  return 'pour';
+}
+
+export function methodInfo(plant) {
+  const id = waterMethod(plant);
+  return WATER_METHODS.find((m) => m.id === id) || WATER_METHODS[0];
+}
+
+/** "Water every 7 days" / "Soak every 7 days", plus the seasonal note when it has one. */
+export function scheduleText(plant) {
+  const n = Number(plant?.water_frequency_days) || 0;
+  if (!n) return null;
+  const m = methodInfo(plant);
+  const main = `${m.verb} every ${n} day${n === 1 ? '' : 's'}`;
+  const grow = Number(plant?.water_days_grow) || 0;
+  const rest = Number(plant?.water_days_rest) || 0;
+  if (!grow || !rest || grow === rest) return { main, note: null };
+  const restName = plant.water_rest_season === 'summer' ? 'summer' : 'winter';
+  const growName = plant.water_rest_season === 'summer' ? 'fall' : 'spring';
+  const note = plant.water_season === 'rest'
+    ? `Resting now. Back to every ${grow} days in ${growName}.`
+    : `Slows to every ${rest} days in ${restName}, when it rests.`;
+  return { main, note };
+}
+
+const METHOD_AMOUNTS = {
+  reservoir: { short: 'Fill reservoir', headline: 'Fill the reservoir', text: 'Self-watering pot: refill the reservoir once it’s empty, instead of watering the soil.' },
+  soak: { short: 'Soak 20 min', headline: 'Soak for about 20 minutes', text: 'Dunk the plant or its mount in room-temperature water for about 20 minutes, then let it drain and dry well before hanging it back up.' },
+  mist: { short: 'Mist', headline: 'Mist it', text: 'Mist until water runs off, then let it dry with good air flow.' },
+  bottom: { short: 'From below, 30 min', headline: 'Water from below', text: 'Set the pot in a saucer of water for about 30 minutes, then pour off what’s left.' },
+  in_water: { short: 'Fresh water', headline: 'Change the water', text: 'Swap in fresh water (at least every 3 weeks). Keep the roots under water and the leaves above it.' },
+};
+
 /**
- * { kind: 'oz' | 'ground' | 'reservoir' | 'unknown', oz, guessed, short, text }
+ * { kind: 'oz' | 'ground' | 'reservoir' | 'soak' | 'mist' | 'bottom' | 'in_water' | 'unknown',
+ *   oz, guessed, short, headline, text }
  */
 export function waterAmount(plant) {
   if (!plant) return { kind: 'unknown' };
-  if (plant.pot_type === 'Self-watering') {
-    return { kind: 'reservoir', short: 'Fill reservoir', text: 'Self-watering pot: top up the reservoir instead of watering the soil.' };
-  }
+  const method = waterMethod(plant);
+  if (method !== 'pour') return { kind: method, ...METHOD_AMOUNTS[method] };
   const d = plant.pot_diameter_in;
   if (d === 0) {
     return { kind: 'ground', short: 'Deep soak', text: 'In the ground: water slowly at the base until the soil is soaked several inches down.' };
