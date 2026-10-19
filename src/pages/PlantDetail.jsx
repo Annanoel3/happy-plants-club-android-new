@@ -665,6 +665,7 @@ export default function PlantDetail() {
   };
 
   const wateringStatus = getWateringStatus();
+  const ui = { card: getThemedClasses(), text: getTextColor(), sub: getSecondaryTextColor(), light: isThemeLight(theme) };
 
   const growthEmojis = {
     seedling: '🌱',
@@ -789,7 +790,7 @@ export default function PlantDetail() {
                   <Droplets className="w-4 h-4" />
                   Water Plant
                 </Button>
-                <PlantHealthCheck plant={plant} />
+                <PlantHealthCheck plant={plant} openKey={healthOpenKey} />
               </div>
 
               <div className="mt-3">
@@ -854,6 +855,11 @@ export default function PlantDetail() {
                     <Droplets className="w-5 h-5" />
                     {wateringStatus.text}
                   </div>
+                  {plus && hintChip(plant) && (
+                    <p className={`-mt-2 mb-4 text-sm font-semibold ${getTextColor()}`}>
+                      {hintChip(plant).icon} {hintChip(plant).text} today
+                    </p>
+                  )}
 
                   {/* Location Section - PROMINENT */}
                   <div className="mb-6 pb-6 border-b border-green-500/30">
@@ -918,6 +924,10 @@ export default function PlantDetail() {
                   </div>
                 </CardContent>
               </Card>
+
+              <PlantWaterPanel plant={plant} user={me} plus={plus} plusReady={plusReady} ui={ui} />
+              <CareScheduleCard plant={plant} user={me} plus={plus} plusReady={plusReady} ui={ui} />
+              <HealthHistoryCard plant={plant} plus={plus} plusReady={plusReady} ui={ui} onRecheck={() => setHealthOpenKey((k) => k + 1)} />
 
               {plant.care_instructions && (
                 <Card className={getThemedClasses()}>
