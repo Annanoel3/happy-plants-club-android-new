@@ -4,6 +4,7 @@
 import { base44 } from '@/api/base44Client';
 import { localToday } from '@/lib/dates';
 import { refreshPlantData } from '@/lib/query-client';
+import { queueOp, registerOutboxHandler, isOfflineError } from '@/lib/outbox';
 
 export const CARE_TYPES = [
   { key: 'fertilize', icon: '🌱', label: 'Fertilize', doing: 'Fertilize' },
@@ -139,7 +140,11 @@ async function saveCompletion(plant, key, hemi, { skip = false, date = null, rep
   try {
     const rows = await base44.entities.Plant.filter({ id: plant.id });
     if (rows?.[0]) current = rows[0];
-  } catch { /* offline: fall back to what's on screen */ }
+    else if (replay) return null; // plant was deleted meanwhile
+  } catch (e) {
+    if (replay) throw e; // still no signal: keep it queued
+    /* offline: fall back to what's on screen */
+  }
   const cs = { ...(current.care_schedule || {}) };
   const task = { ...(cs[key] || {}) };
   // Already saved (a replay after a lost connection): nothing to do
