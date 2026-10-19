@@ -19,6 +19,11 @@ export function pendingWaterings() {
   return load().reduce((n, op) => n + (op.items?.length || 0), 0);
 }
 
+export function isOfflineError(e) {
+  const status = e?.response?.status;
+  return !status || status >= 500 || status === 408 || status === 429;
+}
+
 /** Save waterings on the phone. Returns the op id. */
 export function queueWaterings(items) {
   const op = {
@@ -41,6 +46,17 @@ export function dropQueued(opId, plantId = null) {
   if (plantId && items.length === op.items.length) return false;
   save(items.length ? list.map((o) => (o.id === opId ? { ...o, items } : o)) : list.filter((o) => o.id !== opId));
   return true;
+}
+
+// Other kinds of saves (care "Done") register how to replay themselves
+const handlers = {};
+export function registerOutboxHandler(kind, fn) { handlers[kind] = fn; }
+
+/** Save any other action on the phone to send later (used when the first try had no signal). */
+export function queueOp(kind, payload) {
+  const op = { id: `${kind}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, kind, payload, at: new Date().toISOString(), tries: 0 };
+  save([...load(), op]);
+  return op.id;
 }
 
 /** Plants as the server sent them, plus waterings still waiting on this phone. */
@@ -95,7 +111,23 @@ export function flushOutbox() {
     let sent = 0;
     try {
       for (const op of load()) {
-        try { await sendOp(op.id); sent++; } catch (e) { if (isNetworkError(e) || e?.response?.status === 401) break; }
+        if (op.kind === 'water') {
+          try { await sendOp(op.id); sent++; } catch (e) { if (isNetworkError(e) || e?.response?.status === 401) break; }
+          continue;
+        }
+        const fn = handlers[op.kind];
+        if (!fn) continue; // that screen's code isn't loaded yet; next time
+        try {
+          await fn(op.payload);
+          save(load().filter((o) => o.id !== op.id));
+          sent++;
+        } catch (e) {
+          if (isNetworkError(e) || e?.response?.status === 401) {
+            save(load().map((o) => (o.id === op.id ? { ...o, tries: (o.tries || 0) + 1 } : o)));
+            break;
+          }
+          save(load().filter((o) => o.id !== op.id)); // refused by the server: drop it
+        }
       }
     } finally {
       flushing = null;
