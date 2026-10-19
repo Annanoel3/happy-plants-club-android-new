@@ -7,7 +7,7 @@ import { differenceInCalendarDays, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlus, useMe } from "@/lib/plus";
 import { hintChip } from "@/lib/weather";
-import { waterAmount } from "@/lib/waterAmount";
+import { waterAmount, methodInfo } from "@/lib/waterAmount";
 import { dueCare, CARE_META, hemisphere } from "@/lib/care";
 import { localToday } from "@/lib/dates";
 
@@ -24,6 +24,7 @@ function plusChips(plant, hemi) {
   if (dueDay && dueDay <= localToday() && !wateredToday(plant)) {
     const amt = waterAmount(plant);
     if (amt.kind === 'oz') chips.push({ key: 'amt', icon: '💧', text: amt.short });
+    else if (amt.kind !== 'unknown' && amt.short) chips.push({ key: 'amt', icon: methodInfo(plant).icon, text: amt.short });
   }
   return chips;
 }
