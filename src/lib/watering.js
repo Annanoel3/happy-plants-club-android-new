@@ -54,6 +54,16 @@ async function undo(info) {
   refreshPlantData();
 }
 
+/** Watering round: log one plant (no toast, no ad; the round shows one ad at the end). */
+export async function waterPlantQuiet(plant) {
+  return waterOne(plant);
+}
+
+/** Watering round: take back one plant's watering from this round. */
+export async function undoWateringQuiet(info) {
+  return undo(info);
+}
+
 /** Card button: water now, toast with Undo, one ad (same rule as every watering). */
 export async function quickWaterPlant(plant) {
   const name = plant.nickname || plant.name || 'Plant';
