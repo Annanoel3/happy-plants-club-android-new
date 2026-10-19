@@ -87,11 +87,12 @@ Deno.serve(async (req) => {
             
             if (targetUser.notifications_watering === false) continue;
             // Phones on the new build show their own watering pop-up (Done / Later today)
-            // at 8 AM; skip the push for them so nobody gets both. The app refreshes this
-            // stamp every day it's opened; a phone that hasn't opened in a week falls back
-            // to the push.
+            // at 8 AM; skip the push for them so nobody gets both. The stamp is refreshed
+            // each time that pop-up checks in with the server (and when the app opens with
+            // reminders on and notifications allowed). If it goes quiet for 36 hours
+            // (uninstalled, signed out, battery saver killed it) the push takes over again.
             const nativeAt = targetUser.watering_popups_native_at ? Date.parse(targetUser.watering_popups_native_at) : 0;
-            if (nativeAt && Date.now() - nativeAt < 7 * 24 * 3600 * 1000) continue;
+            if (nativeAt && Date.now() - nativeAt < 36 * 3600 * 1000) continue;
             let userTimezone = targetUser.timezone || 'America/Chicago';
             try { new Intl.DateTimeFormat('en-US', { timeZone: userTimezone }); } catch { userTimezone = 'America/Chicago'; }
             const hourNow = localHour(userTimezone);
