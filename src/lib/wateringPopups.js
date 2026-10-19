@@ -106,7 +106,29 @@ export async function signOutWateringPopups() {
   try { await b.wateringSignOut(); } catch { /* older build */ }
 }
 
+// "Done" on the watering pop-up opens the app (next app build); the phone saves the watering
+// itself, then the garden refreshes here so it shows as watered. No ad on this open: AdMob
+// doesn't allow interstitials when an app is opening.
+async function checkPopupWatered() {
+  const b = bridge();
+  if (!b) return;
+  try {
+    const r = await b.takePopupWatered();
+    if (r && Number(r.watered) > 0) {
+      const { refreshPlantData } = await import('@/lib/query-client');
+      refreshPlantData();
+    }
+  } catch { /* older build: nothing to do */ }
+}
+function watchPopupWatered() {
+  // the phone may still be saving when the page loads: look twice
+  setTimeout(checkPopupWatered, 2000);
+  setTimeout(checkPopupWatered, 7000);
+}
+
 if (typeof window !== 'undefined') {
+  watchPopupWatered();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') watchPopupWatered(); });
   window.addEventListener('hp-data-write', () => scheduleWateringPopupSync());
   // Plus just started or ended: the widget and pop-up show amounts only for Plus
   window.addEventListener('hp-plus', () => scheduleWateringPopupSync(500));
