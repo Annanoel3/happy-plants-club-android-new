@@ -31,6 +31,38 @@ function onVacation(p: any, today: string): boolean {
     return true;
 }
 
+// Plus: how much to water, in US fl oz. Same formula as src/lib/waterAmount.js:
+// ~10% of the pot's volume (RHS rule of thumb); volume ≈ 0.545 × width³ in³; 1 in³ = 0.554 fl oz.
+const GUESS_BY_PLANT_SIZE: Record<string, number> = { Seedling: 3, Small: 4, Medium: 6, Large: 10, Mature: 12 };
+function amountText(p: any): string | null {
+    if (p.pot_type === 'Self-watering') return 'fill reservoir';
+    const d = p.pot_diameter_in;
+    if (d === 0) return 'deep soak';
+    let w = Number(d) > 0 ? Number(d) : null;
+    let guessed = false;
+    if (!w) { w = GUESS_BY_PLANT_SIZE[p.plant_size] || null; guessed = true; }
+    if (!w) return null;
+    const raw = 0.545 * w * w * w * 0.10 * 0.554;
+    const oz = raw < 1 ? 1 : raw < 16 ? Math.round(raw) : raw < 64 ? Math.round(raw / 2) * 2 : Math.round(raw / 8) * 8;
+    return `${guessed ? '~' : ''}${oz} oz`;
+}
+function detailFor(p: any, today: string, plus: boolean): string | null {
+    if (!plus) return null;
+    const bits: string[] = [];
+    const a = amountText(p);
+    if (a) bits.push(a);
+    const h = p.weather_hint && p.weather_hint.day === today ? p.weather_hint : null;
+    if (h?.kind === 'heat') bits.push('hot day');
+    if (h?.kind === 'rain_missed') bits.push('no rain came');
+    return bits.length ? bits.join(' · ') : null;
+}
+async function isPlus(base44: any, userId: string): Promise<boolean> {
+    try {
+        const s = (await base44.asServiceRole.entities.Subscription.filter({ user_id: userId }))?.[0];
+        return !!(s && s.active && (!s.expires_at || Date.parse(s.expires_at) > Date.now()));
+    } catch { return false; }
+}
+
 const STAGES: [number, string][] = [[20, 'mature'], [15, 'large'], [10, 'medium'], [5, 'small'], [0, 'seedling']];
 const rank: Record<string, number> = { seedling: 0, small: 1, medium: 2, large: 3, mature: 4 };
 
@@ -83,17 +115,26 @@ Deno.serve(async (req) => {
         }
 
         // 'due' (default)
-        const plants = (await base44.entities.Plant.filter({ created_by: user.email }, '-created_date', 500)) || [];
+        const [plants, plus] = await Promise.all([
+            base44.entities.Plant.filter({ created_by: user.email }, '-created_date', 500).then((r: any) => r || []),
+            isPlus(base44, user.id),
+        ]);
         const due = plants
             .filter((p: any) => p.next_watering_due && String(p.next_watering_due).slice(0, 10) <= today)
             .filter((p: any) => !onVacation(p, today))
             .filter((p: any) => String(p.last_watered || '').slice(0, 10) !== today)
             .sort((a: any, b: any) => String(a.next_watering_due).localeCompare(String(b.next_watering_due)))
-            .map((p: any) => ({ id: p.id, name: p.nickname || p.name || 'Plant', next_due: String(p.next_watering_due).slice(0, 10) }));
+            .map((p: any) => ({
+                id: p.id,
+                name: p.nickname || p.name || 'Plant',
+                next_due: String(p.next_watering_due).slice(0, 10),
+                detail: detailFor(p, today, plus),
+            }));
         return Response.json({
             success: true,
             today,
             enabled: user.notifications_watering !== false,
+            plus,
             plants: due,
         });
     } catch (error) {
