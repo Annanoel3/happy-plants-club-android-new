@@ -115,7 +115,7 @@ export default function OnionSkinCamera({ open, ghostUrl, onClose, onCapture, on
             className={`absolute inset-0 w-full h-full object-cover ${shot ? 'hidden' : ''}`} />
           {shot && <img src={shot.url} alt="New progress photo" className="absolute inset-0 w-full h-full object-cover" />}
           {ghostUrl && ghostOn && !shot && (
-            <img src={ghostUrl} alt="" crossOrigin="anonymous" draggable={false}
+            <img src={ghostUrl} alt="" draggable={false}
               className="absolute inset-0 w-full h-full object-cover pointer-events-none" style={{ opacity }} />
           )}
           {!ready && !shot && (
