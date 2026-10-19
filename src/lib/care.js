@@ -95,7 +95,8 @@ function stagger(id, spread) {
 /** Build a fresh schedule from a suggestion (functions/plus care_suggest). */
 export function scheduleFromSuggestion(plant, s, hemi, today = localToday()) {
   const cs = {};
-  const fert = { on: true, every_days: s.fertilize.every_days, winter_pause: s.fertilize.winter_pause !== false };
+  // Plants that shouldn't be fed (carnivorous plants) come back with useful: false
+  const fert = { on: s.fertilize.useful !== false, every_days: s.fertilize.every_days, winter_pause: s.fertilize.winter_pause !== false };
   let fNext = addDays(today, stagger(plant.id, 7));
   if (fert.winter_pause && isNoFeedSeason(fNext, hemi)) fNext = seasonStart(fNext, hemi);
   cs.fertilize = { ...fert, next: fNext, last: null };
