@@ -81,7 +81,7 @@ export async function undoWatering(info) {
   if (!info) return;
   if (info.pending && info.opId) {
     // Not sent yet: just forget it (only this plant, if it was part of a group)
-    if (dropQueued(info.opId)) {
+    if (dropQueued(info.opId, info.plantId)) {
       showBefore(info.plantId, info.before);
       refreshPlantData();
       return;
