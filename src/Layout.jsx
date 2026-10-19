@@ -5,6 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { scheduleStatsSync } from "@/lib/stats";
 import { getPremiumStatus } from "@/lib/premium";
 import { syncWateringPopups } from "@/lib/wateringPopups";
+import { ensureGeocoded, ensureTodayWeather } from "@/lib/weather";
 import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
@@ -382,7 +383,10 @@ export default function Layout({ children, currentPageName }) {
       // Keep stats/achievements true to your history (also fixes old +1 counters)
       scheduleStatsSync(4000);
       // Plus status (no ads / higher AI limits) — keep the on-device flag current
-      getPremiumStatus().catch(() => {});
+      // Then, for Plus: make sure today's weather-smart watering has been applied
+      getPremiumStatus().catch(() => {}).finally(() => {
+        Promise.resolve(ensureGeocoded(u)).finally(() => ensureTodayWeather(u));
+      });
       // Phone's own watering pop-up (new builds only)
       syncWateringPopups();
     } catch { /* never block the app on this */ }
