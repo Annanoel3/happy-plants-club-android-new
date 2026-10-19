@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, Camera as CameraIcon, CheckCircle, X, AlertCircle } from "lucide-react";
+import { whenPopupFree, releasePopup } from "@/lib/popupGate";
 
 // Access Capacitor plugins via window.Capacitor.Plugins to avoid build-time resolution errors
 async function requestMicPermission() {
@@ -41,8 +42,7 @@ export default function PermissionsCheck({ user }) {
     if (!user) return;
     const alreadyAsked = localStorage.getItem('permissions_asked');
     if (alreadyAsked) return;
-    const timer = setTimeout(() => setShowPrompt(true), 2000);
-    return () => clearTimeout(timer);
+    return whenPopupFree('permissions', () => setShowPrompt(true), { firstDelay: 2000 });
   }, [user]);
 
   const handleMic = async () => {
@@ -60,6 +60,7 @@ export default function PermissionsCheck({ user }) {
   const handleClose = () => {
     setShowPrompt(false);
     localStorage.setItem('permissions_asked', 'true');
+    releasePopup('permissions');
   };
 
   useEffect(() => {
@@ -83,7 +84,7 @@ export default function PermissionsCheck({ user }) {
   const anyDenied = micStatus === 'denied' || cameraStatus === 'denied';
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-end justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-end justify-center p-4" role="dialog" aria-modal="true" aria-label="Enable features">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
       <div className={`relative w-full max-w-sm rounded-3xl border shadow-2xl overflow-hidden ${cardBg}`}>
@@ -93,7 +94,7 @@ export default function PermissionsCheck({ user }) {
               <h2 className={`text-xl font-bold mb-1 ${textColor}`}>Enable Features 🌿</h2>
               <p className={`text-sm ${subText}`}>These are optional — tap Enable to allow access</p>
             </div>
-            <button onClick={handleClose} className={`ml-3 mt-0.5 ${subText} hover:opacity-60 transition-opacity`}>
+            <button onClick={handleClose} aria-label="Close" className={`ml-3 mt-0.5 ${subText} hover:opacity-60 transition-opacity`}>
               <X className="w-5 h-5" />
             </button>
           </div>
