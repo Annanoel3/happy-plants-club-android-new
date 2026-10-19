@@ -166,7 +166,8 @@ export default function PlantDetail() {
   const isNewPlant = ['identifying', 'review', 'failed'].includes(plant?.add_status);
   const { data: gardenPlants = [] } = useQuery({
     queryKey: ['plants', user?.email],
-    queryFn: async () => (await base44.entities.Plant.filter({ created_by: user.email }, undefined, 1000)) || [],
+    // same list as the garden page (shared cache), so the same shape: pending waterings included
+    queryFn: async () => withPendingWaterings((await base44.entities.Plant.filter({ created_by: user.email }, undefined, 1000)) || []),
     enabled: !!user?.email && isNewPlant,
     staleTime: 60 * 1000,
   });
