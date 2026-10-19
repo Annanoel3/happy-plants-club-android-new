@@ -17,6 +17,7 @@ import FollowRequests from './pages/FollowRequests';
 import TermsAndConditions from './pages/TermsAndConditions';
 import VacationReview from './pages/VacationReview';
 import Premium from './pages/Premium';
+import Plantdoku from './pages/Plantdoku';
 import __Layout from './Layout.jsx';
 
 
@@ -40,6 +41,7 @@ export const PAGES = {
     "FollowRequests": FollowRequests,
     "TermsAndConditions": TermsAndConditions,
     "VacationReview": VacationReview,
+    "Plantdoku": Plantdoku,
 }
 
 export const pagesConfig = {
