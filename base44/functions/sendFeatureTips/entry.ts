@@ -41,9 +41,10 @@ function hash(s: string): number {
 // Where the hidden Plantdoku link sits today (copy of eggFor in src/lib/plantdoku/egg.js — keep in step)
 function eggPath(day: string): string {
     const pages = ['/Dashboard', '/Schedule', '/Feed', '/PlantChat'];
-    const n = Math.floor(Date.parse(`${day}T12:00:00Z`) / 86400000);
-    const offset = hash(`week${Math.floor(n / 7)}`) % 4;
-    return pages[(n + offset) % 4];
+    const dn = (d: string) => Math.floor(Date.parse(`${d}T12:00:00Z`) / 86400000);
+    let idx = 0;
+    for (let d = dn('2026-01-01') + 1; d <= dn(day); d++) idx = (idx + 1 + (hash(`egg${d}`) % 3)) % 4;
+    return pages[idx];
 }
 
 // Each tip: what it says, where a tap goes, and when it's pointless for this person.
