@@ -143,10 +143,79 @@ function describeBlind(blind) {
 // Usage is always counted (AiUsage). Limits are only enforced once the secret
 // AI_LIMITS_ON is "true" — i.e. after people can actually buy Plus.
 const AI_LIMITS: Record<string, { free: number; plus: number }> = {
-    identify: { free: 10, plus: 200 }, // adding plants uses this; a whole shelf in one go must fit
+    identify: { free: 10, plus: 200 }, // not used for photo IDs any more: see ID_RULES below
+    rename: { free: 30, plus: 100 },
     health: { free: 3, plus: 25 },
     chat: { free: 20, plus: 200 },
 };
+
+// ---- Photo IDs (always on) -----------------------------------------------------
+// Free: 30 in the first 24 hours after signing up (to add the whole garden), then 5 a
+// day; each reward video adds 5 more (up to 3 videos a day). Plus: 200 a day. Admins
+// count as Plus. A plant is charged once, however many times naming it is retried.
+// The same block is in functions/premium (status, reserve, reward) — keep them in step.
+const ID_RULES = { intro: 30, introHours: 24, daily: 5, perAd: 5, maxAds: 3, plus: 200 };
+function dayIn(tz: string | undefined, when: Date): string {
+    let zone = tz || 'America/Chicago';
+    try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); } catch { zone = 'America/Chicago'; }
+    const p: Record<string, string> = {};
+    for (const x of new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(when)) p[x.type] = x.value;
+    return `${p.year}-${p.month}-${p.day}`;
+}
+async function plusOf(db: any, user: any) {
+    if (user?.role === 'admin') return true;
+    const sub = (await db.Subscription.filter({ user_id: user.id }))?.[0];
+    return !!(sub && sub.active && (!sub.expires_at || Date.parse(sub.expires_at) > Date.now()));
+}
+async function idStatus(db: any, user: any, plus: boolean) {
+    const now = new Date();
+    const day = dayIn(user.timezone, now);
+    const created = Date.parse(user.created_date || '') || 0;
+    const introEnds = created ? created + ID_RULES.introHours * 3600e3 : 0;
+    const intro = !plus && now.getTime() < introEnds;
+    const rows = (await db.AiUsage.filter({ user_id: user.id, day })) || [];
+    const row = rows.find((r: any) => r.kind === 'identify') || null;
+    const ads = rows.find((r: any) => r.kind === 'identify_bonus')?.count || 0;
+    let used = row?.count || 0;
+    if (intro) {
+        // The first 24 hours can cross midnight: yesterday's IDs count too if they were in it
+        const yday = dayIn(user.timezone, new Date(now.getTime() - 86400e3));
+        if (dayIn(user.timezone, new Date(created)) <= yday) {
+            used += (await db.AiUsage.filter({ user_id: user.id, day: yday, kind: 'identify' }))?.[0]?.count || 0;
+        }
+    }
+    const limit = plus ? ID_RULES.plus : intro ? ID_RULES.intro : ID_RULES.daily + Math.min(ads, ID_RULES.maxAds) * ID_RULES.perAd;
+    return {
+        day, plus, intro, intro_ends_at: intro ? new Date(introEnds).toISOString() : null,
+        limit, used, left: Math.max(0, limit - used),
+        ads_today: ads, max_ads: ID_RULES.maxAds, per_ad: ID_RULES.perAd, daily: ID_RULES.daily, intro_total: ID_RULES.intro,
+        can_reward: !plus && !intro && ads < ID_RULES.maxAds,
+        _row: row,
+    };
+}
+async function chargeIds(db: any, user: any, st: any, n: number) {
+    if (n <= 0) return;
+    if (st._row) await db.AiUsage.update(st._row.id, { count: (st._row.count || 0) + n });
+    else await db.AiUsage.create({ user_id: user.id, user_email: user.email, day: st.day, kind: 'identify', count: n });
+}
+function publicIds(st: any) { const { _row, ...rest } = st; return rest; }
+function idLimitResponse(st: any) {
+    return Response.json({ error: 'limit_reached', limit_reached: true, kind: 'identify', limit: st.limit, plus: st.plus, ids: publicIds(st) }, { status: 429 });
+}
+// Charge one photo ID now. Returns null when allowed, or the 429 response when out.
+// If the count can't be read, let it through rather than block someone's plant.
+async function takeOneId(base44: any, user: any) {
+    try {
+        const sdb = base44.asServiceRole.entities;
+        const st = await idStatus(sdb, user, await plusOf(sdb, user));
+        if (st.left <= 0) return { blocked: idLimitResponse(st), day: st.day };
+        await chargeIds(sdb, user, st, 1);
+        return { blocked: null, day: st.day };
+    } catch (e) {
+        console.warn('photo ID count failed, allowing:', (e as Error).message);
+        return { blocked: null, day: null };
+    }
+}
 function aiLocalDay(tz?: string): string {
     let zone = tz || 'America/Chicago';
     try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); } catch { zone = 'America/Chicago'; }
@@ -318,16 +387,23 @@ Deno.serve(async (req) => {
             if (svc && plant) user = (await db.User.filter({ email: plant.created_by }))?.[0] || null;
             if (!plant || !user || plant.created_by !== user.email) return Response.json({ error: 'Not found' }, { status: 404 });
             const today = aiLocalDay(user.timezone);
-            const aiQuota = await useAiQuota(base44, user, 'identify');
-            if (!aiQuota.allowed) {
-                await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...(plant.add_info || {}), error: 'limit_reached' } }).catch(() => {});
-                return aiLimitResponse('identify', aiQuota);
-            }
             const info = { ...(plant.add_info || {}) };
+            const corrected = typeof body.scientific_name === 'string' ? body.scientific_name.trim().slice(0, 120) : '';
+            if (corrected) {
+                // Typing a name isn't a photo ID
+                const q = await useAiQuota(base44, user, 'rename');
+                if (!q.allowed) return aiLimitResponse('rename', q);
+            } else if (!info.id_paid) {
+                const t = await takeOneId(base44, user);
+                if (t.blocked) {
+                    await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: 'limit_reached' } }).catch(() => {});
+                    return t.blocked;
+                }
+                info.id_paid = t.day || today;
+            }
             const context = contextFor(user, plant, today);
 
             // a) Owner typed a different scientific name
-            const corrected = typeof body.scientific_name === 'string' ? body.scientific_name.trim().slice(0, 120) : '';
             if (corrected) {
                 const raw = await careForName(plant.image_url || null, corrected, context);
                 const d = cleanPlantData({ ...raw, scientific_name: raw?.scientific_name || corrected });
@@ -385,9 +461,9 @@ Deno.serve(async (req) => {
         // ---- Old flow (older app screens): identify a photo and return the data
         const today = aiLocalDay(user.timezone);
         const { image_url } = body || {};
-        const aiQuota = await useAiQuota(base44, user, 'identify');
-        if (!aiQuota.allowed) return aiLimitResponse('identify', aiQuota);
         if (!image_url) return Response.json({ error: 'No image_url provided' }, { status: 400 });
+        const t = await takeOneId(base44, user);
+        if (t.blocked) return t.blocked;
         console.log(`[${rid}] 🌱 identifyPlantWithExpert`, image_url);
         const r = await identify(rid, image_url, contextFor(user, null, today));
         return Response.json({ success: true, plantData: r.plantData, identification: r.identification });
