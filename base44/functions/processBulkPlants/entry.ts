@@ -32,6 +32,14 @@ Deno.serve(async (req) => {
 
         // Join input (handles both natural language and comma-separated lists)
         const rawInput = plant_names.join(', ');
+        const today = todayFor(__body);
+        const m = Number(today.slice(5, 7));
+        const lat = typeof user.location_lat === 'number' ? user.location_lat : null;
+        const nSeason = m === 12 || m <= 2 ? 'winter' : m <= 5 ? 'spring' : m <= 8 ? 'summer' : 'fall';
+        const flip: Record<string, string> = { winter: 'summer', summer: 'winter', spring: 'fall', fall: 'spring' };
+        const season = lat !== null && Math.abs(lat) < 23.5 ? 'tropics (no real winter)' : (lat !== null && lat < 0 ? flip[nSeason] : nSeason);
+        const context = `Today is ${today}; at the owner's location it is ${season}. Owner's location: ${user.location_label || user.location || 'unknown (assume a temperate northern-hemisphere climate)'}.${location || environment ? ` The plants are kept: ${location || ''} ${environment ? `(${environment})` : ''}.` : ''}
+water_frequency_days is the number of days between waterings for THIS time of year in this location and spot (do not assume summer heat unless it is summer there). Describe other seasons in care_instructions.watering.`;
 
         const response = await openai.chat.completions.create({
             model: "gpt-6-luna",
@@ -60,7 +68,9 @@ Return ONLY a JSON object with a "plants" array:
   ]
 }
 
-Extract only actual plant names. Skip filler words like "I have a", "and", "also", etc.`
+Extract only actual plant names. Skip filler words like "I have a", "and", "also", etc.
+
+${context}`
                 },
                 {
                     role: "user",
@@ -77,7 +87,6 @@ Extract only actual plant names. Skip filler words like "I have a", "and", "also
             return Response.json({ success: false, error: 'Could not identify any plants' }, { status: 400 });
         }
 
-        const today = todayFor(__body);
         const addedPlants = [];
 
         for (const plantData of plantsData) {
@@ -89,7 +98,9 @@ Extract only actual plant names. Skip filler words like "I have a", "and", "also
                 last_watered: today,
                 next_watering_due: nextWatering.toISOString().split('T')[0],
                 ...(location ? { location } : {}),
-                ...(environment ? { environment } : {})
+                ...(environment ? { environment } : {}),
+                // The app asks the owner to check where it is, the pot and the name
+                add_status: 'review',
             });
 
             addedPlants.push(newPlant);
