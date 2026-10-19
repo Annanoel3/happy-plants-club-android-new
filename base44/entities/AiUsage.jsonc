@@ -11,8 +11,11 @@
       "type": "string"
     },
     "kind": {
+      "description": "identify = photo IDs used; identify_bonus = reward videos watched that day (each adds 5 photo IDs); rename = name corrections",
       "enum": [
         "identify",
+        "identify_bonus",
+        "rename",
         "health",
         "chat"
       ],
@@ -30,6 +33,7 @@
     "day",
     "kind"
   ],
+  "type": "object",
   "rls": {
     "create": {
       "user_condition": {
@@ -49,6 +53,5 @@
         "role": "admin"
       }
     }
-  },
-  "type": "object"
+  }
 }
