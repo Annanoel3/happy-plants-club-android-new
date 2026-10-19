@@ -17,6 +17,7 @@ import PlantTypeStack from "@/components/PlantTypeStack";
 import BulkActionBar from "@/components/BulkActionBar";
 import WateringRound, { dueNow } from "@/components/WateringRound";
 import { usePlus, useMe } from "@/lib/plus";
+import { refreshPlantData } from "@/lib/query-client";
 import { AnimatePresence } from "framer-motion";
 
 export default function Dashboard() {
