@@ -37,6 +37,18 @@ export function hintChip(plant) {
   return null;
 }
 
+/** One-line summary for the plant page, or null. */
+export function hintLine(plant) {
+  const h = todayHint(plant);
+  if (!h) return null;
+  if (h.kind === 'rain_credit') return '🌧️ Rain watered it today';
+  if (h.kind === 'rain_hold') return '🌦️ Rain is coming, so skip watering today';
+  if (h.kind === 'rain_missed') return "☀️ The rain didn't come, so water it today";
+  if (h.kind === 'heat') return "🔥 Hot day, so it's due a day early";
+  if (h.frost_low_f != null) return `🥶 Frost tonight (${h.frost_low_f}°F)`;
+  return null;
+}
+
 async function call(body) {
   const { data } = await base44.functions.invoke('plus', body);
   return data;
