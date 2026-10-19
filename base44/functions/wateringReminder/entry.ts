@@ -34,8 +34,20 @@ function onVacation(p: any, today: string): boolean {
 // Plus: how much to water, in US fl oz. Same formula as src/lib/waterAmount.js:
 // ~10% of the pot's volume (RHS rule of thumb); volume ≈ 0.545 × width³ in³; 1 in³ = 0.554 fl oz.
 const GUESS_BY_PLANT_SIZE: Record<string, number> = { Seedling: 3, Small: 4, Medium: 6, Large: 10, Mature: 12 };
+// How it's watered (same rule as src/lib/waterAmount.js waterMethod)
+const METHODS = ['pour', 'reservoir', 'soak', 'mist', 'bottom', 'in_water'];
+const METHOD_SHORT: Record<string, string> = {
+    reservoir: 'fill reservoir', soak: 'soak 20 min', mist: 'mist', bottom: 'from below, 30 min', in_water: 'fresh water',
+};
+function waterMethod(p: any): string {
+    const set = METHODS.includes(p.water_method) ? p.water_method : null;
+    if (set && p.care_profile?.user_method) return set;
+    if (p.pot_type === 'Self-watering') return 'reservoir';
+    return set || 'pour';
+}
 function amountText(p: any): string | null {
-    if (p.pot_type === 'Self-watering') return 'fill reservoir';
+    const m = waterMethod(p);
+    if (m !== 'pour') return METHOD_SHORT[m];
     const d = p.pot_diameter_in;
     if (d === 0) return 'deep soak';
     let w = Number(d) > 0 ? Number(d) : null;
