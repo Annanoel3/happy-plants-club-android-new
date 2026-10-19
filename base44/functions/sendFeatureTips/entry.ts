@@ -38,13 +38,26 @@ function hash(s: string): number {
     return h;
 }
 
+// Where the hidden Plantdoku link sits today (copy of eggFor in src/lib/plantdoku/egg.js — keep in step)
+function eggPath(day: string): string {
+    const pages = ['/Dashboard', '/Schedule', '/Feed', '/PlantChat'];
+    const n = Math.floor(Date.parse(`${day}T12:00:00Z`) / 86400000);
+    const offset = hash(`week${Math.floor(n / 7)}`) % 4;
+    return pages[(n + offset) % 4];
+}
+
 // Each tip: what it says, where a tap goes, and when it's pointless for this person.
-type Ctx = { plants: number; plus: boolean; usedChat: boolean; usedHealth: boolean; hasTrip: boolean; hasCare: boolean; hasPhotos: boolean };
-const TIPS: { key: string; title: string; body: string; screen: string; skip: (c: Ctx) => boolean }[] = [
+type Ctx = { plants: number; plus: boolean; usedChat: boolean; usedHealth: boolean; hasTrip: boolean; hasCare: boolean; hasPhotos: boolean; foundGame: boolean; ageDays: number };
+const TIPS: { key: string; title: string; body: string; screen: string | ((day: string) => string); skip: (c: Ctx) => boolean }[] = [
     {
         key: 'expert', title: '🌿 Ask the Plant Expert',
         body: 'Did you know the Plant Expert can tell you what your plant needs? Ask about yellow leaves, repotting, anything.',
         screen: '/PlantChat', skip: (c) => c.usedChat,
+    },
+    {
+        key: 'plantdoku', title: '🌱 Psst… a hidden game',
+        body: "There's a tiny puzzle game hiding in Happy Plants. Today it's on this screen: look for small text that says \"what's this?\"",
+        screen: (day) => eggPath(day), skip: (c) => c.foundGame || c.plants < 3 || c.ageDays < 7,
     },
     {
         key: 'health', title: '🩺 Something look off?',
@@ -90,7 +103,8 @@ const TIPS: { key: string; title: string; body: string; screen: string; skip: (c
 const TIP_HOURS = [12, 13]; // local time
 const REPEAT_AFTER_DAYS = 90;
 
-async function sendPush(email: string, tip: typeof TIPS[number]) {
+async function sendPush(email: string, tip: typeof TIPS[number], day: string) {
+    const screen = typeof tip.screen === 'function' ? tip.screen(day) : tip.screen;
     const appId = (Deno.env.get('ONESIGNAL_APP_ID') || '').trim();
     const rest = Deno.env.get('ONESIGNAL_REST_API_KEY');
     if (!appId || !rest) return { id: null, detail: 'no onesignal' };
@@ -103,7 +117,7 @@ async function sendPush(email: string, tip: typeof TIPS[number]) {
             target_channel: 'push',
             headings: { en: tip.title },
             contents: { en: tip.body },
-            data: { type: 'tip', tip: tip.key, screen: tip.screen },
+            data: { type: 'tip', tip: tip.key, screen },
             ttl: 6 * 60 * 60,
         }),
     });
@@ -122,7 +136,7 @@ Deno.serve(async (req) => {
         // Testing: one tip to one account, now
         if (body.test_email) {
             const tip = TIPS.find((t) => t.key === body.tip) || TIPS[0];
-            const r = await sendPush(String(body.test_email), tip);
+            const r = await sendPush(String(body.test_email), tip, new Date().toISOString().slice(0, 10));
             return Response.json({ success: true, tip: tip.key, push: r.id, detail: r.id ? undefined : r.detail });
         }
 
@@ -170,6 +184,8 @@ Deno.serve(async (req) => {
                 hasTrip: mine.some((v: any) => String(v.end_date).slice(0, 10) >= day),
                 hasCare: plants.some((p: any) => p.care_schedule && Object.values(p.care_schedule).some((t: any) => t?.on)),
                 hasPhotos: photos.length > 0,
+                foundGame: !!u.plantdoku_found,
+                ageDays: u.created_date ? (now - Date.parse(u.created_date)) / 86400000 : 999,
             };
             const log = (u.tip_log && typeof u.tip_log === 'object') ? u.tip_log : {};
             const fresh = (k: string) => !log[k] || String(log[k]) <= addDays(day, -REPEAT_AFTER_DAYS);
@@ -181,7 +197,7 @@ Deno.serve(async (req) => {
             if (body.dry) { plan.push({ email: u.email, tip: tip.key, day }); continue; }
 
             await db.User.update(u.id, { tip_push_day: day, tip_log: { ...log, [tip.key]: day } }); // claim first: never twice
-            const r = await sendPush(u.email, tip);
+            const r = await sendPush(u.email, tip, day);
             bump(r.id ? 'sent' : 'failed');
             if (!r.id) console.warn('tip push failed', u.email, JSON.stringify(r.detail).slice(0, 200));
         }
