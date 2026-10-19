@@ -935,37 +935,21 @@ export default function PlantDetail() {
                 </Card>
               )}
 
-              {/* Vacation Mode Section */}
-              <Card className={getThemedClasses()}>
-                <CardHeader>
-                  <CardTitle className={getTextColor()}>🏖️ Vacation Mode</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className={getTextColor()}>Enable Vacation Mode</p>
-                    <Switch
-                      checked={vacationModeEnabled}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setShowVacationModeDialog(true);
-                        } else {
-                          toggleVacationModeMutation.mutate({ enabled: false, startDate: null, endDate: null });
-                        }
-                      }}
-                    />
-                  </div>
-                  {vacationModeEnabled && plant.vacation_start_date && plant.vacation_end_date && (
-                    <p className={`${getSecondaryTextColor()} text-sm`}>
-                      Active from {format(parseISO(plant.vacation_start_date), 'MMM d, yyyy')} to {format(parseISO(plant.vacation_end_date), 'MMM d, yyyy')}
+              {/* Per-plant vacation is gone: vacations cover the whole garden now (Schedule).
+                  A plant that still has the old switch on can turn it off here. */}
+              {vacationModeEnabled && (
+                <Card className={getThemedClasses()}>
+                  <CardContent className="p-4 flex items-center justify-between gap-3">
+                    <p className={`text-sm ${getTextColor()}`}>
+                      🏖️ Reminders paused for this plant
+                      {plant.vacation_end_date ? ` until ${format(parseISO(plant.vacation_end_date), 'MMM d')}` : ''}.
                     </p>
-                  )}
-                  {vacationModeEnabled && !(plant.vacation_start_date && plant.vacation_end_date) && (
-                      <p className={`${getTextColor()} text-sm text-yellow-600`}>
-                        Vacation mode is enabled, but dates are not set. Please set them.
-                      </p>
-                  )}
-                </CardContent>
-              </Card>
+                    <Button size="sm" variant="outline" onClick={() => toggleVacationModeMutation.mutate({ enabled: false, startDate: null, endDate: null })}>
+                      Turn off
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </TabsContent>
 
