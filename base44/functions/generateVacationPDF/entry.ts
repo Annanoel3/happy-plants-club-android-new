@@ -311,17 +311,21 @@ Deno.serve(async (req) => {
         }
 
         if (action === 'confirm') {
+            // Safe to send twice: each plant gets one watering per day, repeats are skipped.
             const visits = vac.sitter_plan?.visits || [];
-            const today = localDay(user.timezone);
+            const today = localDay(body.tz || user.timezone);
+            const end = String(vac.end_date || '').slice(0, 10);
+            const lastDay = end && end < today ? end : today; // back early: later visits never happened
             const items: any[] = [];
             for (const v of visits) {
-                if (v.date > today) continue;
+                if (v.date > lastDay) continue;
                 for (const a of v.areas || []) for (const p of a.plants || []) items.push({ plant_id: p.id, date: v.date, method: 'sitter' });
             }
             items.sort((a, b) => a.date.localeCompare(b.date));
             let watered = 0;
             for (let i = 0; i < items.length; i += 150) {
-                const { data } = await base44.functions.invoke('wateringReminder', { action: 'water', items: items.slice(i, i + 150), tz: user.timezone });
+                const { data } = await base44.functions.invoke('wateringReminder', { action: 'water', items: items.slice(i, i + 150), tz: body.tz || user.timezone });
+                if (!data?.success) throw new Error('Could not log the waterings');
                 watered += Number(data?.watered) || 0;
             }
             await base44.entities.VacationDay.update(vac.id, { status: 'confirmed', confirmed_at: new Date().toISOString() });
