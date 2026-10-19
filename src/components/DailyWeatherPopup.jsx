@@ -20,7 +20,11 @@ export default function DailyWeatherPopup() {
 
   // Waiting for our popup turn; stop waiting (and give the turn back) if this page closes
   const cancelWaitRef = React.useRef(null);
-  useEffect(() => () => { cancelWaitRef.current?.(); releasePopup('weather'); }, []);
+  const mountedRef = React.useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; cancelWaitRef.current?.(); releasePopup('weather'); };
+  }, []);
 
   useEffect(() => {
     // Check if opened via push notification deep link
@@ -174,7 +178,13 @@ export default function DailyWeatherPopup() {
             setLocation(data.location);
             setWeatherImage(getWeatherImage(cleanMessage));
             // Never on top of another popup: wait for our turn
-            cancelWaitRef.current = whenPopupFree('weather', () => setIsOpen(true));
+            // (The weather lookup is slow; if they've already left this page, don't queue it.)
+            if (mountedRef.current) {
+              cancelWaitRef.current = whenPopupFree('weather', () => {
+                if (mountedRef.current) setIsOpen(true);
+                else releasePopup('weather');
+              });
+            }
         }
       }
     } catch (error) {
