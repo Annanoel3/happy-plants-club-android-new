@@ -248,7 +248,7 @@ export default function PlantHealthCheck({ plant }) {
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${STATUS[check.status].cls}`}>{STATUS[check.status].label}</span>
                         )}
                       </h3>
-                      {check?.progress && PROGRESS[check.progress] && (
+                      {plusResult && check?.progress && PROGRESS[check.progress] && (
                         <p className="text-sm font-semibold theme-text mb-2">
                           {PROGRESS[check.progress]}{check.progress_note ? ` — ${check.progress_note}` : ''}
                         </p>
