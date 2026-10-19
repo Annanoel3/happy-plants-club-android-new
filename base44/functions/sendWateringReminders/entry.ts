@@ -39,6 +39,25 @@ function onVacation(p: any, today: string): boolean {
     return true;
 }
 
+function addDays(day: string, n: number): string {
+    const d = new Date(day + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+}
+// Garden-wide vacation (Schedule > Vacations): the trip that covers `today`. An unconfirmed
+// sitter plan also covers the 2 days after the trip, so the first morning home doesn't say
+// "16 plants need water" before the app has asked "did your sitter water as planned?".
+// Same rule in wateringReminder and src/lib/vacation.js: keep in sync.
+function tripCovering(trips: any[] | undefined, today: string): any | null {
+    for (const v of trips || []) {
+        const s = String(v.start_date || '').slice(0, 10), e = String(v.end_date || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || !/^\d{4}-\d{2}-\d{2}$/.test(e)) continue;
+        const pending = v.sitter_plan?.visits?.length && (!v.status || v.status === 'planned');
+        if (today >= s && today <= (pending ? addDays(e, 2) : e)) return v;
+    }
+    return null;
+}
+
 // Plus: ounces to give (same formula as src/lib/waterAmount.js)
 const GUESS_BY_PLANT_SIZE: Record<string, number> = { Seedling: 3, Small: 4, Medium: 6, Large: 10, Mature: 12 };
 // How it's watered (same rule as src/lib/waterAmount.js waterMethod)
@@ -89,6 +108,18 @@ Deno.serve(async (req) => {
         const plusIds = new Set(activeSubs
             .filter((s: any) => !s.expires_at || Date.parse(s.expires_at) > Date.now())
             .map((s: any) => s.user_id));
+        // Trips, by owner (only ones that haven't long ended)
+        const tripsBy = new Map<string, any[]>();
+        const cutoff = addDays(new Date().toISOString().slice(0, 10), -4);
+        for (let skip = 0; skip < 5000; skip += 500) {
+            const page = (await base44.asServiceRole.entities.VacationDay.list('-created_date', 500, skip).catch(() => [])) || [];
+            for (const v of page) {
+                if (!v.created_by || String(v.end_date || '').slice(0, 10) < cutoff) continue;
+                if (!tripsBy.has(v.created_by)) tripsBy.set(v.created_by, []);
+                tripsBy.get(v.created_by)!.push(v);
+            }
+            if (page.length < 500) break;
+        }
         
         let scheduledCount = 0;
         
@@ -111,6 +142,7 @@ Deno.serve(async (req) => {
             const hourNow = localHour(userTimezone);
             if (hourNow < SEND_FROM_HOUR || hourNow > SEND_UNTIL_HOUR) continue;
             const today = getTodayInTimezone(userTimezone);
+            if (tripCovering(tripsBy.get(userEmail), today)) continue; // away: garden-wide pause
             
             // Fetch plants needing water
             // Due today or earlier, not on vacation, not already watered today
