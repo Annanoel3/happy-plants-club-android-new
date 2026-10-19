@@ -971,13 +971,16 @@ Deno.serve(async (req) => {
             //    try again here on the server, up to 3 tries per plant.
             try {
                 const stuck = (await db.Plant.filter({ add_status: { $in: ['identifying', 'failed'] } }, 'created_date', 20)) || [];
+                let retried = 0;
                 for (const p of stuck) {
+                    if (retried >= 3) break; // each one takes up to a minute
                     const info = p.add_info || {};
                     const tries = Number(info.tries) || 0;
                     if (tries >= 3 || info.error === 'limit_reached' || !p.image_url) continue;
                     const started = Date.parse(info.started_at || p.created_date) || 0;
                     const wait = p.add_status === 'identifying' ? 10 * 60 * 1000 : 30 * 60 * 1000;
                     if (now - started < wait) continue;
+                    retried++;
                     try {
                         const res = await fetch(`https://happyplants.club/api/apps/68e7e07bd0e33d2da3f22dbf/functions/identifyPlantWithExpert`, {
                             method: 'POST',
