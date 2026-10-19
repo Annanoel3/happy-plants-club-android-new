@@ -718,7 +718,14 @@ async function profilePlants(db: any, plants: any[], owner: any, now: number) {
         if (!ai) break; // try again on the next run
         for (const p of batch) {
             if (!ai[p.id]) continue;
-            try { await db.Plant.update(p.id, profilePatch(p, ai[p.id], ctx.today, ctx.hemi)); done++; } catch (e) { console.warn('profile save failed', p.id, (e as Error).message); }
+            try {
+                // The app and the hourly sweep can both be profiling the same plants (the AI
+                // call takes a while): re-read and skip any plant the other one already did.
+                const fresh = (await db.Plant.filter({ id: p.id }))?.[0];
+                if (!fresh || !needsProfile(fresh)) continue;
+                await db.Plant.update(p.id, profilePatch(fresh, ai[p.id], ctx.today, ctx.hemi));
+                done++;
+            } catch (e) { console.warn('profile save failed', p.id, (e as Error).message); }
         }
     }
     return done;
