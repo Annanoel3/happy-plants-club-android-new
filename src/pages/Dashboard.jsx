@@ -20,6 +20,7 @@ import NewPlantReview from "@/components/NewPlantReview";
 import WelcomeBack from "@/components/WelcomeBack";
 import { fetchTrips, tripCovering, welcomeBackTrip, niceDay, addDays } from "@/lib/vacation";
 import { whenPopupFree, releasePopup } from "@/lib/popupGate";
+import { toast } from "sonner";
 import { showAdForEvent } from "@/lib/admob";
 import { usePlus, useMe } from "@/lib/plus";
 import { refreshPlantData } from "@/lib/query-client";
@@ -778,7 +779,7 @@ export default function Dashboard() {
                 <span className="text-2xl" aria-hidden>🏖️</span>
                 <div className="flex-1 min-w-0">
                   <p className={`font-bold text-sm ${getTextColor()}`}>On vacation until {niceDay(awayTrip.end_date)}</p>
-                  <p className={`text-xs ${getSecondaryTextColor()}`}>Watering reminders are paused. Frost alerts still come.</p>
+                  <p className={`text-xs ${getSecondaryTextColor()}`}>Watering reminders are paused{plus ? '. Frost alerts still come' : ''}.</p>
                 </div>
                 <div className="flex flex-col gap-1.5 flex-shrink-0">
                   <button
