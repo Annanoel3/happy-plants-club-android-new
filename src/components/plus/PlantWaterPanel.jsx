@@ -29,6 +29,7 @@ export default function PlantWaterPanel({ plant, user, plus, plusReady, ui }) {
   }
 
   const amount = waterAmount(plant);
+  const pours = amount.kind === 'oz' || amount.kind === 'ground' || amount.kind === 'unknown';
   const hint = todayHint(plant);
   const showWeather = weatherApplies(plant) || plant.gets_rain === true;
   const rainOn = getsRain(plant);
@@ -89,16 +90,22 @@ export default function PlantWaterPanel({ plant, user, plus, plusReady, ui }) {
               </p>
             </>
           )}
-          {(amount.kind === 'ground' || amount.kind === 'reservoir') && (
+          {amount.kind === 'ground' && (
             <p className={`text-sm font-medium ${ui.text}`}>{amount.text}</p>
+          )}
+          {!pours && (
+            <>
+              <p className={`text-lg font-bold ${ui.text}`}>{amount.headline}</p>
+              <p className={`text-sm ${ui.sub}`}>{amount.text} You can change how it's watered with Edit.</p>
+            </>
           )}
           {amount.kind === 'unknown' && (
             <p className={`text-sm ${ui.text}`}>Pick the pot width below and we'll tell you how many ounces to give.</p>
           )}
         </div>
 
-        {/* Pot width */}
-        <div>
+        {/* Pot width (only matters when you pour water into the soil) */}
+        {pours && <div>
           {potSet && !potOpen ? (
             <button onClick={() => setPotOpen(true)} className={`text-sm underline ${ui.sub}`}>
               {plant.pot_diameter_in === 0 ? 'In the ground' : `${plant.pot_diameter_in}-inch pot`} · Change
@@ -118,7 +125,7 @@ export default function PlantWaterPanel({ plant, user, plus, plusReady, ui }) {
               </div>
             </>
           )}
-        </div>
+        </div>}
 
         {/* Weather */}
         {showWeather && (
