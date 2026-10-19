@@ -115,6 +115,16 @@ Deno.serve(async (req) => {
         }
 
         // 'due' (default)
+        // The phone's own pop-up just checked in (8 AM or "later today"), so it really is
+        // working on this phone: note that, and the 8 AM push skips this person for the
+        // next 36 hours. Widget refreshes don't count (source 'widget'); older builds send
+        // no source and only call this from the pop-up. At most one write every 6 hours.
+        if (body.source !== 'widget') {
+            const last = user.watering_popups_native_at ? Date.parse(user.watering_popups_native_at) : 0;
+            if (!last || Date.now() - last > 6 * 3600 * 1000) {
+                try { await base44.auth.updateMe({ watering_popups_native_at: new Date().toISOString() }); } catch { /* not worth failing the pop-up over */ }
+            }
+        }
         const [plants, plus] = await Promise.all([
             base44.entities.Plant.filter({ created_by: user.email }, '-created_date', 500).then((r: any) => r || []),
             isPlus(base44, user.id),
