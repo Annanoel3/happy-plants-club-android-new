@@ -170,6 +170,21 @@ function makePlan(plants: any[], vac: any, every: number, plus: boolean, today: 
     return { start, end, every, visit_days: visits, visits: visitsOut, warnings, not_needed: notNeeded };
 }
 
+// The PDF's built-in font only has Latin-1 letters: emoji or other scripts in a plant's
+// name would print as junk, so they're swapped for plain characters or dropped.
+function clean(s: any): string {
+    return String(s ?? '')
+        .replace(/[‘’‚′]/g, "'")
+        .replace(/[“”„″]/g, '"')
+        .replace(/[–—−]/g, '-')
+        .replace(/…/g, '...')
+        .replace(/[•·]/g, '-')
+        .normalize('NFC')
+        .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '')
+        .replace(/[ \t]{2,}/g, ' ')
+        .trim();
+}
+
 function buildPdf(plan: any, vac: any) {
     const doc = new jsPDF({ unit: 'mm', format: 'letter' });
     const W = 216, M = 16, maxY = 262;
@@ -197,12 +212,12 @@ function buildPdf(plan: any, vac: any) {
         doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(60, 60, 60);
         doc.text(lines, M, y); y += lines.length * 4.6 + 3;
     };
-    block('Notes', vac.notes || '');
-    block('Other instructions', vac.custom_instructions || '');
+    block('Notes', clean(vac.notes));
+    block('Other instructions', clean(vac.custom_instructions));
 
     if (plan.warnings.length) {
         // Plants that would wait too long between visits: the sitter checks them every time
-        const names = plan.warnings.map((w: any) => `${w.name} (${w.area})`).join(', ');
+        const names = plan.warnings.map((w: any) => `${clean(w.name) || 'Plant'} (${clean(w.area)})`).join(', ');
         const wrapped = doc.splitTextToSize(`At every visit, touch the soil of these plants and water them if the top inch is dry: ${names}.`, W - 2 * M - 6);
         need(10 + wrapped.length * 4.6);
         doc.setFillColor(255, 243, 205); doc.setDrawColor(230, 190, 90);
@@ -228,20 +243,23 @@ function buildPdf(plan: any, vac: any) {
         for (const a of v.areas) {
             need(14);
             doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...green);
-            doc.text(`${a.area} (${a.plants.length})`, M, y); y += 5.5;
+            doc.text(`${clean(a.area) || 'No area set'} (${a.plants.length})`, M, y); y += 5.5;
             for (const p of a.plants) {
+                const name = clean(p.name) || 'Plant', sci = clean(p.sci);
                 const how = doc.splitTextToSize(p.how, W - 2 * M - 10);
-                const note = p.note ? doc.splitTextToSize(`Note: ${p.note}`, W - 2 * M - 10) : [];
+                const note = clean(p.note) ? doc.splitTextToSize(`Note: ${clean(p.note)}`, W - 2 * M - 10) : [];
                 const h = 5 + how.length * 4.2 + note.length * 4.2 + 2;
                 if (y + h > maxY) { page(); dayHeader(true); }
                 doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.3);
                 doc.rect(M, y - 3.2, 3.8, 3.8);
                 doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(20, 20, 20);
-                doc.text(p.name, M + 6, y);
-                if (p.sci) {
-                    const nw = doc.getTextWidth(p.name);
+                doc.text(name, M + 6, y);
+                if (sci && sci.toLowerCase() !== name.toLowerCase()) {
+                    const nw = doc.getTextWidth(name);
                     doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(110, 110, 110);
-                    doc.text(p.sci, M + 8 + nw, y);
+                    const room = W - M - (M + 8 + nw);
+                    const fit = doc.splitTextToSize(sci, Math.max(20, room))[0];
+                    doc.text(room > 20 ? fit : '', M + 8 + nw, y);
                 }
                 y += 4.6;
                 doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(60, 60, 60);
@@ -260,7 +278,7 @@ function buildPdf(plan: any, vac: any) {
         doc.text('No water needed during the trip', M, y); y += 5.5;
         doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(90, 90, 90);
         const byArea = new Map<string, string[]>();
-        for (const p of plan.not_needed) { if (!byArea.has(p.area)) byArea.set(p.area, []); byArea.get(p.area)!.push(p.name); }
+        for (const p of plan.not_needed) { const a = clean(p.area) || 'No area set'; if (!byArea.has(a)) byArea.set(a, []); byArea.get(a)!.push(clean(p.name) || 'Plant'); }
         for (const [area, names] of byArea) {
             const lines = doc.splitTextToSize(`${area}: ${names.sort().join(', ')}`, W - 2 * M);
             need(lines.length * 4.4 + 1);
