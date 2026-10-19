@@ -32,12 +32,14 @@ export function queueWaterings(items) {
   return op.id;
 }
 
-/** Forget a queued op (Undo before it was sent). True if it was still waiting. */
-export function dropQueued(opId) {
+/** Forget a queued watering (Undo before it was sent): one plant, or the whole op. True if it was still waiting. */
+export function dropQueued(opId, plantId = null) {
   const list = load();
-  const next = list.filter((op) => op.id !== opId);
-  if (next.length === list.length) return false;
-  save(next);
+  const op = list.find((o) => o.id === opId);
+  if (!op) return false;
+  const items = plantId ? op.items.filter((x) => x.plant_id !== plantId) : [];
+  if (plantId && items.length === op.items.length) return false;
+  save(items.length ? list.map((o) => (o.id === opId ? { ...o, items } : o)) : list.filter((o) => o.id !== opId));
   return true;
 }
 
