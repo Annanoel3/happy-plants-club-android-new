@@ -737,6 +737,7 @@ export default function Schedule() {
           >
             <Plus className="w-4 h-4 mr-2" /> Add Vacation
           </Button>
+          <PlantdokuEgg page="schedule" className="mt-6" />
         </div>
       </div>
 
