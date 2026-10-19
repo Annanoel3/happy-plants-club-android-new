@@ -15,6 +15,8 @@ import QuickLogModal from "@/components/QuickLogModal";
 
 import PlantTypeStack from "@/components/PlantTypeStack";
 import BulkActionBar from "@/components/BulkActionBar";
+import WateringRound, { dueNow } from "@/components/WateringRound";
+import { usePlus, useMe } from "@/lib/plus";
 import { AnimatePresence } from "framer-motion";
 
 export default function Dashboard() {
@@ -28,6 +30,12 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [wateringRemindersEnabled, setWateringRemindersEnabled] = useState(true);
   const [selectMode, setSelectMode] = useState(false);
+  const [roundOpen, setRoundOpen] = useState(false);
+  const [laterToday, setLaterToday] = useState(() => {
+    try { return localStorage.getItem('hp_round_later') === localToday(); } catch { return false; }
+  });
+  const plus = usePlus();
+  const { me } = useMe();
   const [selectedIds, setSelectedIds] = useState([]);
   const [categorizing, setCategorizing] = useState(false);
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('garden_sortBy') || null);
@@ -475,9 +483,37 @@ export default function Dashboard() {
   return plant.next_watering_due <= today; // Include overdue plants
   });
 
-  const showWateringReminder = todayReminder && 
-                                !todayReminder.dismissed && 
-                                plantsNeedingWaterToday.length > 0;
+  // Due right now (not on vacation, not already watered today), for the watering round
+  const dueToday = dueNow(plantsList);
+  const dueAreas = (() => {
+    const m = new Map();
+    for (const p of dueToday) {
+      const raw = String(p.location || '').trim();
+      const k = raw.toLowerCase() || '~none';
+      if (!m.has(k)) m.set(k, { label: raw || 'No area', n: 0 });
+      m.get(k).n++;
+    }
+    return [...m.values()].sort((a, b) => b.n - a.n);
+  })();
+  const dueAreaText = dueAreas.length === 1
+    ? (dueAreas[0].label === 'No area' ? null : `All in ${dueAreas[0].label}`)
+    : dueAreas.slice(0, 2).map((a) => `${a.label} ${a.n}`).join(' · ') + (dueAreas.length > 2 ? ` · +${dueAreas.length - 2} more` : '');
+
+  // Shows for everyone with something due (not only on days the 8 AM push went out)
+  const showWateringReminder = dueToday.length > 0 && !laterToday && !todayReminder?.dismissed;
+
+  const roundUi = {
+    card: getThemedClasses(),
+    text: getTextColor(),
+    sub: getSecondaryTextColor(),
+    light: getTextColor() === 'text-gray-900',
+  };
+
+  const remindLater = () => {
+    try { localStorage.setItem('hp_round_later', localToday()); } catch { /* ignore */ }
+    setLaterToday(true);
+    if (todayReminder && !todayReminder.dismissed) dismissWateringReminder('not_yet');
+  };
 
 
 
@@ -485,6 +521,15 @@ export default function Dashboard() {
     <>
       <DailyWeatherPopup />
       <LocationPrompt plantCount={plants?.length || 0} />
+      <WateringRound
+        open={roundOpen}
+        onClose={() => setRoundOpen(false)}
+        plants={plantsList}
+        user={me || user}
+        plus={plus}
+        ui={roundUi}
+        onAllDone={() => { if (todayReminder && !todayReminder.dismissed) dismissWateringReminder('done'); }}
+      />
       <div className={`min-h-screen theme-bg overflow-y-auto ${selectMode ? 'pb-72' : 'pb-28'}`}>
         <div className="max-w-6xl mx-auto px-4 pt-6">
 
@@ -524,6 +569,16 @@ export default function Dashboard() {
             <div className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold ${getThemedClasses()} ${getTextColor()}`}>
               🌿 <span>{plantsList.length}</span>
             </div>
+            {/* Watering round: only what's due, by area */}
+            {dueToday.length > 0 && (
+              <button
+                onClick={() => setRoundOpen(true)}
+                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-blue-600 text-white active:scale-95"
+                aria-label={`Water ${dueToday.length} due plants`}
+              >
+                <Droplets className="w-4 h-4" /> {dueToday.length} due
+              </button>
+            )}
             {/* Sort */}
             {plantsList.length > 0 && (
               <SortFilterBar
@@ -577,21 +632,22 @@ export default function Dashboard() {
                 <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
                   <Droplets className="w-5 h-5 text-blue-400 animate-bounce" />
                 </div>
-                <div className="flex-1 min-w-0">
+                <button onClick={() => setRoundOpen(true)} className="flex-1 min-w-0 text-left">
                   <p className={`font-bold text-sm ${getTextColor()}`}>Time to water!</p>
                   <p className={`text-xs ${getSecondaryTextColor()}`}>
-                    {plantsNeedingWaterToday.length} {plantsNeedingWaterToday.length === 1 ? 'plant needs' : 'plants need'} water today
+                    {dueToday.length} {dueToday.length === 1 ? 'plant needs' : 'plants need'} water today
                   </p>
-                </div>
+                  {dueAreaText && <p className={`text-xs truncate ${getSecondaryTextColor()}`}>{dueAreaText}</p>}
+                </button>
                 <div className="flex gap-2 flex-shrink-0">
                   <button
-                    onClick={() => dismissWateringReminder('done')}
+                    onClick={() => setRoundOpen(true)}
                     className="px-3 py-1.5 rounded-xl bg-emerald-500 text-white text-xs font-bold"
                   >
-                    Done ✓
+                    Start
                   </button>
                   <button
-                    onClick={() => dismissWateringReminder('not_yet')}
+                    onClick={remindLater}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${getThemedClasses()} ${getTextColor()}`}
                   >
                     Later
