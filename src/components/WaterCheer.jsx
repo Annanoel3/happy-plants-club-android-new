@@ -61,15 +61,15 @@ function Face({ lx, rx, y, happy = false, open = false }) {
 function CanScene() {
   return (
     <svg viewBox="0 0 240 200" className="hpwc-svg">
-      <g fill={WATER} stroke={O} strokeWidth="2.5">
-        <path className="hpwc-drop" style={{ '--dx': '14px', '--dy': '34px', animationDelay: '0s' }} d={drop(160, 104)} />
-        <path className="hpwc-drop" style={{ '--dx': '18px', '--dy': '36px', animationDelay: '.3s' }} d={drop(165, 101)} />
-        <path className="hpwc-drop" style={{ '--dx': '10px', '--dy': '32px', animationDelay: '.6s' }} d={drop(155, 108)} />
-      </g>
       <g className="hpwc-wiggle">
         <Stem d="M192 150 L192 116" />
         <path d="M192 124 C180 106 162 110 165 121 C168 131 184 131 192 124 Z" fill={LEAF} stroke={O} strokeWidth="3.5" strokeLinejoin="round" />
         <path d="M192 117 C202 98 221 101 219 112 C217 122 202 124 192 117 Z" fill={LEAF} stroke={O} strokeWidth="3.5" strokeLinejoin="round" />
+      </g>
+      <g fill={WATER} stroke={O} strokeWidth="2.5">
+        <path className="hpwc-drop" style={{ '--dx': '14px', '--dy': '38px', animationDelay: '0s' }} d={drop(160, 104)} />
+        <path className="hpwc-drop" style={{ '--dx': '18px', '--dy': '40px', animationDelay: '.3s' }} d={drop(165, 101)} />
+        <path className="hpwc-drop" style={{ '--dx': '10px', '--dy': '36px', animationDelay: '.6s' }} d={drop(155, 108)} />
       </g>
       <path d="M166 160 H218 L210 194 H174 Z" fill={POT} stroke={O} strokeWidth="4" strokeLinejoin="round" />
       <rect x="160" y="146" width="64" height="15" rx="5" fill={RIM} stroke={O} strokeWidth="4" />
