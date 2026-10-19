@@ -18,6 +18,10 @@ export default function DailyWeatherPopup() {
     return 'light';
   });
 
+  // Waiting for our popup turn; stop waiting (and give the turn back) if this page closes
+  const cancelWaitRef = React.useRef(null);
+  useEffect(() => () => { cancelWaitRef.current?.(); releasePopup('weather'); }, []);
+
   useEffect(() => {
     // Check if opened via push notification deep link
     const urlParams = new URLSearchParams(window.location.search);
@@ -170,7 +174,7 @@ export default function DailyWeatherPopup() {
             setLocation(data.location);
             setWeatherImage(getWeatherImage(cleanMessage));
             // Never on top of another popup: wait for our turn
-            whenPopupFree('weather', () => setIsOpen(true));
+            cancelWaitRef.current = whenPopupFree('weather', () => setIsOpen(true));
         }
       }
     } catch (error) {
