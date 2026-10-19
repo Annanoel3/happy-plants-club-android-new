@@ -521,7 +521,10 @@ export default function Dashboard() {
     setBulkSeenTick((t) => t + 1);
     setBulkOpen(false);
     releasePopup('bulknew');
-    // One ad per add, after the note (never on top of it)
+    showPendingAddAd();
+  };
+  // One ad per add, after the last popup about it closes (never on top of one)
+  const showPendingAddAd = () => {
     let pending = false;
     try { pending = sessionStorage.getItem('hp_add_ad_pending') === '1'; sessionStorage.removeItem('hp_add_ad_pending'); } catch { /* ignore */ }
     if (pending) setTimeout(() => showAdForEvent('add'), 800);
@@ -538,10 +541,7 @@ export default function Dashboard() {
     setReviewSkip((s) => new Set(s).add(p.id));
     if (remaining.length) return; // next one shows in the same sheet
     closeReview();
-    // One ad per add, after the last new plant is checked (never on top of the sheet)
-    let pending = false;
-    try { pending = sessionStorage.getItem('hp_add_ad_pending') === '1'; sessionStorage.removeItem('hp_add_ad_pending'); } catch { /* ignore */ }
-    if (pending) setTimeout(() => showAdForEvent('add'), 800);
+    showPendingAddAd();
   };
 
   // After a trip with a sitter plan: "Did your sitter water as planned?" (one popup at a time)
@@ -700,6 +700,7 @@ export default function Dashboard() {
               base44.entities.Plant.update(p.id, { add_info: { ...(p.add_info || {}), later: true } }).catch(() => {});
             }
             closeReview(reviewQueue.map((p) => p.id));
+            showPendingAddAd();
           }}
         />
       )}
