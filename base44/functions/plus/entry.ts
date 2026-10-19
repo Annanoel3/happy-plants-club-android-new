@@ -570,6 +570,11 @@ Deno.serve(async (req) => {
             // so nobody can hammer the weather/map services through it.
             const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
             if (!sweepKey || body.key !== sweepKey) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+            // Testing only: { test_frost: { email, low_f } } pretends tonight's low is low_f for
+            // that one account (any time of day), so the frost push can be checked end to end.
+            const tf = body.test_frost;
+            const testFrost = tf && typeof tf.email === 'string' && Number.isFinite(Number(tf.low_f))
+                ? { email: tf.email, low_f: Math.round(Number(tf.low_f)) } : null;
             const subs = (await db.Subscription.filter({ active: true }, '-updated_date', 1000)) || [];
             const plusIds = new Set(subs
                 .filter((s: any) => !s.expires_at || Date.parse(s.expires_at) > now)
