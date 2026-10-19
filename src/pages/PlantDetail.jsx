@@ -664,385 +664,260 @@ export default function PlantDetail() {
     mature: '🌲'
   };
 
+  // ---- Page pieces (plain values, no hooks below the early returns) ----
+  const title = plant.nickname || plant.name || 'Plant';
+  const commonName = plant.nickname && plant.name && plant.name !== plant.nickname ? plant.name : null;
+  const sciName = plant.scientific_name && plant.scientific_name.toLowerCase() !== String(plant.nickname ? '' : plant.name || '').toLowerCase()
+    ? plant.scientific_name : null;
+  const schedule = plant.water_frequency_days ? scheduleText(plant) : null;
+  const amount = waterAmount(plant);
+  const specialWater = !['oz', 'ground', 'unknown'].includes(amount.kind);
+  const chipCls = `inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold ${
+    ui.light ? 'bg-white/90 border border-gray-200 text-gray-800' : 'bg-white/10 border border-white/15 text-white'}`;
+  const sectionCls = `rounded-2xl p-4 shadow-sm ${ui.card}`;
+  const rowBg = ui.light ? 'bg-gray-50' : 'bg-white/5';
+  const careGuide = [
+    ['☀️', 'Light', plant.care_instructions?.sunlight],
+    ['💧', 'Water', plant.care_instructions?.watering],
+    ['🪴', 'Soil', plant.care_instructions?.soil],
+    ['💨', 'Humidity', plant.care_instructions?.humidity],
+    ['🌡️', 'Temperature', plant.care_instructions?.temperature],
+    ['🌱', 'Feeding', plant.care_instructions?.fertilizing],
+    ['💡', 'Tips', plant.care_instructions?.tips],
+  ].filter(([, , t]) => t && String(t).trim());
+  const tabCls = `${ui.light ? 'data-[state=active]:bg-green-100 data-[state=active]:text-green-800' : 'data-[state=active]:bg-green-700 data-[state=active]:text-white'} rounded-lg px-3 py-2 text-sm font-semibold`;
+
   return (
-    <div className="min-h-screen theme-bg pb-24">
-      <div className="max-w-4xl mx-auto p-6">
-        <button onClick={() => navigate('/Dashboard')} className="mb-6 flex items-center gap-2 theme-text hover:opacity-70">
-          <ArrowLeft className="w-5 h-5" />
-          Back to Garden
-        </button>
+    <div className="min-h-screen theme-bg pb-28">
+      <div className="max-w-2xl mx-auto px-4 pt-4">
+        {/* Top bar */}
+        <div className="flex items-center justify-between mb-3">
+          <button onClick={() => navigate('/Dashboard')} className="flex items-center gap-1.5 py-2 -ml-1 text-sm font-semibold theme-text hover:opacity-70">
+            <ArrowLeft className="w-5 h-5" /> Garden
+          </button>
+          <button onClick={() => setShowEditDialog(true)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold shadow-sm ${ui.card} ${ui.text}`}>
+            <Edit className="w-4 h-4" /> Edit
+          </button>
+        </div>
+
+        {/* 1. The plant: photo, name, where it lives */}
+        <div className="relative rounded-3xl overflow-hidden shadow-lg aspect-[4/3] bg-green-50">
+          {plant.image_url ? (
+            <>
+              <img src={plant.image_url} alt={title} className={`w-full h-full object-cover ${plant.status === 'wilted' ? 'grayscale' : ''}`} />
+              <button onClick={mainPhoto.openPicker} disabled={isUploadingImage} aria-label="Change photo"
+                className="absolute bottom-3 right-3 bg-black/55 backdrop-blur text-white p-2.5 rounded-full active:scale-95">
+                {isUploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
+              </button>
+            </>
+          ) : (
+            <button onClick={mainPhoto.openPicker} disabled={isUploadingImage}
+              className="w-full h-full flex flex-col items-center justify-center gap-2 text-green-700">
+              {isUploadingImage ? <Loader2 className="w-8 h-8 animate-spin" /> : <Camera className="w-8 h-8" />}
+              <span className="font-semibold">{isUploadingImage ? 'Uploading…' : 'Add a photo'}</span>
+            </button>
+          )}
+          {plant.growth_stage && (
+            <span className="absolute top-3 left-3 rounded-full bg-white/90 text-gray-900 text-xs font-semibold px-2.5 py-1 shadow">
+              {growthEmojis[plant.growth_stage]} {plant.growth_stage.charAt(0).toUpperCase() + plant.growth_stage.slice(1)}
+            </span>
+          )}
+          {mainPhoto.sheet}
+        </div>
+
+        <div className="mt-4">
+          <h1 className={`text-3xl font-bold leading-tight ${ui.text}`}>{title}</h1>
+          {(commonName || sciName) && (
+            <p className={`mt-0.5 ${ui.sub}`}>
+              {commonName}{commonName && sciName ? ' · ' : ''}
+              {sciName && <i>{sciName}{plant.hybrid_name ? ` '${plant.hybrid_name}'` : ''}</i>}
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button onClick={() => setShowEditDialog(true)} className={chipCls}>
+              <MapPin className="w-3.5 h-3.5" /> {plant.location || 'Add where it lives'}
+            </button>
+            {plant.environment && <span className={chipCls}>{plant.environment}</span>}
+            <span className={chipCls}>
+              <Droplets className="w-3.5 h-3.5" /> {plant.total_waterings || 0} watering{(plant.total_waterings || 0) === 1 ? '' : 's'}
+            </span>
+          </div>
+        </div>
 
         {/* New plant: finish setting it up (where it lives, how it's watered, pot, name) */}
-        {plant?.add_status === 'identifying' && (
-          <div className={`mb-6 rounded-2xl p-4 flex items-center gap-3 ${getThemedClasses()}`} role="status">
+        {plant.add_status === 'identifying' && (
+          <div className={`mt-4 ${sectionCls} flex items-center gap-3`} role="status">
             <Loader2 className="w-5 h-5 animate-spin text-green-600" />
-            <p className={`text-sm ${getTextColor()}`}>Naming this plant… it usually takes under a minute.</p>
+            <p className={`text-sm ${ui.text}`}>Naming this plant… it usually takes under a minute.</p>
           </div>
         )}
-        {(plant?.add_status === 'review' || plant?.add_status === 'failed') && (
-          <NewPlantReview
-            inline
-            plant={plant}
-            allPlants={gardenPlants}
-            ui={{ card: getThemedClasses(), text: getTextColor(), sub: getSecondaryTextColor(), light: getTextColor() === 'text-gray-900' }}
-            navigate={navigate}
-            onDone={() => {
-              queryClient.invalidateQueries({ queryKey: ['plant'] });
-              queryClient.invalidateQueries({ queryKey: ['plants'] });
-              toast.success('Saved. It\'s out of Newly added.');
-            }}
-          />
+        {(plant.add_status === 'review' || plant.add_status === 'failed') && (
+          <div className="mt-4">
+            <NewPlantReview
+              inline
+              plant={plant}
+              allPlants={gardenPlants}
+              ui={ui}
+              navigate={navigate}
+              onDone={() => {
+                queryClient.invalidateQueries({ queryKey: ['plant'] });
+                queryClient.invalidateQueries({ queryKey: ['plants'] });
+                toast.success("Saved. It's out of Newly added.");
+              }}
+            />
+          </div>
         )}
 
-        {/* Tags Section */}
-        {plant && (
-          <Card className={`${getThemedClasses()} mb-6`}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className={`font-semibold ${getTextColor()}`}>🏷️ Tags</h3>
-                <Button
-                  size="sm"
-                  onClick={() => setShowTagDialog(true)}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Add Tag
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {plant.tags && plant.tags.length > 0 ? (
-                  plant.tags.map((tag, idx) => (
-                    <Badge
-                      key={idx}
-                      className={isThemeLight(theme) ? "bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer group relative" : "bg-blue-700 text-white hover:bg-blue-800 cursor-pointer group relative"}
-                      onClick={() => removeTagMutation.mutate(tag)}
-                    >
-                      {tag}
-                      <X className="w-3.5 h-3.5 ml-1" strokeWidth={2.5} aria-label="Remove tag" />
-                    </Badge>
-                  ))
-                ) : (
-                  <p className={`text-sm ${getSecondaryTextColor()}`}>No tags yet</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* 2. Watering: when, how, and the button */}
+        <section className={`mt-4 ${sectionCls}`} aria-label="Watering">
+          <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-bold ${wateringStatus.bg} ${wateringStatus.color}`}>
+            <Droplets className="w-4 h-4" /> {wateringStatus.text}
+          </div>
+          {schedule && (
+            <p className={`mt-3 font-semibold ${ui.text}`}>
+              {methodInfo(plant).icon} {schedule.main}{plus && amount.kind === 'oz' ? ` · about ${amount.oz} oz` : ''}
+            </p>
+          )}
+          {schedule?.note && <p className={`text-sm ${ui.sub}`}>{schedule.note}</p>}
+          {specialWater && <p className={`text-sm ${ui.sub}`}>{amount.text}</p>}
+          {plant.last_watered && (
+            <p className={`text-sm mt-1 ${ui.sub}`}>Last watered {format(parseISO(String(plant.last_watered).slice(0, 10)), 'EEE, MMM d')}</p>
+          )}
+          {plus && hintLine(plant) && <p className={`mt-2 text-sm font-semibold ${ui.text}`}>{hintLine(plant)}</p>}
+          <Button onClick={() => setShowWaterDialog(true)} className="mt-4 w-full h-12 text-base bg-blue-600 hover:bg-blue-700 gap-2">
+            <Droplets className="w-5 h-5" /> Log watering
+          </Button>
+        </section>
 
-        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-          <TabsList className={`${getThemedClasses()} w-full grid grid-cols-4 mb-6 gap-1 p-1`}>
-            <TabsTrigger value="details" className={`${isThemeLight(theme) ? 'data-[state=active]:bg-green-100 data-[state=active]:text-green-700' : 'data-[state=active]:bg-green-700 data-[state=active]:text-white'} rounded-lg px-3 py-2`}>Details</TabsTrigger>
-            <TabsTrigger value="reminders" className={`${isThemeLight(theme) ? 'data-[state=active]:bg-green-100 data-[state=active]:text-green-700' : 'data-[state=active]:bg-green-700 data-[state=active]:text-white'} rounded-lg px-3 py-2`}>Reminders</TabsTrigger>
-            <TabsTrigger value="history" className={`${isThemeLight(theme) ? 'data-[state=active]:bg-green-100 data-[state=active]:text-green-700' : 'data-[state=active]:bg-green-700 data-[state=active]:text-white'} rounded-lg px-3 py-2`}>History</TabsTrigger>
-            <TabsTrigger value="progress" className={`${isThemeLight(theme) ? 'data-[state=active]:bg-green-100 data-[state=active]:text-green-700' : 'data-[state=active]:bg-green-700 data-[state=active]:text-white'} rounded-lg px-3 py-2`}>Progress</TabsTrigger>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <PlantHealthCheck plant={plant} openKey={healthOpenKey} />
+          <Button variant="outline" onClick={() => setShowChatDialog(true)} className={`w-full gap-2 ${ui.card} ${ui.text}`}>
+            <MessageCircle className="w-4 h-4" /> Ask about it
+          </Button>
+        </div>
+
+        {/* 3. Everything else, in three tabs */}
+        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full mt-6">
+          <TabsList className={`${ui.card} w-full grid grid-cols-3 mb-4 gap-1 p-1 h-auto`}>
+            <TabsTrigger value="care" className={tabCls}>Care</TabsTrigger>
+            <TabsTrigger value="history" className={tabCls}>History</TabsTrigger>
+            <TabsTrigger value="progress" className={tabCls}>Photos</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="details" className="grid gap-6">
-            <div>
-              <Card className={`${getThemedClasses()} overflow-hidden shadow-xl mb-4`}>
-                <div className="relative h-80 bg-green-50 group">
-                  {plant.image_url ? (
-                    <>
-                      <img
-                        src={plant.image_url}
-                        alt={plant.name}
-                        className={`w-full h-full object-cover ${
-                          plant.status === 'wilted' ? 'grayscale' : ''
-                        }`}
-                      />
-                      <button
-                        onClick={mainPhoto.openPicker}
-                        disabled={isUploadingImage}
-                        aria-label="Change photo"
-                        className="absolute bottom-4 right-4 bg-green-600 text-white p-3 rounded-full shadow-lg ring-2 ring-white active:bg-green-700"
-                      >
-                        {isUploadingImage ? (
-                          <Loader2 className="w-6 h-6 animate-spin" />
-                        ) : (
-                          <Camera className="w-6 h-6" strokeWidth={2.25} />
-                        )}
-                      </button>
-                    </>
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center theme-bg">
-                      <Droplets className="w-20 h-20 text-green-300 mb-4" />
-                      <button
-                        onClick={mainPhoto.openPicker}
-                        disabled={isUploadingImage}
-                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl flex items-center gap-2"
-                      >
-                        {isUploadingImage ? (
-                          <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            Uploading...
-                          </>
-                        ) : (
-                          <>
-                            <Camera className="w-5 h-5" />
-                            Add Photo
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                  {mainPhoto.sheet}
-                  {plant.growth_stage && (
-                    <div className="absolute top-4 left-4 text-4xl">
-                      {growthEmojis[plant.growth_stage]}
-                    </div>
-                  )}
-                </div>
-              </Card>
+          <TabsContent value="care" className="space-y-4 mt-0">
+            {plus ? (
+              <>
+                <PlantWaterPanel plant={plant} user={me} plus={plus} plusReady={plusReady} ui={ui} />
+                <CareScheduleCard plant={plant} user={me} plus={plus} plusReady={plusReady} ui={ui} />
+                <HealthHistoryCard plant={plant} plus={plus} plusReady={plusReady} ui={ui} onRecheck={() => setHealthOpenKey((k) => k + 1)} />
+              </>
+            ) : plusReady ? (
+              <button onClick={() => navigate('/Premium')} className={`w-full text-left ${sectionCls}`}>
+                <p className={`font-semibold flex items-center gap-2 ${ui.text}`}><Lock className="w-4 h-4" /> More care with Plus</p>
+                <p className={`text-sm mt-1 ${ui.sub}`}>How many ounces to give, rain and heat adjustments, reminders to feed, mist, turn and repot, and follow-ups after a health check.</p>
+              </button>
+            ) : null}
 
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  onClick={() => setShowWaterDialog(true)}
-                  className="bg-blue-600 hover:bg-blue-700 gap-2"
-                >
-                  <Droplets className="w-4 h-4" />
-                  Water Plant
-                </Button>
-                <PlantHealthCheck plant={plant} openKey={healthOpenKey} />
-              </div>
-
-              <div className="mt-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowChatDialog(true)}
-                  className={`w-full ${getThemedClasses()} ${getTextColor()}`}
-                >
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  Chat about {plant.nickname || plant.name}
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <Card className={getThemedClasses()}>
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h1 className={`text-3xl font-bold mb-2 ${getTextColor()}`}>
-                        {plant.nickname || plant.name}
-                      </h1>
-                      {plant.nickname && (
-                        <p className={`text-lg italic ${getSecondaryTextColor()}`}>
-                          {plant.name}
-                          {plant.scientific_name && ` (${plant.scientific_name})`}
-                          {plant.hybrid_name && ` '${plant.hybrid_name}'`}
-                        </p>
-                      )}
-                      {!plant.nickname && plant.scientific_name && (
-                        <p className={`text-lg italic ${getSecondaryTextColor()}`}>
-                          {plant.scientific_name}
-                          {plant.hybrid_name && ` '${plant.hybrid_name}'`}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="icon"
-                        onClick={() => setShowEditDialog(true)}
-                        aria-label="Edit plant"
-                        className="bg-white text-gray-900 hover:bg-gray-100 border border-gray-300 shadow"
-                      >
-                        <Edit className="w-5 h-5" strokeWidth={2.25} />
-                      </Button>
-                      <Button
-                        size="icon"
-                        onClick={() => {
-                          if (confirm('Are you sure you want to remove this plant?')) {
-                            deletePlantMutation.mutate();
-                          }
-                        }}
-                        aria-label="Remove plant"
-                        className="bg-red-600 text-white hover:bg-red-700 shadow"
-                      >
-                        <Trash2 className="w-5 h-5" strokeWidth={2.25} />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className={`${wateringStatus.bg} ${wateringStatus.color} p-4 rounded-xl mb-4 font-semibold flex items-center gap-2`}>
-                    <Droplets className="w-5 h-5" />
-                    {wateringStatus.text}
-                  </div>
-                  {plus && hintLine(plant) && (
-                    <p className={`-mt-2 mb-4 text-sm font-semibold ${getTextColor()}`}>{hintLine(plant)}</p>
-                  )}
-
-                  {/* Location Section - PROMINENT */}
-                  <div className="mb-6 pb-6 border-b border-green-500/30">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className={`font-bold text-lg flex items-center gap-2 ${getTextColor()}`}>
-                        <MapPin className="w-5 h-5 text-green-500" />
-                        Where is this plant?
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setShowEditDialog(true)}
-                        className={`${getThemedClasses()} ${getTextColor()}`}
-                      >
-                        <Edit className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      {plant.location ? (
-                        <div className="px-4 py-3 rounded-lg bg-green-100 dark:bg-green-900/30 border border-green-300/50">
-                          <p className={`font-semibold text-green-900 dark:text-green-100`}>{plant.location}</p>
-                        </div>
-                      ) : (
-                        <p className={`text-sm italic ${getSecondaryTextColor()}`}>Location not set yet</p>
-                      )}
-                      {plant.environment && (
-                        <div className="text-sm flex items-center gap-2">
-                          <span className="text-gray-400">•</span>
-                          <span className={getSecondaryTextColor()}>{plant.environment}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {plant.last_watered && (
-                      <div className="flex items-center gap-3">
-                        <Droplets className={`w-5 h-5 ${getSecondaryTextColor()}`} />
-                        <span className={getTextColor()}>
-                          Last watered: {format(parseISO(plant.last_watered), 'MMM d, yyyy')}
-                        </span>
+            {careGuide.length > 0 && (
+              <section className={sectionCls}>
+                <h2 className={`text-lg font-semibold ${ui.text}`}>Care guide</h2>
+                <dl className="mt-3 space-y-3">
+                  {(guideOpen ? careGuide : careGuide.slice(0, 3)).map(([icon, label, text]) => (
+                    <div key={label} className="flex gap-3">
+                      <span className="w-6 text-center text-lg leading-6 shrink-0" aria-hidden>{icon}</span>
+                      <div className="min-w-0">
+                        <dt className={`text-sm font-semibold ${ui.text}`}>{label}</dt>
+                        <dd className={`text-sm ${ui.sub}`}>{text}</dd>
                       </div>
-                    )}
-                    {plant.water_frequency_days && (() => {
-                      const st = scheduleText(plant);
-                      const amt = waterAmount(plant);
-                      const special = !['oz', 'ground', 'unknown'].includes(amt.kind);
-                      return (
-                        <div className="flex items-start gap-3">
-                          <span className="w-5 text-center text-base leading-6 shrink-0" aria-hidden>{methodInfo(plant).icon}</span>
-                          <div className="min-w-0">
-                            <p className={getTextColor()}>{st?.main}</p>
-                            {st?.note && <p className={`text-xs ${getSecondaryTextColor()}`}>{st.note}</p>}
-                            {special && <p className={`text-xs ${getSecondaryTextColor()}`}>{amt.text}</p>}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                    <div className="flex items-center gap-3">
-                      <Badge className={isThemeLight(theme) ? 'bg-purple-100 text-purple-800' : 'bg-purple-700 text-white'}>
-                        {plant.total_waterings || 0} waterings
-                      </Badge>
-                      {plant.growth_stage && (
-                        <Badge className={isThemeLight(theme) ? 'bg-green-100 text-green-800' : 'bg-green-700 text-white'}>
-                          {plant.growth_stage}
-                        </Badge>
-                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <PlantWaterPanel plant={plant} user={me} plus={plus} plusReady={plusReady} ui={ui} />
-              <CareScheduleCard plant={plant} user={me} plus={plus} plusReady={plusReady} ui={ui} />
-              <HealthHistoryCard plant={plant} plus={plus} plusReady={plusReady} ui={ui} onRecheck={() => setHealthOpenKey((k) => k + 1)} />
-
-              {plant.care_instructions && (
-                <Card className={getThemedClasses()}>
-                  <CardContent className="p-6">
-                    <h2 className={`text-xl font-semibold mb-4 ${getTextColor()}`}>Care Instructions</h2>
-                    <div className={`space-y-3 text-sm ${getTextColor()}`}>
-                      {plant.care_instructions.watering && (
-                        <div>
-                          <p className={`font-semibold mb-1 ${getTextColor()}`}>💧 Watering:</p>
-                          <p className={getSecondaryTextColor()}>{plant.care_instructions.watering}</p>
-                        </div>
-                      )}
-                      {plant.care_instructions.sunlight && (
-                        <div>
-                          <p className={`font-semibold mb-1 ${getTextColor()}`}>☀️ Sunlight:</p>
-                          <p className={getSecondaryTextColor()}>{plant.care_instructions.sunlight}</p>
-                        </div>
-                      )}
-                      {plant.care_instructions.tips && (
-                        <div>
-                          <p className={`font-semibold mb-1 ${getTextColor()}`}>💡 Tips:</p>
-                          <p className={getSecondaryTextColor()}>{plant.care_instructions.tips}</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Per-plant vacation is gone: vacations cover the whole garden now (Schedule).
-                  A plant that still has the old switch on can turn it off here. */}
-              {vacationModeEnabled && (
-                <Card className={getThemedClasses()}>
-                  <CardContent className="p-4 flex items-center justify-between gap-3">
-                    <p className={`text-sm ${getTextColor()}`}>
-                      🏖️ Reminders paused for this plant
-                      {plant.vacation_end_date ? ` until ${format(parseISO(plant.vacation_end_date), 'MMM d')}` : ''}.
-                    </p>
-                    <Button size="sm" variant="outline" onClick={() => toggleVacationModeMutation.mutate({ enabled: false, startDate: null, endDate: null })}>
-                      Turn off
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="reminders">
-            <Card className={getThemedClasses()}>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className={`text-xl font-semibold ${getTextColor()}`}>Reminders</h2>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowReminderDialog(true)}
-                    className={`${getThemedClasses()} ${getTextColor()}`}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add
-                  </Button>
-                </div>
-                {reminders.length === 0 ? (
-                  <p className={`text-sm ${getSecondaryTextColor()}`}>No reminders set</p>
-                ) : (
-                  <div className="space-y-2">
-                    {reminders.map(reminder => (
-                      <div key={reminder.id} className={`flex items-start gap-3 p-3 rounded-lg border ${getThemedClasses()}`}>
-                        <button
-                          onClick={() => toggleReminderMutation.mutate({
-                            id: reminder.id,
-                            completed: !reminder.completed
-                          })}
-                          className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center ${
-                            reminder.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'
-                          }`}
-                        >
-                          {reminder.completed && <Check className="w-3 h-3 text-white" />}
-                        </button>
-                        <div className="flex-1">
-                          <p className={`font-medium ${reminder.completed ? 'line-through' : ''} ${getTextColor()}`}>
-                            {reminder.title}
-                          </p>
-                          {reminder.description && (
-                            <p className={`text-sm ${getSecondaryTextColor()}`}>{reminder.description}</p>
-                          )}
-                          <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>
-                            {format(parseISO(reminder.due_date), 'MMM d, yyyy')}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  ))}
+                </dl>
+                {careGuide.length > 3 && (
+                  <button onClick={() => setGuideOpen((o) => !o)} className="mt-3 text-sm font-semibold text-green-600">
+                    {guideOpen ? 'Show less' : `Show all ${careGuide.length}`}
+                  </button>
                 )}
-              </CardContent>
-            </Card>
+              </section>
+            )}
+
+            {plant.notes && (
+              <section className={sectionCls}>
+                <h2 className={`text-lg font-semibold ${ui.text}`}>Your notes</h2>
+                <p className={`mt-1 text-sm whitespace-pre-wrap ${ui.sub}`}>{plant.notes}</p>
+              </section>
+            )}
+
+            <section className={sectionCls}>
+              <div className="flex items-center justify-between">
+                <h2 className={`text-lg font-semibold ${ui.text}`}>Reminders</h2>
+                <button onClick={() => setShowReminderDialog(true)} className="flex items-center gap-1 text-sm font-semibold text-green-600">
+                  <Plus className="w-4 h-4" /> Add
+                </button>
+              </div>
+              {reminders.length === 0 ? (
+                <p className={`mt-1 text-sm ${ui.sub}`}>None for this plant.</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {reminders.map((reminder) => (
+                    <div key={reminder.id} className={`flex items-start gap-3 rounded-xl px-3 py-2.5 ${rowBg}`}>
+                      <button
+                        onClick={() => toggleReminderMutation.mutate({ id: reminder.id, completed: !reminder.completed })}
+                        aria-label={reminder.completed ? 'Mark not done' : 'Mark done'}
+                        className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${reminder.completed ? 'bg-green-500 border-green-500' : 'border-gray-400'}`}
+                      >
+                        {reminder.completed && <Check className="w-3 h-3 text-white" />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium ${reminder.completed ? 'line-through opacity-60' : ''} ${ui.text}`}>{reminder.title}</p>
+                        {reminder.description && <p className={`text-xs ${ui.sub}`}>{reminder.description}</p>}
+                        {reminder.due_date && <p className={`text-xs mt-0.5 ${ui.sub}`}>{format(parseISO(String(reminder.due_date).slice(0, 10)), 'EEE, MMM d')}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className={sectionCls}>
+              <div className="flex items-center justify-between">
+                <h2 className={`text-lg font-semibold ${ui.text}`}>Tags</h2>
+                <button onClick={() => setShowTagDialog(true)} className="flex items-center gap-1 text-sm font-semibold text-green-600">
+                  <Plus className="w-4 h-4" /> Add
+                </button>
+              </div>
+              {plant.tags && plant.tags.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {plant.tags.map((tag, idx) => (
+                    <button key={idx} onClick={() => removeTagMutation.mutate(tag)} aria-label={`Remove tag ${tag}`}
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${ui.light ? 'bg-blue-100 text-blue-800' : 'bg-blue-700 text-white'}`}>
+                      {tag} <X className="w-3 h-3" strokeWidth={2.5} />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className={`mt-1 text-sm ${ui.sub}`}>None yet. Tags help you filter your garden.</p>
+              )}
+            </section>
+
+            {/* Per-plant vacation is gone: vacations cover the whole garden now (Schedule).
+                A plant that still has the old switch on can turn it off here. */}
+            {vacationModeEnabled && (
+              <section className={`${sectionCls} flex items-center justify-between gap-3`}>
+                <p className={`text-sm ${ui.text}`}>
+                  🏖️ Reminders paused for this plant
+                  {plant.vacation_end_date ? ` until ${format(parseISO(plant.vacation_end_date), 'MMM d')}` : ''}.
+                </p>
+                <Button size="sm" variant="outline" onClick={() => toggleVacationModeMutation.mutate({ enabled: false, startDate: null, endDate: null })}>
+                  Turn off
+                </Button>
+              </section>
+            )}
           </TabsContent>
 
-          <TabsContent value="history" className="space-y-4">
+          <TabsContent value="history" className="space-y-4 mt-0">
+            {!(Array.isArray(plant.care_history) && plant.care_history.length) && wateringLogs.length === 0 && (
+              <p className={`text-sm text-center py-8 ${ui.sub}`}>Nothing logged yet. Waterings and care you log show up here.</p>
+            )}
             {Array.isArray(plant.care_history) && plant.care_history.length > 0 && (
               <Card className={getThemedClasses()}>
                 <CardContent className="p-6">
@@ -1086,7 +961,7 @@ export default function PlantDetail() {
             )}
           </TabsContent>
 
-          <TabsContent value="progress">
+          <TabsContent value="progress" className="mt-0">
             {plus ? (
               <GrowthTimeline plant={plant} photos={progressPhotos} ui={ui} />
             ) : (
