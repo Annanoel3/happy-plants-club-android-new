@@ -45,6 +45,8 @@ import CareScheduleCard from "@/components/plus/CareScheduleCard";
 import HealthHistoryCard from "@/components/plus/HealthHistoryCard";
 import GrowthTimeline from "@/components/plus/GrowthTimeline";
 import NewPlantReview from "@/components/NewPlantReview";
+import LightMeter from "@/components/LightMeter";
+import { lightMeterAvailable } from "@/lib/lightMeter";
 
 export default function PlantDetail() {
   const navigate = useNavigate();
@@ -83,6 +85,9 @@ export default function PlantDetail() {
   // New states for new features
   const [selectedTab, setSelectedTab] = useState('care'); // Care / History / Photos
   const [guideOpen, setGuideOpen] = useState(false); // care guide: first 3 rows, or all
+  const [lightOk, setLightOk] = useState(false); // phone has a light sensor + app version has the meter
+  const [lightOpen, setLightOpen] = useState(false);
+  useEffect(() => { lightMeterAvailable().then(setLightOk).catch(() => {}); }, []);
   const [progressPhotoNotes, setProgressPhotoNotes] = useState("");
   const [isUploadingProgress, setIsUploadingProgress] = useState(false);
   const progressImageInputRef = useRef(null); // Ref for progress photo file input
@@ -690,6 +695,7 @@ export default function PlantDetail() {
 
   return (
     <div className="min-h-screen theme-bg pb-28">
+      {lightOpen && <LightMeter plant={plant} ui={ui} onClose={() => setLightOpen(false)} />}
       <div className="max-w-2xl mx-auto px-4 pt-4">
         {/* Top bar */}
         <div className="flex items-center justify-between mb-3">
@@ -831,6 +837,12 @@ export default function PlantDetail() {
                       <div className="min-w-0">
                         <dt className={`text-sm font-semibold ${ui.text}`}>{label}</dt>
                         <dd className={`text-sm ${ui.sub}`}>{text}</dd>
+                        {label === 'Light' && lightOk && (
+                          <button onClick={() => setLightOpen(true)}
+                            className="mt-1.5 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold bg-amber-400/90 text-gray-900 active:scale-95">
+                            ☀️ Measure the light here
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
