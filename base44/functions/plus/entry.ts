@@ -776,6 +776,33 @@ Deno.serve(async (req) => {
         const now = Date.now();
         const memo = new Map<string, any>();
 
+        // Admin check before rolling profiles out: what WOULD change for one account (no writes).
+        if (action === 'profile_preview') {
+            const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
+            if (!sweepKey || body.key !== sweepKey) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+            const owner = (await db.User.filter({ email: String(body.email || '') }))?.[0];
+            if (!owner) return Response.json({ error: 'Not found' }, { status: 404 });
+            const ctx = ownerCtx(owner, now);
+            const plants = ((await db.Plant.filter({ created_by: owner.email }, '-created_date', 500)) || [])
+                .filter((p: any) => body.all === true || needsProfile(p)).slice(0, 50);
+            const rows: any[] = [];
+            for (let i = 0; i < plants.length; i += 25) {
+                const batch = plants.slice(i, i + 25);
+                const ai = await aiProfiles(batch, ctx);
+                for (const p of batch) {
+                    const a = ai?.[p.id];
+                    const patch = a ? profilePatch(p, a, ctx.today, ctx.hemi) : null;
+                    rows.push({
+                        name: plantName(p), area: p.location || null, was_every: p.water_frequency_days, was_next: p.next_watering_due,
+                        ai: a ? { group: a.group, method: a.method, strict: a.strict, drought_tolerant: a.drought_tolerant, rest_season: a.rest_season, grow_days: a.grow_days, rest_days: a.rest_days, why: a.why } : null,
+                        now_every: patch?.water_frequency_days ?? p.water_frequency_days, now_next: patch?.next_watering_due ?? p.next_watering_due,
+                        method: patch?.water_method, strict: patch?.water_strict, watering_text: patch?.care_instructions?.watering ?? null,
+                    });
+                }
+            }
+            return Response.json({ success: true, ctx, rows });
+        }
+
         if (action === 'sweep') {
             // Only the Plus Daily workflow may run the sweep (it passes this key in its args),
             // so nobody can hammer the weather/map services through it.
