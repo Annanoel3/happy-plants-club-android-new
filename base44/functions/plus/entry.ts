@@ -517,8 +517,10 @@ function fallbackCare(p: any) {
     else if (['Herbs', 'Vegetables', 'Annuals', 'Flowers'].includes(type)) { fert = 14; repotMonths = 12; }
     else if (['Trees & Shrubs', 'Perennials'].includes(type)) { fert = 60; repotMonths = 24; }
     else if (type === 'Houseplants') { mist = humid && indoor; }
+    // Carnivorous plants are never fed through the soil (NC State Extension: "Do not fertilize")
+    const feed = p.care_profile?.group !== 'carnivorous';
     return {
-        fertilize: { every_days: fert, winter_pause: true },
+        fertilize: { useful: feed, every_days: fert, winter_pause: true },
         mist: { useful: mist, every_days: 3 },
         rotate: { useful: indoor, every_days: rotateEvery },
         repot: { every_days: repotMonths * 30 },
@@ -539,6 +541,7 @@ async function suggestCare(plants: any[]) {
         type: p.plant_type || null,
         environment: p.environment || null,
         drought_tolerant: !!p.care_profile?.drought_tolerant,
+        group: p.care_profile?.group || null,
         fertilizing_notes: String(p.care_instructions?.fertilizing || '').slice(0, 200) || null,
         humidity_notes: String(p.care_instructions?.humidity || '').slice(0, 200) || null,
     }));
@@ -551,8 +554,9 @@ async function suggestCare(plants: any[]) {
                 {
                     role: 'system',
                     content: `You are a careful horticulturist. For each plant, suggest a simple home-care schedule.
-Return JSON: {"plants":[{"id":"...","fertilize":{"every_days":30,"winter_pause":true},"mist":{"useful":false,"every_days":3},"rotate":{"useful":true,"every_days":14},"repot":{"every_months":18},"note":"one short sentence, or null"}]}
+Return JSON: {"plants":[{"id":"...","fertilize":{"useful":true,"every_days":30,"winter_pause":true},"mist":{"useful":false,"every_days":3},"rotate":{"useful":true,"every_days":14},"repot":{"every_months":18},"note":"one short sentence, or null"}]}
 Rules:
+- fertilize.useful false ONLY for plants that should not be fed at all: carnivorous plants (Venus flytrap, pitcher plants, sundews, butterworts) and anything whose notes say not to fertilize. True for everything else.
 - fertilize.every_days between 7 and 365: how often to feed DURING the growing season (spring and summer; the app never schedules feeding in fall or winter). Slow growers need very little: succulents, cacti, aloe, snake plant, ZZ plant 120-365 (once or twice a season); most foliage houseplants 28-60; heavy feeders (herbs, vegetables, annual flowers) 14-21. winter_pause true unless the plant actively grows in winter.
 - mist.useful true ONLY for plants that benefit from extra humidity (ferns, calatheas, orchids, air plants...). Never for succulents, cacti or fuzzy-leaved plants.
 - rotate.useful true only for plants kept indoors near a window (they lean toward light). False for outdoor plants. rotate.every_days between 7 and 90: fast growers that lean (pothos, monstera, fiddle-leaf fig) 14-30; slow growers (succulents, cacti, aloe, snake plant) 60-90.
@@ -568,6 +572,8 @@ Rules:
             const fb = out[s.id];
             out[s.id] = {
                 fertilize: {
+                    // never switch feeding on for a plant the fallback says must not be fed
+                    useful: fb.fertilize.useful !== false && s.fertilize?.useful !== false,
                     every_days: snapTo(clampInt(s.fertilize?.every_days, 7, 365, fb.fertilize.every_days), FEED_STEPS),
                     winter_pause: s.fertilize?.winter_pause !== false,
                 },
