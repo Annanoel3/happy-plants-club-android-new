@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
 import { useSidebar } from "@/components/ui/sidebar";
+import PlantdokuEgg from "@/components/PlantdokuEgg";
 
 export default function PlantChat() {
   const navigate = useNavigate();

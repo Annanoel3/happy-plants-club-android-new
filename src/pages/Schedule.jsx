@@ -25,6 +25,7 @@ import { usePlus } from "@/lib/plus";
 import { localToday } from "@/lib/dates";
 import CareTaskList, { careTasks, BulkCareSetup } from "@/components/plus/CareTaskList";
 import WateringRound from "@/components/WateringRound";
+import PlantdokuEgg from "@/components/PlantdokuEgg";
 
 export default function Schedule() {
   const navigate = useNavigate();
