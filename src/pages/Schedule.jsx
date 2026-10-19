@@ -21,6 +21,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { generateVacationPDF } from "@/functions/generateVacationPDF";
 import ReminderNotificationManager from "@/components/ReminderNotificationManager";
 import { Switch } from "@/components/ui/switch";
+import { usePlus } from "@/lib/plus";
+import { localToday } from "@/lib/dates";
+import CareTaskList, { careTasks } from "@/components/plus/CareTaskList";
 
 export default function Schedule() {
   const navigate = useNavigate();
@@ -316,6 +319,17 @@ export default function Schedule() {
     onError: (err) => toast.error('Could not update reminder: ' + err.message),
   });
 
+  const careAll = plus && user ? careTasks(plants, user) : [];
+  const careUi = {
+    card: getThemedClasses(),
+    text: getTextColor(),
+    sub: getSecondaryTextColor(),
+    light: !['dark', 'botanical', 'halloween', 'christmas', 'newyears', 'fourthofjuly', 'fall'].includes(theme),
+  };
+  const todayStr = localToday();
+  // Care that's due on a day; today also gathers anything overdue
+  const careForDate = (dateStr) => careAll.filter((t) => t.next === dateStr || (dateStr === todayStr && t.next < todayStr));
+
   const getTasksForDate = (date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
 
@@ -331,7 +345,7 @@ export default function Schedule() {
       return reminder.due_date === dateStr;
     });
 
-    return { wateringTasks, reminderTasks };
+    return { wateringTasks, reminderTasks, careTasks: careForDate(dateStr) };
   };
 
   const selectedDateTasks = getTasksForDate(selectedDate);
@@ -347,7 +361,7 @@ export default function Schedule() {
       reminder.due_date === dateStr && !reminder.completed
     );
 
-    return hasWatering || hasReminder;
+    return hasWatering || hasReminder || careAll.some((t) => t.next === dateStr);
   };
 
   // Generate calendar days including days from previous/next months to complete the week view
@@ -498,6 +512,12 @@ export default function Schedule() {
                                   isSelected ? 'bg-white' : 'bg-orange-500'
                                 )}></div>
                               )}
+                              {careAll.some(t => t.next === format(day, 'yyyy-MM-dd')) && (
+                                <div className={cn(
+                                  'w-1 h-1 rounded-full',
+                                  isSelected ? 'bg-white' : 'bg-green-500'
+                                )}></div>
+                              )}
                             </div>
                           )}
                         </button>
@@ -515,7 +535,7 @@ export default function Schedule() {
                     {format(selectedDate, 'MMMM d, yyyy')}
                   </h3>
 
-                  {selectedDateTasks.wateringTasks.length === 0 && selectedDateTasks.reminderTasks.length === 0 ? (
+                  {selectedDateTasks.wateringTasks.length === 0 && selectedDateTasks.reminderTasks.length === 0 && selectedDateTasks.careTasks.length === 0 ? (
                     <p className={`text-sm ${getSecondaryTextColor()}`}>No tasks for this day</p>
                   ) : (
                     <div className="space-y-4">
@@ -541,6 +561,13 @@ export default function Schedule() {
                               </button>
                             ))}
                           </div>
+                        </div>
+                      )}
+
+                      {selectedDateTasks.careTasks.length > 0 && (
+                        <div>
+                          <p className={`text-sm font-semibold mb-2 ${getTextColor()}`}>🗓️ Plant care</p>
+                          <CareTaskList tasks={selectedDateTasks.careTasks} user={user} ui={careUi} />
                         </div>
                       )}
 
@@ -580,8 +607,21 @@ export default function Schedule() {
               </Card>
             </div>
           </div>
-        ) : (
+        ) : view === 'list' ? (
           <div className="space-y-6">
+            {plus && careAll.length > 0 && (
+              <Card className={getThemedClasses()}>
+                <CardContent className="p-6">
+                  <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>Plant Care</h2>
+                  <CareTaskList
+                    tasks={careAll.filter((t) => t.next <= format(new Date(Date.now() + 30 * 86400000), 'yyyy-MM-dd'))}
+                    user={user}
+                    ui={careUi}
+                    emptyText="Nothing in the next 30 days."
+                  />
+                </CardContent>
+              </Card>
+            )}
             <Card className={getThemedClasses()}>
               <CardContent className="p-6">
                 <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>Upcoming Watering</h2>
