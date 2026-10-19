@@ -675,7 +675,7 @@ export default function PlantDetail() {
   const specialWater = !['oz', 'ground', 'unknown'].includes(amount.kind);
   const chipCls = `inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold ${
     ui.light ? 'bg-white/90 border border-gray-200 text-gray-800' : 'bg-white/10 border border-white/15 text-white'}`;
-  const sectionCls = `rounded-2xl p-4 shadow-sm ${ui.card}`;
+  const sectionCls = `rounded-xl p-5 shadow ${ui.card}`; // same look as the Care schedule / How to water cards
   const rowBg = ui.light ? 'bg-gray-50' : 'bg-white/5';
   const careGuide = [
     ['☀️', 'Light', plant.care_instructions?.sunlight],
