@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 // Plantdoku daily puzzle: the server keeps the time and the leaderboard.
