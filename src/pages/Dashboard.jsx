@@ -19,6 +19,9 @@ import WateringRound, { dueNow } from "@/components/WateringRound";
 import NewPlantReview from "@/components/NewPlantReview";
 import WelcomeBack from "@/components/WelcomeBack";
 import NewPlantsNotice from "@/components/NewPlantsNotice";
+import PhotoIdsBar from "@/components/PhotoIdsBar";
+import IdsWelcome from "@/components/IdsWelcome";
+import { getIdStatus, isWaitingForId, nameWaitingPlants } from "@/lib/plantIds";
 import { fetchTrips, tripCovering, welcomeBackTrip, niceDay, addDays } from "@/lib/vacation";
 import { whenPopupFree, releasePopup, popupBusy } from "@/lib/popupGate";
 import { toast } from "sonner";
@@ -55,6 +58,10 @@ export default function Dashboard() {
   const [welcomeLater, setWelcomeLater] = useState(false);
   const welcomeWaitRef = useRef(null);
   const retriedRef = useRef(new Set());
+  const [ids, setIds] = useState(null); // photo IDs left today (fetched only when it matters)
+  const [idsWelcomeOpen, setIdsWelcomeOpen] = useState(false);
+  const idsWelcomeRef = useRef(null);
+  const namedWaitingRef = useRef(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [categorizing, setCategorizing] = useState(false);
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('garden_sortBy') || null);
@@ -486,7 +493,7 @@ export default function Dashboard() {
   // with "Later": no popup per plant; they wait under "Newly added" until the owner opens
   // each one and says where it lives.
   const reviewQueue = plantsList
-    .filter((p) => (p.add_status === 'review' || p.add_status === 'failed') && !reviewSkip.has(p.id) && !p.add_info?.bulk && !p.add_info?.later)
+    .filter((p) => (p.add_status === 'review' || p.add_status === 'failed') && !isWaitingForId(p) && !reviewSkip.has(p.id) && !p.add_info?.bulk && !p.add_info?.later)
     .sort((a, b) => String(a.created_date).localeCompare(String(b.created_date)));
   const reviewPlant = reviewQueue[0] || null;
 
@@ -501,6 +508,38 @@ export default function Dashboard() {
   const newPlants = plantsList
     .filter((p) => ['identifying', 'review', 'failed'].includes(p.add_status))
     .sort((a, b) => String(b.created_date).localeCompare(String(a.created_date)));
+
+  // Photos saved but out of photo IDs: they wait here and get named when IDs are back
+  const waitingPlants = newPlants.filter(isWaitingForId);
+  const isNewAccount = !!me?.created_date && Date.now() - Date.parse(me.created_date) < 24 * 3600 * 1000;
+  let idsWelcomeSeen = false;
+  try { idsWelcomeSeen = localStorage.getItem('hp_ids_welcome') === '1'; } catch { /* ignore */ }
+  useEffect(() => {
+    if (!waitingPlants.length && !(isNewAccount && !idsWelcomeSeen)) return;
+    let alive = true;
+    getIdStatus().then((s) => { if (alive) setIds(s); }).catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingPlants.length > 0, isNewAccount]);
+  // A new day (or more IDs): name the waiting ones, once per visit
+  useEffect(() => {
+    if (!ids || ids.left <= 0 || !waitingPlants.length || namedWaitingRef.current) return;
+    namedWaitingRef.current = true;
+    nameWaitingPlants().then((r) => { if (r.approved.length) refreshPlantData(); getIdStatus().then(setIds).catch(() => {}); }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids?.left, waitingPlants.length]);
+  // New accounts: say how photo IDs work once, before they run into it
+  useEffect(() => {
+    if (!ids?.intro || idsWelcomeSeen || idsWelcomeOpen || idsWelcomeRef.current) return;
+    idsWelcomeRef.current = whenPopupFree('idswelcome', () => { idsWelcomeRef.current = null; setIdsWelcomeOpen(true); }, { firstDelay: 900 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids?.intro, idsWelcomeOpen]);
+  useEffect(() => () => { idsWelcomeRef.current?.(); releasePopup('idswelcome'); }, []);
+  const closeIdsWelcome = () => {
+    try { localStorage.setItem('hp_ids_welcome', '1'); } catch { /* ignore */ }
+    setIdsWelcomeOpen(false);
+    releasePopup('idswelcome');
+  };
 
   // Several plants added at once: one note, not a question per plant
   const bulkSeen = (() => {
@@ -696,6 +735,9 @@ export default function Dashboard() {
       {bulkOpen && (
         <NewPlantsNotice count={Math.max(1, bulkUnseen.length)} ui={roundUi} onClose={closeBulk} />
       )}
+      {idsWelcomeOpen && ids && (
+        <IdsWelcome ids={ids} ui={roundUi} onClose={closeIdsWelcome} />
+      )}
       {welcomeOpen && backTrip && (
         <WelcomeBack trip={backTrip} ui={roundUi} onClose={closeWelcome} />
       )}
@@ -828,6 +870,9 @@ export default function Dashboard() {
                 <p className={`text-sm font-bold ${getTextColor()}`}>🌱 Newly added ({newPlants.length})</p>
                 <p className={`text-xs ${getSecondaryTextColor()}`}>Tap one to say where it lives</p>
               </div>
+              <PhotoIdsBar ids={ids} mode="waiting" waitingCount={waitingPlants.length}
+                text={getTextColor()} sub={getSecondaryTextColor()} cardClass={getThemedClasses()}
+                onChange={(s) => { setIds(s); refreshPlantData(); }} />
               <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
                 {newPlants.map((p) => {
                   const naming = p.add_status === 'identifying';
@@ -852,7 +897,7 @@ export default function Dashboard() {
                       <div className="px-2 py-1.5">
                         <p className={`text-xs font-semibold truncate ${getTextColor()}`}>{naming ? 'Naming…' : (p.nickname || p.name)}</p>
                         <p className={`text-[10px] truncate ${getSecondaryTextColor()}`}>
-                          {naming ? 'Almost ready' : p.add_status === 'failed' ? "Couldn't name it" : (p.scientific_name ? <i>{p.scientific_name}</i> : 'Set it up')}
+                          {naming ? 'Almost ready' : isWaitingForId(p) ? 'Waiting for a photo ID' : p.add_status === 'failed' ? "Couldn't name it" : (p.scientific_name ? <i>{p.scientific_name}</i> : 'Set it up')}
                         </p>
                       </div>
                     </button>
