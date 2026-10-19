@@ -82,13 +82,18 @@ export async function restorePurchases() {
 export function aiLimitInfo(err) {
   const d = err?.response?.data || err?.data;
   if (err?.response?.status === 429 || d?.limit_reached) {
-    return { kind: d?.kind || 'ai', limit: d?.limit, plus: !!d?.plus };
+    return { kind: d?.kind || 'ai', limit: d?.limit, plus: !!d?.plus, ids: d?.ids || null };
   }
   return null;
 }
 
 const LIMIT_WORDS = { identify: 'plant IDs', health: 'health checks', chat: 'AI chat messages' };
 export function aiLimitMessage(info) {
+  if (info.kind === 'identify') {
+    return info.plus
+      ? `You've used all ${info.limit} photo IDs for today. They're back tomorrow. Typing a plant's name is always free.`
+      : "You're out of photo IDs for today. The photo is saved and gets named tomorrow, or type its name (always free).";
+  }
   const what = LIMIT_WORDS[info.kind] || 'AI uses';
   return info.plus
     ? `You've used all ${info.limit} ${what} for today. They reset at midnight.`
@@ -108,6 +113,23 @@ export async function handleAiLimit(err, navigate) {
   if (!info) return false;
   const { toast } = await import('sonner');
   const go = () => (navigate ? navigate('/Premium') : window.location.assign('/Premium'));
+  if (info.kind === 'identify' && info.ids) {
+    // Photo IDs: offer the reward video first when there is one
+    const ids = await import('@/lib/plantIds');
+    if (ids.canWatchForIds(info.ids)) {
+      toast(aiLimitMessage(info), {
+        duration: 10000,
+        action: {
+          label: `Video: +${info.ids.per_ad}`,
+          onClick: async () => {
+            const r = await ids.watchForIds();
+            toast[r.ok ? 'success' : 'message'](r.ok ? `${info.ids.per_ad} more photo IDs! Naming your waiting plants…` : ids.rewardFailText(r.reason));
+          },
+        },
+      });
+      return true;
+    }
+  }
   toast.error(aiLimitMessage(info), info.plus ? { duration: 6000 } : { duration: 8000, action: { label: 'See Plus', onClick: go } });
   return true;
 }
