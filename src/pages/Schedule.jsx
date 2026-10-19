@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { generateVacationPDF } from "@/functions/generateVacationPDF";
+import { niceDay, addDays } from "@/lib/vacation";
 import ReminderNotificationManager from "@/components/ReminderNotificationManager";
 import { Switch } from "@/components/ui/switch";
 import { usePlus } from "@/lib/plus";
@@ -41,7 +41,6 @@ export default function Schedule() {
   const [vacationStartDate, setVacationStartDate] = useState("");
   const [vacationEndDate, setVacationEndDate] = useState("");
   const [vacationNotes, setVacationNotes] = useState("");
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   useEffect(() => {
     loadUser();
@@ -158,7 +157,7 @@ export default function Schedule() {
       return;
     }
 
-    if (new Date(vacationEndDate) < new Date(vacationStartDate)) {
+    if (vacationEndDate < vacationStartDate) {
       toast.error("End date must be after start date");
       return;
     }
@@ -170,87 +169,17 @@ export default function Schedule() {
     });
   };
 
-  const handleGeneratePDF = async (vacationId) => {
-    setIsGeneratingPDF(true);
-    console.log('[PDF] Starting generation for vacation:', vacationId);
-    
-    try {
-      console.log('[PDF] Calling generateVacationPDF function...');
-      const response = await generateVacationPDF({
-        vacation_id: vacationId
-      });
-      
-      console.log('[PDF] Response received:', response);
-      console.log('[PDF] Response type:', typeof response);
-      console.log('[PDF] Response keys:', Object.keys(response || {}));
-      
-      // Extract the actual data - it might be wrapped
-      let data = response?.data || response;
-      console.log('[PDF] Extracted data type:', typeof data);
-      console.log('[PDF] Data is ArrayBuffer:', data instanceof ArrayBuffer);
-      
-      // Convert string to ArrayBuffer if needed
-      if (typeof data === 'string') {
-        console.log('[PDF] Converting string to Uint8Array...');
-        const encoder = new TextEncoder();
-        data = encoder.encode(data).buffer;
-        console.log('[PDF] Converted to ArrayBuffer, size:', data.byteLength);
-      }
-      
-      const blob = new Blob([data], { type: 'application/pdf' });
-      console.log('[PDF] Blob created, size:', blob.size);
-      
-      // Try to use native Android download if in Capacitor
-      if (window.webkit || window.Android) {
-        console.log('[PDF] Detected mobile environment, using FileReader...');
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64data = reader.result.split(',')[1];
-          console.log('[PDF] Base64 data length:', base64data.length);
-          
-          // Post message to native wrapper
-          if (window.parent) {
-            window.parent.postMessage({
-              type: 'download-file',
-              data: {
-                base64: base64data,
-                filename: `vacation-care-guide-${vacationId}.pdf`,
-                mimeType: 'application/pdf'
-              }
-            }, '*');
-            console.log('[PDF] Posted message to native wrapper');
-          }
-        };
-        reader.readAsDataURL(blob);
-      } else {
-        // Web browser download
-        const url = window.URL.createObjectURL(blob);
-        console.log('[PDF] Object URL created:', url);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `vacation-care-guide-${vacationId}.pdf`;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        
-        console.log('[PDF] Triggering download...');
-        a.click();
-        
-        setTimeout(() => {
-          window.URL.revokeObjectURL(url);
-          a.remove();
-          console.log('[PDF] Cleanup complete');
-        }, 100);
-      }
-      
-      toast.success("PDF downloaded!");
-    } catch (error) {
-      console.error("[PDF] Error:", error);
-      console.error("[PDF] Error stack:", error?.stack);
-      toast.error("Failed to generate PDF: " + (error?.message || "Unknown error"));
-    } finally {
-      setIsGeneratingPDF(false);
-    }
+  // Trips to show: current and upcoming, plus ones that ended in the last 2 weeks
+  const todayStr = localToday();
+  const shownTrips = (vacations || [])
+    .filter((v) => String(v.end_date || '').slice(0, 10) >= addDays(todayStr, -14))
+    .sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)));
+  const tripLabel = (v) => {
+    const s = String(v.start_date).slice(0, 10), e = String(v.end_date).slice(0, 10);
+    if (todayStr >= s && todayStr <= e) return { text: 'Away now: watering reminders paused', cls: 'bg-cyan-600 text-white' };
+    if (todayStr < s) return { text: 'Upcoming', cls: 'bg-blue-500/20 text-blue-600' };
+    if (v.status === 'confirmed') return { text: "Back home: sitter's waterings logged", cls: 'bg-green-600/20 text-green-700' };
+    return { text: 'Back home', cls: 'bg-gray-500/20 text-gray-600' };
   };
 
   const getThemedClasses = () => {
@@ -742,13 +671,16 @@ export default function Schedule() {
             <h2 className={`text-2xl font-bold ${getTextColor()}`}>Vacations</h2>
           </div>
 
-          {vacations.length === 0 ? (
-            <p className={`text-center py-8 ${getSecondaryTextColor()}`}>
-              No upcoming vacations. Add one to generate a care guide for your house sitter!
+          <p className={`text-sm mb-4 ${getSecondaryTextColor()}`}>
+            While you're away, watering reminders pause for your whole garden. Make a plan for your sitter, grouped by day and by room.
+          </p>
+          {shownTrips.length === 0 ? (
+            <p className={`text-center py-6 ${getSecondaryTextColor()}`}>
+              No upcoming vacations.
             </p>
           ) : (
             <div className="space-y-3 mb-4">
-              {vacations.map((vacation) => (
+              {shownTrips.map((vacation) => (
                 <div key={vacation.id} className={`p-4 rounded-xl border ${
                   theme === 'kawaii' ? 'border-pink-200 bg-pink-50/50' :
                   theme === 'halloween' ? 'border-orange-500/30 bg-black/30' :
@@ -760,8 +692,11 @@ export default function Schedule() {
                       className="flex-1 text-left hover:opacity-70"
                     >
                       <p className={`font-semibold ${getTextColor()}`}>
-                        {new Date(vacation.start_date).toLocaleDateString()} - {new Date(vacation.end_date).toLocaleDateString()}
+                        {niceDay(vacation.start_date)} to {niceDay(vacation.end_date)}
                       </p>
+                      <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${tripLabel(vacation).cls}`}>
+                        {tripLabel(vacation).text}
+                      </span>
                       {vacation.notes && (
                         <p className={`text-sm mt-1 ${getSecondaryTextColor()}`}>{vacation.notes}</p>
                       )}
@@ -770,16 +705,16 @@ export default function Schedule() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleGeneratePDF(vacation.id)}
-                        disabled={isGeneratingPDF}
+                        onClick={() => navigate(`/VacationReview?id=${vacation.id}`)}
                       >
                         <FileDown className="w-4 h-4 mr-1" />
-                        {isGeneratingPDF ? 'Generating...' : 'PDF'}
+                        Sitter plan
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => deleteVacationMutation.mutate(vacation.id)}
+                        aria-label="Delete this vacation"
+                        onClick={() => { if (window.confirm('Delete this vacation?')) deleteVacationMutation.mutate(vacation.id); }}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
