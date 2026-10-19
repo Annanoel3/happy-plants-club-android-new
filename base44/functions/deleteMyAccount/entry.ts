@@ -15,6 +15,7 @@ const OWNERSHIP: Record<string, string[]> = {
     Plant: ['created_by'],
     WateringLog: ['created_by'],
     PlantProgressPhoto: ['created_by'],
+    HealthCheck: ['created_by'],
     VacationDay: ['created_by'],
     PlantConversation: ['created_by', 'user_email'],
     Reminder: ['created_by'],
@@ -54,7 +55,7 @@ Deno.serve(async (req) => {
                 const rows = await sr[entity]?.filter({ [field]: email }).catch(() => []) || [];
                 rows.forEach((r: any) => ids.add(r.id));
             }
-            if ((entity === 'WateringLog' || entity === 'PlantProgressPhoto' || entity === 'Reminder') && plantIds.size) {
+            if ((entity === 'WateringLog' || entity === 'PlantProgressPhoto' || entity === 'Reminder' || entity === 'HealthCheck') && plantIds.size) {
                 const rows = await sr[entity].filter({ plant_id: { $in: [...plantIds] } }).catch(() => []);
                 rows.forEach((r: any) => ids.add(r.id));
             }
@@ -84,6 +85,8 @@ Deno.serve(async (req) => {
             console.warn('User delete refused, scrubbing instead:', e?.message || e);
             await sr.User.update(user.id, {
                 full_name: 'Deleted user', location: null, timezone: null, profile_picture: null,
+                location_lat: null, location_lon: null, location_label: null, location_geocoded_for: null,
+                weather_today: null,
                 handle: null, bio: null, onesignal_player_ids: [], account_deleted: true,
                 account_deleted_at: new Date().toISOString(),
             }).catch(() => {});
