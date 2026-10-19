@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Sparkles } from 'lucide-react';
+import { claimPopup, releasePopup } from '@/lib/popupGate';
 
 // "There's an update!" popup, same idea as ADHDone's: it only says there's an
 // update, shows on every app open until the phone is updated, and the Update
@@ -29,7 +30,7 @@ export default function UpdatePrompt() {
         // Never stack on another popup (permissions, weather, etc.): wait until it's closed.
         const showWhenClear = () => {
           if (cancelled) return;
-          if (document.querySelector('[role="dialog"], [role="alertdialog"]')) {
+          if (!claimPopup('update')) {
             t2 = setTimeout(showWhenClear, 2000);
           } else {
             setShow(true);
@@ -76,7 +77,7 @@ export default function UpdatePrompt() {
         >
           {busy ? 'Opening…' : 'Update'}
         </button>
-        <button onClick={() => setShow(false)} className="w-full py-3 mt-2 text-sm font-semibold text-gray-500">
+        <button onClick={() => { setShow(false); releasePopup('update'); }} aria-label="Close" className="w-full py-3 mt-2 text-sm font-semibold text-gray-500">
           Not now
         </button>
       </div>
