@@ -164,7 +164,8 @@ function makePlan(plants: any[], vac: any, every: number, plus: boolean, today: 
             date,
             count: items.length,
             areas: [...areas.entries()]
-                .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+                // biggest area first; plants with no area last
+                .sort((a, b) => (Number(a[0] === 'Other plants') - Number(b[0] === 'Other plants')) || b[1].length - a[1].length || a[0].localeCompare(b[0]))
                 .map(([area, list]) => ({ area, plants: list.sort((a, b) => a.name.localeCompare(b.name)) })),
         };
     });
