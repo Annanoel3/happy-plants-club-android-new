@@ -16,21 +16,9 @@ import { setMicActive, showAdForEvent } from "@/lib/admob";
 import { transcribeVoice } from "@/functions/transcribeVoice";
 import { processBulkPlants } from "@/functions/processBulkPlants";
 import { prepareImageForUpload } from "@/lib/imageResize";
+import { AREA_OPTIONS } from "@/lib/areas";
 
-const AREA_OPTIONS = [
-  { label: "🏠 Living Room",    value: "Living Room",    environment: "Indoor" },
-  { label: "🍳 Kitchen",        value: "Kitchen",        environment: "Indoor" },
-  { label: "🛏 Bedroom",        value: "Bedroom",        environment: "Indoor" },
-  { label: "🪟 Window Sill",    value: "Window Sill",    environment: "Window Sill" },
-  { label: "💼 Office",         value: "Office",         environment: "Office" },
-  { label: "🌿 Greenhouse",     value: "Greenhouse",     environment: "Greenhouse" },
-  { label: "🌳 Garden",         value: "Garden",         environment: "Outdoor" },
-  { label: "🌞 Deck / Patio",   value: "Deck",           environment: "Patio" },
-  { label: "🏡 Balcony",        value: "Balcony",        environment: "Balcony" },
-  { label: "🌱 Raised Bed",     value: "Raised Bed",     environment: "Outdoor" },
-  { label: "🏕 Front Yard",     value: "Front Yard",     environment: "Outdoor" },
-  { label: "🌾 Backyard",       value: "Backyard",       environment: "Outdoor" },
-];
+
 
 export default function AddPlant() {
   const navigate = useNavigate();
@@ -112,6 +100,10 @@ export default function AddPlant() {
     return 'text-gray-600';
   };
 
+  // Photos: upload each one and save the plant right away, then let the server name it.
+  // The naming keeps going if you leave this screen; if the app closes or the signal
+  // drops, the garden page and an hourly server check pick it back up. When it's named,
+  // the garden asks where it lives, the pot width and to check the name.
   const handleImageCapture = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -129,38 +121,36 @@ export default function AddPlant() {
             base44.integrations.Core.UploadFile({ file: main }),
             thumb ? base44.integrations.Core.UploadFile({ file: thumb }).catch(() => null) : Promise.resolve(null),
           ]);
-          const res = await identifyPlantWithExpert({ image_url: file_url });
-          const data = res?.data ?? res;
-          if (!data?.success) throw new Error(data?.error || 'Could not identify plant');
-          const plantData = data.plantData;
-          const nextWatering = new Date();
-          nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
-          await base44.entities.Plant.create({
-            ...plantData,
+          return base44.entities.Plant.create({
+            name: 'New plant',
             image_url: file_url,
             ...(thumbUpload?.file_url ? { thumbnail_url: thumbUpload.file_url } : {}),
             last_watered: today,
-            next_watering_due: toLocalDateString(nextWatering),
-            ...(area ? { location: area.value, environment: area.environment } : {})
+            total_waterings: 0,
+            add_status: 'identifying',
+            add_info: { tries: 0, started_at: new Date().toISOString() },
+            ...(area ? { location: area.value, environment: area.environment } : {}),
           });
-          return plantData.name;
         })
       );
 
-      const succeeded = results.filter(r => r.status === 'fulfilled').map(r => r.value);
-      const limitHit = results.find(r => r.status === 'rejected' && aiLimitInfo(r.reason));
-      const failed = results.filter(r => r.status === 'rejected' && !aiLimitInfo(r.reason)).length;
-      if (limitHit) await handleAiLimit(limitHit.reason, navigate);
-
-      if (succeeded.length > 0) {
-        toast.success(`Added ${succeeded.length} plant${succeeded.length > 1 ? 's' : ''}! 🌿`);
-        // One ad per add action, however many photos were in it
-        showAdForEvent('add');
-      }
+      const created = results.filter(r => r.status === 'fulfilled' && r.value?.id).map(r => r.value);
+      const failed = results.length - created.length;
       if (failed > 0) {
-        toast.error(`${failed} photo${failed > 1 ? 's' : ''} could not be identified`);
+        toast.error(`${failed} photo${failed > 1 ? 's' : ''} couldn't be uploaded. Check your signal and try again.`);
       }
-      if (succeeded.length > 0 || !limitHit) navigate('/Dashboard');
+      if (!created.length) return;
+
+      // Name them on the server (don't wait here)
+      for (const p of created) {
+        identifyPlantWithExpert({ plant_id: p.id }).catch(async (err) => {
+          if (aiLimitInfo(err)) await handleAiLimit(err, navigate);
+        });
+      }
+      try { sessionStorage.setItem('hp_add_ad_pending', '1'); } catch { /* ignore */ }
+      refreshPlantData();
+      toast.success(created.length === 1 ? 'Got it! Naming your plant…' : `Got them! Naming ${created.length} plants…`);
+      navigate('/Dashboard');
     } catch (error) {
       toast.error('Error processing images: ' + (error?.message || 'Unknown error'));
     } finally {
@@ -225,8 +215,8 @@ export default function AddPlant() {
 
       if (result?.success) {
         toast.success(`Added ${result.count} plant${result.count > 1 ? 's' : ''}! 🌿`);
-        // Bulk add = one ad
-        showAdForEvent('add');
+        // Bulk add = one ad, shown after the new plants are checked in the garden
+        try { sessionStorage.setItem('hp_add_ad_pending', '1'); } catch { /* ignore */ }
         navigate('/Dashboard');
       } else {
         toast.error('Could not add plants: ' + (result.error || 'Unknown error'));
@@ -258,8 +248,8 @@ export default function AddPlant() {
 
       if (result?.success) {
         toast.success(`Added ${result.count} plant${result.count > 1 ? 's' : ''}! 🌿`);
-        // Bulk add = one ad
-        showAdForEvent('add');
+        // Bulk add = one ad, shown after the new plants are checked in the garden
+        try { sessionStorage.setItem('hp_add_ad_pending', '1'); } catch { /* ignore */ }
         navigate('/Dashboard');
       } else {
         toast.error('Could not add plants: ' + (result.error || 'Unknown error'));
