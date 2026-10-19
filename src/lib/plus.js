@@ -3,7 +3,21 @@
 //  usePlusReady()  → can this phone actually buy Plus right now? Teasers for free users
 //                    only show when it can, so nobody hits a dead-end "coming soon" page.
 import { useEffect, useState } from 'react';
+import { base44 } from '@/api/base44Client';
 import { isPlusCached, billingAvailable } from '@/lib/premium';
+
+/** The signed-in user, reloaded after their location changes. */
+export function useMe() {
+  const [me, setMe] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => base44.auth.me().then((u) => { if (alive) setMe(u); }).catch(() => {});
+    load();
+    window.addEventListener('hp-location', load);
+    return () => { alive = false; window.removeEventListener('hp-location', load); };
+  }, []);
+  return me;
+}
 
 export function usePlus() {
   const [plus, setPlus] = useState(isPlusCached());
