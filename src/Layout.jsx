@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Home, Calendar, MessageCircle, Settings, Sun, Moon, Leaf, User, Search } from "lucide-react";
+import { Home, Calendar, MessageCircle, Settings, Sun, Moon, Leaf, User, Search, Puzzle } from "lucide-react";
+import { plantdokuFound } from "@/lib/plantdoku/egg";
 import { base44 } from "@/api/base44Client";
 import { scheduleStatsSync } from "@/lib/stats";
 import { getPremiumStatus } from "@/lib/premium";
@@ -186,11 +187,21 @@ function LayoutContent({ children, currentPageName }) {
   // like/comment badge poll is off until it launches. Re-enable with the feature.
   const feedNotifications = [];
 
+  // Plantdoku (the hidden game) joins the menu once someone has found it
+  const [pdFound, setPdFound] = useState(() => plantdokuFound());
+  useEffect(() => {
+    const on = () => setPdFound(true);
+    window.addEventListener('hp-pd-found', on);
+    return () => window.removeEventListener('hp-pd-found', on);
+  }, []);
+  const showPd = pdFound || !!user?.plantdoku_found;
+
   const navigationItems = [
     { title: "My Garden", url: "/Dashboard", icon: Home },
     { title: "Schedule", url: "/Schedule", icon: Calendar },
     { title: "Community", url: "/Feed", icon: MessageCircle, badge: user?.notifications_enabled !== false ? feedNotifications.length : 0 },
     { title: "Plant Expert", url: "/PlantChat", icon: MessageCircle },
+    ...(showPd ? [{ title: "Plantdoku", url: "/Plantdoku", icon: Puzzle }] : []),
     { title: "Settings", url: "/Settings", icon: Settings },
   ];
 
