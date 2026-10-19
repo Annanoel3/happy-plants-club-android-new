@@ -902,6 +902,10 @@ export default function Dashboard() {
                   <p className={`font-bold text-sm ${getTextColor()}`}>Time to water!</p>
                   <p className={`text-xs ${getSecondaryTextColor()}`}>
                     {dueToday.length} {dueToday.length === 1 ? 'plant needs' : 'plants need'} water today
+                    {(() => {
+                      const late = dueToday.filter((p) => String(p.next_watering_due).slice(0, 10) < todayStr).length;
+                      return late ? <span className="font-bold text-red-600"> · {late} overdue</span> : null;
+                    })()}
                   </p>
                   {dueAreaText && <p className={`text-xs truncate ${getSecondaryTextColor()}`}>{dueAreaText}</p>}
                 </button>
