@@ -8,9 +8,12 @@ import { jsPDF } from 'npm:jspdf@2.5.1';
 //   { action: 'confirm', vacation_id }            → "the sitter followed the plan": log those waterings
 //   { action: 'dismiss', vacation_id }            → don't ask again
 // visit_every: 0 = come only on days a plant needs water; 2 / 3 = every 2 or 3 days;
-// 3.5 = twice a week; 7 = once a week. With set visits, a plant is watered at the last
-// visit on or before its due day (a little early, never late) unless the visits are
-// further apart than it can wait; those are listed as warnings.
+// 3.5 = twice a week; 7 = once a week. With set visits, each plant is watered at the visit
+// closest to its due day: early rather than late, late only by a day (a few days for
+// drought-tolerant plants), never late for plants marked "keep exact days". Plants that
+// still have to wait too long are listed as warnings in the app, and the sitter is asked
+// to check them at every visit.
+// Before the trip the owner is assumed to keep watering on schedule.
 // All dates are plain YYYY-MM-DD in the owner's calendar (no time zones involved).
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -88,7 +91,7 @@ function visitDays(start: string, end: string, every: number): string[] | null {
     return out;
 }
 
-function makePlan(plants: any[], vac: any, every: number, plus: boolean) {
+function makePlan(plants: any[], vac: any, every: number, plus: boolean, today: string) {
     const start = String(vac.start_date).slice(0, 10), end = String(vac.end_date).slice(0, 10);
     const notes = vac.plant_notes || {};
     const visits = visitDays(start, end, every);
@@ -108,8 +111,18 @@ function makePlan(plants: any[], vac: any, every: number, plus: boolean) {
             every: freq,
         };
         if (onPlantVacation(p, start)) { notNeeded.push({ ...item, why: 'paused' }); continue; }
+        const drought = !!p.care_profile?.drought_tolerant;
+        // how many days late is still fine for this plant
+        const okLate = item.strict || freq <= 3 ? 0 : drought ? Math.max(2, Math.floor(freq / 4)) : 1;
         let last = DATE.test(String(p.last_watered || '').slice(0, 10)) ? String(p.last_watered).slice(0, 10) : null;
         let due = DATE.test(String(p.next_watering_due || '').slice(0, 10)) ? String(p.next_watering_due).slice(0, 10) : (last ? addDays(last, freq) : start);
+        // Until the trip starts the owner waters as usual
+        for (let g = 0; g < 100 && due < start; g++) {
+            const d = due < today ? today : due;
+            if (d >= start) break;
+            last = d;
+            due = addDays(d, freq);
+        }
         let count = 0, worstLate = 0;
         for (let guard = 0; guard < 200 && due <= end; guard++) {
             const target = due < start ? start : due;
@@ -119,7 +132,13 @@ function makePlan(plants: any[], vac: any, every: number, plus: boolean) {
             } else {
                 const after = (v: string) => !last || v > last;
                 const before = visits.filter((v) => v <= target && after(v));
-                day = before.length ? before[before.length - 1] : (visits.find((v) => v > target && after(v)) || null);
+                const early = before.length ? before[before.length - 1] : null;
+                const later = visits.find((v) => v > target && after(v)) || null;
+                if (!early || !later) day = early || later;
+                else {
+                    const e = daysBetween(early, target), l = daysBetween(target, later);
+                    day = l <= okLate && l < e ? later : early;
+                }
             }
             if (!day) break;
             const late = Math.max(0, daysBetween(target, day));
@@ -131,8 +150,8 @@ function makePlan(plants: any[], vac: any, every: number, plus: boolean) {
             due = addDays(day, freq);
         }
         if (!count) notNeeded.push({ ...item, why: 'not_due' });
-        if (worstLate > 0 && (item.strict || worstLate > 1 || freq <= 3)) {
-            warnings.push({ id: p.id, name: item.name, every: freq, late: worstLate });
+        if (worstLate > okLate) {
+            warnings.push({ id: p.id, name: item.name, area: item.area, every: freq, late: worstLate });
         }
     }
     const days = [...byDay.keys()].sort();
@@ -182,13 +201,14 @@ function buildPdf(plan: any, vac: any) {
     block('Other instructions', vac.custom_instructions || '');
 
     if (plan.warnings.length) {
-        const lines = plan.warnings.map((w: any) => `- ${w.name} needs water every ${w.every} day${w.every === 1 ? '' : 's'}; with these visits it may go ${w.late} day${w.late === 1 ? '' : 's'} longer.`);
-        const wrapped = lines.flatMap((l: string) => doc.splitTextToSize(l, W - 2 * M - 6));
+        // Plants that would wait too long between visits: the sitter checks them every time
+        const names = plan.warnings.map((w: any) => `${w.name} (${w.area})`).join(', ');
+        const wrapped = doc.splitTextToSize(`At every visit, touch the soil of these plants and water them if the top inch is dry: ${names}.`, W - 2 * M - 6);
         need(10 + wrapped.length * 4.6);
         doc.setFillColor(255, 243, 205); doc.setDrawColor(230, 190, 90);
         doc.roundedRect(M, y - 4, W - 2 * M, 8 + wrapped.length * 4.6, 2, 2, 'FD');
         doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(120, 80, 0);
-        doc.text('Heads up', M + 3, y + 1); y += 5.5;
+        doc.text('Check these every visit', M + 3, y + 1); y += 5.5;
         doc.setFont('helvetica', 'normal');
         doc.text(wrapped, M + 3, y); y += wrapped.length * 4.6 + 5;
     }
@@ -210,7 +230,7 @@ function buildPdf(plan: any, vac: any) {
             doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...green);
             doc.text(`${a.area} (${a.plants.length})`, M, y); y += 5.5;
             for (const p of a.plants) {
-                const how = doc.splitTextToSize(p.how + (p.late ? ` - this visit is ${p.late} day${p.late === 1 ? '' : 's'} late for it` : ''), W - 2 * M - 10);
+                const how = doc.splitTextToSize(p.how, W - 2 * M - 10);
                 const note = p.note ? doc.splitTextToSize(`Note: ${p.note}`, W - 2 * M - 10) : [];
                 const h = 5 + how.length * 4.2 + note.length * 4.2 + 2;
                 if (y + h > maxY) { page(); dayHeader(true); }
@@ -294,7 +314,7 @@ Deno.serve(async (req) => {
         const subs = (await base44.asServiceRole.entities.Subscription.filter({ user_id: user.id }).catch(() => [])) || [];
         const s = subs[0];
         const plus = !!(s && s.active && (!s.expires_at || Date.parse(s.expires_at) > Date.now()));
-        const plan = makePlan(plants, vac, every, plus);
+        const plan = makePlan(plants, vac, every, plus, localDay(user.timezone));
 
         if (action === 'plan') return Response.json({ success: true, plan });
 
