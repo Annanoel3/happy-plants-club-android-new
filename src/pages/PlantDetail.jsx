@@ -44,6 +44,7 @@ import PlantWaterPanel from "@/components/plus/PlantWaterPanel";
 import CareScheduleCard from "@/components/plus/CareScheduleCard";
 import HealthHistoryCard from "@/components/plus/HealthHistoryCard";
 import GrowthTimeline from "@/components/plus/GrowthTimeline";
+import NewPlantReview from "@/components/NewPlantReview";
 
 export default function PlantDetail() {
   const navigate = useNavigate();
@@ -156,6 +157,18 @@ export default function PlantDetail() {
     // Enable query only if plantId, user object, and userLoaded are available
     enabled: !!plantId && !!user && userLoaded,
     retry: 1,
+    // Still being named on the server: check back every few seconds
+    refetchInterval: (q) => (q.state.data?.add_status === 'identifying' ? 4000 : false),
+  });
+
+  // New plant (added in bulk, or "Later" on the check): its setup card offers the areas
+  // the owner already uses, so it needs the rest of the garden
+  const isNewPlant = ['identifying', 'review', 'failed'].includes(plant?.add_status);
+  const { data: gardenPlants = [] } = useQuery({
+    queryKey: ['plants', user?.email],
+    queryFn: async () => (await base44.entities.Plant.filter({ created_by: user.email }, undefined, 1000)) || [],
+    enabled: !!user?.email && isNewPlant,
+    staleTime: 60 * 1000,
   });
 
   const { data: wateringLogs = [] } = useQuery({
@@ -316,6 +329,8 @@ export default function PlantDetail() {
         delete clean.water_days_rest;
       }
       if (prof.user_method || prof.user_strict || prof.user_interval) clean.care_profile = prof;
+      // A new plant leaves "Newly added" once the owner says where it lives
+      if (['review', 'failed'].includes(plant?.add_status) && String(clean.location || '').trim()) clean.add_status = 'done';
       await base44.entities.Plant.update(plantId, clean);
     },
     onSuccess: () => {
@@ -655,6 +670,28 @@ export default function PlantDetail() {
           <ArrowLeft className="w-5 h-5" />
           Back to Garden
         </button>
+
+        {/* New plant: finish setting it up (where it lives, how it's watered, pot, name) */}
+        {plant?.add_status === 'identifying' && (
+          <div className={`mb-6 rounded-2xl p-4 flex items-center gap-3 ${getThemedClasses()}`} role="status">
+            <Loader2 className="w-5 h-5 animate-spin text-green-600" />
+            <p className={`text-sm ${getTextColor()}`}>Naming this plant… it usually takes under a minute.</p>
+          </div>
+        )}
+        {(plant?.add_status === 'review' || plant?.add_status === 'failed') && (
+          <NewPlantReview
+            inline
+            plant={plant}
+            allPlants={gardenPlants}
+            ui={{ card: getThemedClasses(), text: getTextColor(), sub: getSecondaryTextColor(), light: getTextColor() === 'text-gray-900' }}
+            navigate={navigate}
+            onDone={() => {
+              queryClient.invalidateQueries({ queryKey: ['plant'] });
+              queryClient.invalidateQueries({ queryKey: ['plants'] });
+              toast.success('Saved. It\'s out of Newly added.');
+            }}
+          />
+        )}
 
         {/* Tags Section */}
         {plant && (
