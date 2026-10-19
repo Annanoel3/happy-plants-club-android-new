@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
         }
 
         // Get user's plants for context
-        const plants = await base44.entities.Plant.list();
+        const plants = await base44.entities.Plant.list('-created_date', 1000);
         const plantsContext = plants.map(p => p.name).join(', ');
 
         // Build system prompt

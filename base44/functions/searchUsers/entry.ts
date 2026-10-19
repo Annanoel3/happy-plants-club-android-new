@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
         const cleanQuery = query.replace('@', '').toLowerCase();
 
         // Use service role to search all users
-        const allUsers = await base44.asServiceRole.entities.User.list();
+        const allUsers = await base44.asServiceRole.entities.User.list('-created_date', 1000);
         
         const results = allUsers
             .filter(u => {

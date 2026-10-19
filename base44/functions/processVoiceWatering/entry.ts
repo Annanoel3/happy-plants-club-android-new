@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
         const __body = await req.json();
         const { transcript } = __body;
 
-        const plantsResult = await base44.entities.Plant.list();
+        const plantsResult = await base44.entities.Plant.list('-created_date', 1000);
         const plants = Array.isArray(plantsResult) ? plantsResult : [];
         const plantsListStr = plants.map(p => `${p.name} (ID: ${p.id})`).join(', ');
 

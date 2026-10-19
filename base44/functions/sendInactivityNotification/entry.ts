@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
         };
         const message = messages[daysInactive] || `It's been ${daysInactive} days — your plants would love a check-in 🌱`;
 
-        const allUsers = await base44.asServiceRole.entities.User.list();
+        const allUsers = await base44.asServiceRole.entities.User.list('-created_date', 1000);
         let sentCount = 0;
 
         for (const user of allUsers) {

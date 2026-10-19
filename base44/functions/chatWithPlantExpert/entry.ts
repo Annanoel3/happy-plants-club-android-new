@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
         const { message, image_url } = await req.json();
 
         // Get user's plants for context
-        const plants = await base44.entities.Plant.list();
+        const plants = await base44.entities.Plant.list('-created_date', 1000);
         const plantsContext = plants.map(p => 
             `${p.name} (${p.scientific_name || 'unknown species'})`
         ).join(', ');

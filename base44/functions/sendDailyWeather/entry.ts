@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
         if (!appId || !restKey) return Response.json({ error: 'Missing OneSignal credentials' }, { status: 500 });
 
         const now = new Date();
-        const allUsers = await base44.asServiceRole.entities.User.list();
+        const allUsers = await base44.asServiceRole.entities.User.list('-created_date', 1000);
         let sent = 0, skipped = 0, failed = 0;
 
         for (const user of allUsers) {

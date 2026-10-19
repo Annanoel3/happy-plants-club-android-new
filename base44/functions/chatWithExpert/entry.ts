@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
             console.log('✨ Created new conversation:', convId);
         }
 
-        const plantsResult = await base44.entities.Plant.list();
+        const plantsResult = await base44.entities.Plant.list('-created_date', 1000);
         const plants = Array.isArray(plantsResult) ? plantsResult : [];
         
         const plantsContext = plants.map(p => 

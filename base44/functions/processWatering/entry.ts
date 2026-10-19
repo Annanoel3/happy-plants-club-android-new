@@ -48,7 +48,7 @@ async function processWatering(req, { plant_id, notes, watering_date }) {
 
         console.log('🌱 Fetching plant with ID:', plant_id);
         
-        const allPlants = await base44.entities.Plant.list();
+        const allPlants = await base44.entities.Plant.list('-created_date', 1000);
         const plantData = allPlants.find(p => p.id === plant_id);
         
         if (!plantData) {

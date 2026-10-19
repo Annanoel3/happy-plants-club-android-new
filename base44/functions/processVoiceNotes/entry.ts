@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
         const __body = await req.json();
         const { transcript } = __body;
 
-        const plants = await base44.entities.Plant.list();
+        const plants = await base44.entities.Plant.list('-created_date', 1000);
         const plantsList = plants.map(p => `${p.name} (ID: ${p.id})`).join(', ');
 
         const response = await openai.chat.completions.create({

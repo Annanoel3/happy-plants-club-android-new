@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     }
 
     // Process transcript against user's plants
-    const plants = await base44.entities.Plant.list();
+    const plants = await base44.entities.Plant.list('-created_date', 1000);
     const plantsList = plants.map(p => `${p.name} (ID: ${p.id})`).join(', ');
 
     const response = await openai.chat.completions.create({
