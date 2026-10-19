@@ -1,7 +1,7 @@
 // Weather-smart watering (Plus) on the app side.
 // The server decides once a day (functions/plus); plants carry the result in
 // weather_hint, which only counts on the day it was made.
-import { base44 } from '@/api/base44Client';
+import { base44, clearUserCache } from '@/api/base44Client';
 import { localToday } from '@/lib/dates';
 import { refreshPlantData } from '@/lib/query-client';
 import { isPlusCached } from '@/lib/premium';
@@ -44,7 +44,9 @@ async function call(body) {
 
 export async function saveLocation(location) {
   const data = await call({ action: 'geocode', location });
+  clearUserCache(); // the server saved location fields on the user
   refreshPlantData();
+  try { window.dispatchEvent(new CustomEvent('hp-location', { detail: data })); } catch { /* noop */ }
   return data;
 }
 
@@ -64,6 +66,6 @@ export function ensureTodayWeather(user) {
   if (user.weather_day === today && user.weather_today?.place) { ran = today; return null; }
   ran = today;
   return call({ action: 'weather' })
-    .then((d) => { if (d?.status === 'ok') refreshPlantData(); return d; })
+    .then((d) => { if (d?.status === 'ok') { clearUserCache(); refreshPlantData(); } return d; })
     .catch(() => { ran = null; return null; });
 }
