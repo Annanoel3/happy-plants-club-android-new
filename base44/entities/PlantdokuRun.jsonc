@@ -1,0 +1,75 @@
+{
+  "name": "PlantdokuRun",
+  "properties": {
+    "active_ms": {
+      "default": 0,
+      "description": "Time spent with the puzzle open, not counting time the app was in the background",
+      "type": "number"
+    },
+    "board_name": {
+      "description": "Name shown on the leaderboard (generated, e.g. Mossy Fern 42)",
+      "type": "string"
+    },
+    "date": {
+      "description": "Daily puzzle date (YYYY-MM-DD)",
+      "format": "date",
+      "type": "string"
+    },
+    "finished_at": {
+      "type": "string"
+    },
+    "hints": {
+      "default": 0,
+      "type": "number"
+    },
+    "raw_seconds": {
+      "type": "number"
+    },
+    "running_since": {
+      "description": "ISO time the current open stretch began; empty while paused",
+      "type": "string"
+    },
+    "seconds": {
+      "description": "Final time in seconds, including 30 s per hint",
+      "type": "number"
+    },
+    "size": {
+      "type": "number"
+    },
+    "started_at": {
+      "description": "ISO time the player first opened today's puzzle",
+      "type": "string"
+    },
+    "user_email": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "date"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "type": "object"
+}
