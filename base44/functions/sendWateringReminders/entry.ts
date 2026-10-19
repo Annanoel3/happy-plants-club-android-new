@@ -30,6 +30,26 @@ function localHour(timezone) {
 const SEND_FROM_HOUR = 8;
 const SEND_UNTIL_HOUR = 11;
 
+function onVacation(p: any, today: string): boolean {
+    if (!p.vacation_mode_enabled) return false;
+    const start = p.vacation_start_date ? String(p.vacation_start_date).slice(0, 10) : null;
+    const end = p.vacation_end_date ? String(p.vacation_end_date).slice(0, 10) : null;
+    if (start && today < start) return false;
+    if (end && today > end) return false;
+    return true;
+}
+
+// Plus: ounces to give (same formula as src/lib/waterAmount.js)
+const GUESS_BY_PLANT_SIZE: Record<string, number> = { Seedling: 3, Small: 4, Medium: 6, Large: 10, Mature: 12 };
+function ozText(p: any): string | null {
+    if (p.pot_type === 'Self-watering' || p.pot_diameter_in === 0) return null;
+    let w = Number(p.pot_diameter_in) > 0 ? Number(p.pot_diameter_in) : (GUESS_BY_PLANT_SIZE[p.plant_size] || null);
+    if (!w) return null;
+    const raw = 0.545 * w * w * w * 0.10 * 0.554;
+    const oz = raw < 1 ? 1 : raw < 16 ? Math.round(raw) : raw < 64 ? Math.round(raw / 2) * 2 : Math.round(raw / 8) * 8;
+    return `about ${oz} oz`;
+}
+
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
@@ -45,6 +65,10 @@ Deno.serve(async (req) => {
         
         const allPlants = await base44.asServiceRole.entities.Plant.list();
         const userEmails = [...new Set(allPlants.map(p => p.created_by).filter(Boolean))];
+        const activeSubs = (await base44.asServiceRole.entities.Subscription.filter({ active: true }).catch(() => [])) || [];
+        const plusIds = new Set(activeSubs
+            .filter((s: any) => !s.expires_at || Date.parse(s.expires_at) > Date.now())
+            .map((s: any) => s.user_id));
         
         let scheduledCount = 0;
         
@@ -68,11 +92,17 @@ Deno.serve(async (req) => {
             const today = getTodayInTimezone(userTimezone);
             
             // Fetch plants needing water
+            // Due today or earlier, not on vacation, not already watered today
             const userPlants = allPlants.filter(p => 
                 p.created_by === userEmail && 
                 p.next_watering_due && 
-                p.next_watering_due <= today
+                String(p.next_watering_due).slice(0, 10) <= today &&
+                !onVacation(p, today) &&
+                String(p.last_watered || '').slice(0, 10) !== today
             );
+            const plus = plusIds.has(targetUser.id);
+            const wt = targetUser.weather_day === today ? targetUser.weather_today : null;
+            const rainCovered = plus ? (wt?.counts?.rain_credit || 0) : 0;
             
             // Custom reminders push on their own at their own time (sendCustomReminders),
             // so the digest is plants only — no double notifications.
@@ -116,6 +146,8 @@ Deno.serve(async (req) => {
             let notificationText;
             if (plantCount > 0 && reminderCount > 0) {
                 notificationText = `${plantCount} plant${plantCount === 1 ? '' : 's'} + ${reminderCount} reminder${reminderCount === 1 ? '' : 's'}`;
+            } else if (plantCount === 1 && plus && ozText(userPlants[0])) {
+                notificationText = `${userPlants[0].nickname || userPlants[0].name || 'A plant'} needs water (${ozText(userPlants[0])})`;
             } else if (plantCount > 0) {
                 notificationText = `${plantCount} plant${plantCount === 1 ? ' needs' : 's need'} water`;
             } else {
@@ -129,7 +161,7 @@ Deno.serve(async (req) => {
                 app_id: appId.trim(),
                 include_aliases: { external_id: [userEmail] }, target_channel: 'push',
                 headings: { en: '💧 Plant Care Reminder' },
-                contents: { en: `${notificationText} today! 🌱` },
+                contents: { en: `${notificationText} today! 🌱${rainCovered ? ` Rain took care of ${rainCovered} outdoor plant${rainCovered === 1 ? '' : 's'}.` : ''}` },
                 data: { type: 'care_reminder', plant_count: plantCount, reminder_count: reminderCount, date: today },
                 priority: 10,
                 ttl: 8 * 60 * 60,
