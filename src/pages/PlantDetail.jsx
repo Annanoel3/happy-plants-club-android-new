@@ -7,7 +7,7 @@ import { handleAiLimit } from "@/lib/premium";
 import { refreshPlantData } from "@/lib/query-client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Droplets, Calendar, MapPin, Edit, Trash2, Heart, Plus, Check, MessageCircle, Send, Loader2, Camera, X, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Droplets, Calendar, MapPin, Edit, Trash2, Heart, Plus, Check, MessageCircle, Send, Loader2, Camera, X, Lock, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +81,8 @@ export default function PlantDetail() {
   const imageInputRef = useRef(null);
 
   // New states for new features
-  const [selectedTab, setSelectedTab] = useState('details'); // Default tab
+  const [selectedTab, setSelectedTab] = useState('care'); // Care / History / Photos
+  const [guideOpen, setGuideOpen] = useState(false); // care guide: first 3 rows, or all
   const [progressPhotoNotes, setProgressPhotoNotes] = useState("");
   const [isUploadingProgress, setIsUploadingProgress] = useState(false);
   const progressImageInputRef = useRef(null); // Ref for progress photo file input
@@ -1315,6 +1316,19 @@ export default function PlantDetail() {
             >
               Save Changes
             </Button>
+            {/* Removing lives here, out of the way, instead of a red button next to the name */}
+            <button
+              onClick={() => {
+                if (confirm('Remove this plant from your garden? This can\'t be undone.')) {
+                  setShowEditDialog(false);
+                  deletePlantMutation.mutate();
+                }
+              }}
+              disabled={deletePlantMutation.isPending}
+              className="w-full flex items-center justify-center gap-2 py-2 text-sm font-semibold text-red-600"
+            >
+              <Trash2 className="w-4 h-4" /> Remove this plant
+            </button>
           </div>
         </DialogContent>
       </Dialog>
