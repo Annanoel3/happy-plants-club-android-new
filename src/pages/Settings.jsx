@@ -22,6 +22,7 @@ export default function Settings() {
   const plus = usePlus();
   const [notificationsCare, setNotificationsCare] = useState(true);
   const [notificationsFrost, setNotificationsFrost] = useState(true);
+  const [notificationsTips, setNotificationsTips] = useState(true);
   useEffect(() => {
     billingAvailable().then((b) => setPlusReady(!!b.available)).catch(() => {});
     if (isPlusCached()) setPlusReady(true); // subscribers can always reach Manage/Restore
@@ -84,6 +85,7 @@ export default function Settings() {
       setNotificationsEnabled(currentUser?.notifications_enabled !== false);
       setNotificationsCare(currentUser?.notifications_care !== false);
       setNotificationsFrost(currentUser?.notifications_frost !== false);
+      setNotificationsTips(currentUser?.notifications_tips !== false);
 
       // Load weather notification time (stored as UTC hour, convert back to local)
       if (currentUser?.weather_notification_hour !== undefined && currentUser?.weather_notification_hour !== null) {
@@ -234,6 +236,7 @@ export default function Settings() {
     if (key === 'notifications_enabled') setNotificationsEnabled(value);
     if (key === 'notifications_care') setNotificationsCare(value);
     if (key === 'notifications_frost') setNotificationsFrost(value);
+    if (key === 'notifications_tips') setNotificationsTips(value);
     updateNotificationMutation.mutate({ [key]: value });
   };
 
@@ -517,6 +520,26 @@ export default function Settings() {
                     </button>
                   </div>
                 )}
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`font-medium ${getTextColor()}`}>Tips</p>
+                    <p className={`text-sm ${getSecondaryTextColor()}`}>Now and then, a short tip about something Happy Plants can do. Twice a week at most.</p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleNotification('notifications_tips', !notificationsTips)}
+                    aria-label="Tips"
+                    className={`w-12 h-6 shrink-0 rounded-full transition-colors ${
+                      notificationsTips ? 'bg-green-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                        notificationsTips ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
 
                 <div className="flex items-center justify-between">
                   <div>
