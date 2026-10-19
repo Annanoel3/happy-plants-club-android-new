@@ -361,11 +361,14 @@ Deno.serve(async (req) => {
                 const r = await identify(rid, plant.image_url, context);
                 const d = cleanPlantData(r.plantData);
                 const last = String(plant.last_watered || '').slice(0, 10) || today;
+                // Added in bulk with the area already picked, and a sure name: nothing left to
+                // ask, so it skips "Newly added". Otherwise the owner checks it.
+                const settled = info.bulk && String(plant.location || '').trim() && r.identification?.confidence === 'high';
                 const patch = {
                     ...d,
                     last_watered: last,
                     next_watering_due: addDays(last, d.water_frequency_days),
-                    add_status: 'review',
+                    add_status: settled ? 'done' : 'review',
                     add_info: { ...info, ...r.identification, done_at: new Date().toISOString() },
                 };
                 await db.Plant.update(plant.id, patch);
