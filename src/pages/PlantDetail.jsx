@@ -702,7 +702,7 @@ export default function PlantDetail() {
         </div>
 
         {/* 1. The plant: photo, name, where it lives */}
-        <div className="relative rounded-3xl overflow-hidden shadow-lg aspect-[4/3] bg-green-50">
+        <div className={`relative rounded-3xl overflow-hidden shadow-lg bg-green-50 ${plant.image_url ? 'aspect-[4/3]' : 'h-36'}`}>
           {plant.image_url ? (
             <>
               <img src={plant.image_url} alt={title} className={`w-full h-full object-cover ${plant.status === 'wilted' ? 'grayscale' : ''}`} />
@@ -738,7 +738,9 @@ export default function PlantDetail() {
             <button onClick={() => setShowEditDialog(true)} className={chipCls}>
               <MapPin className="w-3.5 h-3.5" /> {plant.location || 'Add where it lives'}
             </button>
-            {plant.environment && <span className={chipCls}>{plant.environment}</span>}
+            {plant.environment && String(plant.environment).toLowerCase() !== String(plant.location || '').toLowerCase() && (
+              <span className={chipCls}>{plant.environment}</span>
+            )}
             <span className={chipCls}>
               <Droplets className="w-3.5 h-3.5" /> {plant.total_waterings || 0} watering{(plant.total_waterings || 0) === 1 ? '' : 's'}
             </span>
