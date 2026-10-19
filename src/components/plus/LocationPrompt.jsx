@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { whenPopupFree, releasePopup } from '@/lib/popupGate';
 import { isPlusCached } from '@/lib/premium';
+import { useMe } from '@/lib/plus';
 import LocationDialog from '@/components/plus/LocationDialog';
 
 // The one-time "Where are your plants?" ask on the garden page.
@@ -11,7 +12,8 @@ import LocationDialog from '@/components/plus/LocationDialog';
 const GAP_DAYS = 30;
 const MAX_TIMES = 3;
 
-export default function LocationPrompt({ user, plantCount }) {
+export default function LocationPrompt({ plantCount }) {
+  const user = useMe(); // reloads after the app looks the location up on the map
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
