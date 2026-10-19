@@ -104,7 +104,8 @@ export function scheduleFromSuggestion(plant, s, hemi, today = localToday()) {
   cs.rotate = { on: !!s.rotate.useful, every_days: s.rotate.every_days, next: addDays(today, 2 + stagger(plant.id, 7)), last: null };
   // Spring is the time to repot, so the first check lands at the start of the next growing season.
   const repotFirst = hemi === 'tropics' ? addDays(today, 30) : seasonStart(today, hemi);
-  cs.repot = { on: true, every_days: s.repot.every_days, next: repotFirst, last: null };
+  // Off for plants not in a pot of soil (in the ground, in water, air plants)
+  cs.repot = { on: s.repot.useful !== false, every_days: s.repot.every_days, next: repotFirst, last: null };
   if (s.note) cs.note = s.note;
   return cs;
 }
