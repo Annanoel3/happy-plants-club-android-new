@@ -192,7 +192,7 @@ export default function CareScheduleCard({ plant, user, plus, plusReady, ui }) {
                         </select>
                         {t.key === 'fertilize' && hemi !== 'tropics' && (
                           <label className="flex items-center justify-between gap-3">
-                            <span className="text-xs theme-text-secondary">Only in spring and summer (no feeding Oct–Feb)</span>
+                            <span className="text-xs theme-text-secondary">Only in spring and summer (no feeding {hemi === 'south' ? 'Apr–Aug' : 'Oct–Feb'})</span>
                             <Switch checked={task.winter_pause !== false} onCheckedChange={(v) => patchDraft(t.key, { winter_pause: v })} />
                           </label>
                         )}
