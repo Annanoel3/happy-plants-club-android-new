@@ -9,7 +9,8 @@ export const EGG_PAGES = [
   { path: '/Feed', key: 'community' },
   { path: '/PlantChat', key: 'expert' },
 ];
-const TEXTS = ["what's this?", "don't click me", 'psst…', 'hmm?'];
+// (not "don't click": the garden already has a hidden "don't click this" for secret themes)
+const TEXTS = ["what's this?", "psst… what's this?", "ooh, what's this?", '🌱 what\'s this?'];
 
 function h32(s) {
   let x = 0;
