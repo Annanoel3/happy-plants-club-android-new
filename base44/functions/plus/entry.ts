@@ -650,6 +650,13 @@ Keep the same ids. Be realistic, not cautious-to-a-fault: overwatering kills mor
     return out;
 }
 
+// The watering paragraph for seasonal plants, written from the saved numbers so the text
+// and the schedule can never disagree.
+function seasonalWateringText(grow: number, rest: number, restSeason: string): string {
+    const resting = restSeason === 'summer' ? 'in summer, when it rests' : 'in winter, when it rests';
+    return `Water until it drains out the bottom, then let the soil dry out completely. While it's growing, that's about every ${grow} days; ${resting}, about every ${rest} days or less. Always check that the soil is dry first, and skip a watering if it isn't.`;
+}
+
 // What to save for one plant, given the AI's answer. Never undoes a person's own choices.
 function profilePatch(p: any, ai: any, today: string, hemi: string): any {
     const prof = p.care_profile || {};
@@ -663,15 +670,20 @@ function profilePatch(p: any, ai: any, today: string, hemi: string): any {
     if (!prof.user_strict) patch.water_strict = !!ai?.strict || every <= 3;
     const grow = clampInt(ai?.grow_days, 3, 45, 0);
     const rest = clampInt(ai?.rest_days, 7, 60, 0);
-    const seasonal = !!ai?.drought_tolerant && grow > 0 && rest > 0 && !prof.user_interval
+    // Sanity limits, because the model can contradict itself: a drought-tolerant plant
+    // watered more often than every 5 days, resting less than 2 weeks, or a big jump to
+    // more watering than it had (under half its old interval) is not applied.
+    const prevEvery = Number(prof.prev_every) || every;
+    const sane = grow >= 5 && rest >= 14 && grow >= Math.floor(prevEvery / 2);
+    const seasonal = !!ai?.drought_tolerant && grow > 0 && rest > 0 && sane && !prof.user_interval
         && (patch.water_method || p.water_method) !== 'in_water';
     if (seasonal) {
+        const restSeason = ai.rest_season === 'summer' ? 'summer' : 'winter';
+        const restDays = Math.max(rest, grow);
         patch.water_days_grow = grow;
-        patch.water_days_rest = Math.max(rest, grow);
-        patch.water_rest_season = ai.rest_season === 'summer' ? 'summer' : 'winter';
-        if (typeof ai.watering_text === 'string' && ai.watering_text.trim()) {
-            patch.care_instructions = { ...(p.care_instructions || {}), watering: ai.watering_text.trim().slice(0, 600) };
-        }
+        patch.water_days_rest = restDays;
+        patch.water_rest_season = restSeason;
+        patch.care_instructions = { ...(p.care_instructions || {}), watering: seasonalWateringText(grow, restDays, restSeason) };
         Object.assign(patch, seasonalPatch({ ...p, ...patch, water_season: null }, today, hemi) || {});
     }
     patch.care_profile = {
@@ -775,6 +787,24 @@ Deno.serve(async (req) => {
         const db = base44.asServiceRole.entities;
         const now = Date.now();
         const memo = new Map<string, any>();
+
+        // Admin, one-time repair: rewrite the watering paragraph of every seasonal plant from its
+        // saved numbers (the first rollout used the model's own text, which could disagree).
+        if (action === 'profile_retext') {
+            const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
+            if (!sweepKey || body.key !== sweepKey) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+            const rows = (await db.Plant.filter({ water_days_rest: { $gt: 0 } }, '-created_date', 2000)) || [];
+            let n = 0;
+            for (const p of rows) {
+                const g = Number(p.water_days_grow) || 0, r = Number(p.water_days_rest) || 0;
+                if (!g || !r) continue;
+                const text = seasonalWateringText(g, r, p.water_rest_season || 'winter');
+                if (p.care_instructions?.watering === text) continue;
+                await db.Plant.update(p.id, { care_instructions: { ...(p.care_instructions || {}), watering: text } });
+                n++;
+            }
+            return Response.json({ success: true, rewritten: n });
+        }
 
         // Admin check before rolling profiles out: what WOULD change for one account (no writes).
         if (action === 'profile_preview') {
