@@ -26,7 +26,8 @@
           "then": "end",
           "with": {
             "args": {
-              "action": "sweep"
+              "action": "sweep",
+              "key": "hpsw_KiJ3hp3BDfdFHr54Sr4s-7TWadw5pceR"
             },
             "function_name": "plus"
           }
