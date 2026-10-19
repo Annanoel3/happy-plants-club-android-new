@@ -23,7 +23,7 @@ import ReminderNotificationManager from "@/components/ReminderNotificationManage
 import { Switch } from "@/components/ui/switch";
 import { usePlus } from "@/lib/plus";
 import { localToday } from "@/lib/dates";
-import CareTaskList, { careTasks } from "@/components/plus/CareTaskList";
+import CareTaskList, { careTasks, BulkCareSetup } from "@/components/plus/CareTaskList";
 
 export default function Schedule() {
   const navigate = useNavigate();
@@ -610,10 +610,11 @@ export default function Schedule() {
           </div>
         ) : view === 'list' ? (
           <div className="space-y-6">
-            {plus && careAll.length > 0 && (
+            {plus && plants.length > 0 && (
               <Card className={getThemedClasses()}>
                 <CardContent className="p-6">
                   <h2 className={`text-2xl font-bold mb-4 ${getTextColor()}`}>Plant Care</h2>
+                  <BulkCareSetup plants={plants} user={user} ui={careUi} />
                   <CareTaskList
                     tasks={careAll.filter((t) => t.next <= format(new Date(Date.now() + 30 * 86400000), 'yyyy-MM-dd'))}
                     user={user}
