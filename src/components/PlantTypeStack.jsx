@@ -5,6 +5,23 @@ import { quickWaterPlant, wateredToday } from "@/lib/watering";
 import { toast } from "sonner";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePlus } from "@/lib/plus";
+import { hintChip } from "@/lib/weather";
+import { waterAmount } from "@/lib/waterAmount";
+import { dueCare, CARE_META } from "@/lib/care";
+
+// Plus extras on a card: today's weather note, how much water, care that's due.
+function plusChips(plant) {
+  const chips = [];
+  const h = hintChip(plant);
+  if (h) chips.push({ key: 'wx', icon: h.icon, text: h.text });
+  const due = dueCare(plant);
+  if (due.length === 1) chips.push({ key: 'care', icon: CARE_META[due[0].key].icon, text: CARE_META[due[0].key].label });
+  else if (due.length > 1) chips.push({ key: 'care', icon: '🗓️', text: `${due.length} care tasks` });
+  const amt = waterAmount(plant);
+  if (amt.kind === 'oz' && !wateredToday(plant)) chips.push({ key: 'amt', icon: '💧', text: amt.short });
+  return chips;
+}
 
 // One-tap watering on the card itself (doesn't open the plant)
 function WaterButton({ plant, compact = false }) {
@@ -55,8 +72,9 @@ function WaterButton({ plant, compact = false }) {
 }
 
 // Tile card — compact 2-per-row grid
-function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex }) {
+function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex, plus }) {
   const navigate = useNavigate();
+  const chips = plus ? plusChips(plant).filter((c) => c.key !== 'amt') : [];
   const watering = getWateringStatus(plant, wateringRemindersEnabled);
   const displayName = plant.nickname || plant.name || 'Unknown Plant';
   const needsWater = watering && (watering.status === 'today' || watering.status === 'overdue' || watering.status === 'wilted');
@@ -88,9 +106,15 @@ function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex }) {
         </div>
       )}
 
-      {plant.pinned && (
-        <div className="absolute top-2 left-2">
-          <Pin className="w-3 h-3 text-pink-300 drop-shadow" />
+      {(plant.pinned || chips.length > 0) && (
+        <div className="absolute top-2 left-2 flex items-center gap-1">
+          {plant.pinned && <Pin className="w-3 h-3 text-pink-300 drop-shadow" />}
+          {chips.map((c) => (
+            <span key={c.key} title={c.text} aria-label={c.text}
+              className="w-5 h-5 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-[11px] leading-none">
+              {c.icon}
+            </span>
+          ))}
         </div>
       )}
 
@@ -215,8 +239,9 @@ function FadeImage({ src, alt, gradientIndex }) {
   );
 }
 
-function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick, gradientIndex }) {
+function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick, gradientIndex, plus }) {
   const navigate = useNavigate();
+  const chips = plus ? plusChips(plant) : [];
   const watering = getWateringStatus(plant, wateringRemindersEnabled);
   const displayName = plant.nickname || plant.name || 'Unknown Plant';
   const scientificName = plant.scientific_name;
@@ -309,6 +334,11 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
               )}
               <div className="flex items-center justify-between">
                 <div className="flex gap-1.5 flex-wrap">
+                  {chips.map((c) => (
+                    <span key={c.key} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/25 backdrop-blur-sm text-white">
+                      {c.icon} {c.text}
+                    </span>
+                  ))}
                   {plant.location && (
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm text-white">
                       📍 {plant.location}
@@ -360,6 +390,7 @@ function ScrollReveal({ children, index }) {
 
 export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect, onSelectGroup, stackIndex = 0, viewMode = 'stack', showHeader = true }) {
   const [expanded, setExpanded] = useState(false);
+  const plus = usePlus();
   const groupIds = plants.map(p => p.id);
   const allGroupSelected = selectMode && groupIds.length > 0 && groupIds.every(id => selectedIds?.includes(id));
 
@@ -426,6 +457,7 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
               plant={plant}
               wateringRemindersEnabled={wateringRemindersEnabled}
               gradientIndex={index}
+              plus={plus}
             />
           ))}
         </div>
@@ -446,6 +478,7 @@ export default function PlantTypeStack({ plantType, plants, wateringRemindersEna
               isExpanded={isOpen}
               onClick={() => setExpanded(true)}
               gradientIndex={index}
+              plus={plus}
             />
           ))}
         </motion.div>
