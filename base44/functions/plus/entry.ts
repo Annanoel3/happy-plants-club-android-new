@@ -21,7 +21,8 @@ import OpenAI from 'npm:openai@4.73.1';
 //  - Rain forecast for the rest of today ≥ threshold and the plant is due → hold until tomorrow;
 //    tomorrow it's either credited (it rained) or due again ("the rain didn't come").
 //  - High today ≥ 90°F and the plant is due tomorrow → due today instead.
-//  - Low tonight ≤ 32°F → frost warning on the plant.
+//  - Low tonight ≤ 32°F → frost warning on the plant, and one push around 4 PM local
+//    ("Frost tonight") from the freshest forecast, if they have outdoor plants.
 // Threshold: 0.5 in, or more for big pots (rain only lands on the pot's opening):
 // max(0.5, 0.07 × pot diameter in inches).
 
@@ -37,6 +38,8 @@ const MIN_RAIN_IN = 0.5;
 const EVAL_FROM_HOUR = 5;
 const CARE_FROM_HOUR = 9;
 const CARE_UNTIL_HOUR = 11;
+const FROST_FROM_HOUR = 16; // the hourly sweep runs at :20, so the first try is 4:20 PM
+const FROST_UNTIL_HOUR = 19;
 
 // ---------------------------------------------------------------- time helpers
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -444,6 +447,32 @@ async function sendCarePush(email: string, due: any[]) {
     return { id: j?.id || null, detail: j };
 }
 
+async function sendFrostPush(email: string, cold: any[], lowF: number) {
+    const appId = (Deno.env.get('ONESIGNAL_APP_ID') || '').trim();
+    const key = Deno.env.get('ONESIGNAL_REST_API_KEY');
+    if (!appId || !key) return { id: null, detail: 'no onesignal' };
+    const first = plantName(cold[0]);
+    const body = cold.length === 1
+        ? `Cover ${first} or bring it inside.`
+        : `Cover or bring in ${first} + ${cold.length - 1} more outdoor plant${cold.length === 2 ? '' : 's'}.`;
+    const res = await fetch('https://api.onesignal.com/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: osAuth(key) },
+        body: JSON.stringify({
+            app_id: appId,
+            include_aliases: { external_id: [email] },
+            target_channel: 'push',
+            headings: { en: `🥶 Frost tonight (${lowF}°F)` },
+            contents: { en: body },
+            data: { type: 'frost', count: cold.length, screen: '/' },
+            priority: 10,
+            ttl: 6 * 60 * 60,
+        }),
+    });
+    const j = await res.json().catch(() => ({}));
+    return { id: j?.id || null, detail: j };
+}
+
 // ---------------------------------------------------------------- care suggestions (LLM)
 function clampInt(v: any, min: number, max: number, dflt: number) {
     const n = Math.round(Number(v));
@@ -577,6 +606,38 @@ Deno.serve(async (req) => {
                             const s = await sendCarePush(u.email, due);
                             bump(s.id ? 'care_sent' : 'care_failed');
                             if (!s.id) console.warn('care push failed', u.email, JSON.stringify(s.detail).slice(0, 200));
+                        }
+                    }
+
+                    // Frost alert: one a day at most, late afternoon, from the freshest forecast
+                    // (this user's weather square was refreshed above). test_frost lets the
+                    // sweep key holder fake a low for one account to test the whole path.
+                    const fakeLow = testFrost && testFrost.email === u.email ? testFrost.low_f : null;
+                    const frostHour = fakeLow !== null || (hour >= FROST_FROM_HOUR && hour <= FROST_UNTIL_HOUR);
+                    if (frostHour && u.frost_push_day !== today && u.notifications_frost !== false
+                        && typeof u.location_lat === 'number' && typeof u.location_lon === 'number') {
+                        let low: number | null = fakeLow;
+                        if (low === null) {
+                            const wx = await loadWeather(db, u.location_lat, u.location_lon, memo);
+                            low = Object.keys(wx.hours || {}).length ? summarize(wx.hours, now, tz).low_f : null;
+                        }
+                        if (low !== null && low <= FROST_F) {
+                            const plants = (await db.Plant.filter({ created_by: u.email }, '-created_date', 500)) || [];
+                            const cold = plants.filter((p: any) => FROST_ENVS.includes(p.environment) && !onVacation(p, today));
+                            if (cold.length) {
+                                await db.User.update(u.id, { frost_push_day: today }); // claim first: never twice
+                                // Plant pages show the same warning as the push
+                                const frostText = `Frost tonight (${low}°F). Cover it or bring it inside.`;
+                                for (const p of cold) {
+                                    const h = p.weather_hint && p.weather_hint.day === today ? p.weather_hint : null;
+                                    if (h && h.frost_low_f === low) continue;
+                                    const next = { ...(h || { kind: 'frost' }), day: today, frost_low_f: low, frost_text: frostText };
+                                    try { await db.Plant.update(p.id, { weather_hint: next }); } catch { /* the push still goes */ }
+                                }
+                                const f = await sendFrostPush(u.email, cold, low);
+                                bump(f.id ? 'frost_sent' : 'frost_failed');
+                                if (!f.id) console.warn('frost push failed', u.email, JSON.stringify(f.detail).slice(0, 200));
+                            }
                         }
                     }
                 } catch (e) {
