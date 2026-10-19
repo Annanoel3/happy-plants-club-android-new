@@ -576,6 +576,19 @@ export default function PlantDetail() {
     );
   }
 
+  // Couldn't reach the server and nothing loaded yet: say so (it isn't "not found")
+  if (!plant && error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center theme-bg px-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold theme-text mb-2">Can't reach Happy Plants</h2>
+          <p className="theme-text mb-6">Check your signal and try again.</p>
+          <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['plant'] })} className="bg-green-600 hover:bg-green-700">Try again</Button>
+        </div>
+      </div>
+    );
+  }
+
   // If plant is null after loading, it means either the plant doesn't exist
   // or the current user doesn't own it.
   if (!plant) {
