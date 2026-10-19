@@ -20,7 +20,7 @@ import NewPlantReview from "@/components/NewPlantReview";
 import WelcomeBack from "@/components/WelcomeBack";
 import NewPlantsNotice from "@/components/NewPlantsNotice";
 import { fetchTrips, tripCovering, welcomeBackTrip, niceDay, addDays } from "@/lib/vacation";
-import { whenPopupFree, releasePopup } from "@/lib/popupGate";
+import { whenPopupFree, releasePopup, popupBusy } from "@/lib/popupGate";
 import { toast } from "sonner";
 import { showAdForEvent } from "@/lib/admob";
 import { usePlus, useMe } from "@/lib/plus";
@@ -530,6 +530,17 @@ export default function Dashboard() {
     try { pending = sessionStorage.getItem('hp_add_ad_pending') === '1'; sessionStorage.removeItem('hp_add_ad_pending'); } catch { /* ignore */ }
     if (pending) setTimeout(() => showAdForEvent('add'), 800);
   };
+  // An add with nothing to ask (several plants, area already picked): the ad comes once the
+  // garden has loaded and nothing else is up
+  useEffect(() => {
+    let pending = false;
+    try { pending = sessionStorage.getItem('hp_add_ad_pending') === '1'; } catch { /* ignore */ }
+    if (!pending || !plantsList.length) return;
+    if (identifyingPlants.length || reviewQueue.length || bulkUnseen.length || bulkOpen || reviewOpen) return;
+    const t = setTimeout(() => { if (!popupBusy()) showPendingAddAd(); }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plantsList.length, identifyingPlants.length, reviewQueue.length, bulkUnseen.length, bulkOpen, reviewOpen]);
 
   const closeReview = (skipIds = []) => {
     setReviewSkip((s) => { const n = new Set(s); skipIds.forEach((id) => n.add(id)); return n; });
