@@ -16,6 +16,9 @@ import QuickLogModal from "@/components/QuickLogModal";
 import PlantTypeStack from "@/components/PlantTypeStack";
 import BulkActionBar from "@/components/BulkActionBar";
 import WateringRound, { dueNow } from "@/components/WateringRound";
+import NewPlantReview from "@/components/NewPlantReview";
+import { whenPopupFree, releasePopup } from "@/lib/popupGate";
+import { showAdForEvent } from "@/lib/admob";
 import { usePlus, useMe } from "@/lib/plus";
 import { refreshPlantData } from "@/lib/query-client";
 import { AnimatePresence } from "framer-motion";
@@ -37,6 +40,10 @@ export default function Dashboard() {
   });
   const plus = usePlus();
   const me = useMe();
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewSkip, setReviewSkip] = useState(() => new Set()); // "Later" (this visit) or just saved
+  const reviewWaitRef = useRef(null);
+  const retriedRef = useRef(new Set());
   const [selectedIds, setSelectedIds] = useState([]);
   const [categorizing, setCategorizing] = useState(false);
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('garden_sortBy') || null);
@@ -156,6 +163,8 @@ export default function Dashboard() {
     },
     placeholderData: [], // (was initialData; that would count as fresh under the 30s staleTime and hide the real data)
     enabled: authChecked && !!user && !!user.location,
+    // While a new plant is being named on the server, check back every few seconds
+    refetchInterval: (q) => (Array.isArray(q.state.data) && q.state.data.some((p) => p?.add_status === 'identifying') ? 4000 : false),
     retry: 1,
     // No staleTime: 0 here any more: the garden list is kept for 30s between visits,
     // and every Plant write refreshes it automatically (api/base44Client.js).
@@ -439,6 +448,51 @@ export default function Dashboard() {
     window.dispatchEvent(new Event('storage'));
   };
 
+  // ---- New plants: being named on the server, then "Check your new plant" ----
+  const identifyingPlants = plantsList.filter((p) => p.add_status === 'identifying');
+  const reviewQueue = plantsList
+    .filter((p) => (p.add_status === 'review' || p.add_status === 'failed') && !reviewSkip.has(p.id))
+    .sort((a, b) => String(a.created_date).localeCompare(String(b.created_date)));
+  const reviewPlant = reviewQueue[0] || null;
+
+  // Open the check when there's one to do, waiting for any other popup to finish first
+  useEffect(() => {
+    if (!reviewPlant || reviewOpen || reviewWaitRef.current) return;
+    reviewWaitRef.current = whenPopupFree('review', () => { reviewWaitRef.current = null; setReviewOpen(true); }, { firstDelay: 600 });
+  }, [reviewPlant?.id, reviewOpen]);
+  useEffect(() => () => { reviewWaitRef.current?.(); releasePopup('review'); }, []);
+
+  const closeReview = (skipIds = []) => {
+    setReviewSkip((s) => { const n = new Set(s); skipIds.forEach((id) => n.add(id)); return n; });
+    setReviewOpen(false);
+    releasePopup('review');
+    reviewWaitRef.current = null;
+  };
+  const reviewSaved = (p) => {
+    const remaining = reviewQueue.filter((x) => x.id !== p.id);
+    setReviewSkip((s) => new Set(s).add(p.id));
+    if (remaining.length) return; // next one shows in the same sheet
+    closeReview();
+    // One ad per add, after the last new plant is checked (never on top of the sheet)
+    let pending = false;
+    try { pending = sessionStorage.getItem('hp_add_ad_pending') === '1'; sessionStorage.removeItem('hp_add_ad_pending'); } catch { /* ignore */ }
+    if (pending) setTimeout(() => showAdForEvent('add'), 800);
+  };
+
+  // A plant stuck "naming" for 3+ minutes (app was closed, signal dropped): ask the
+  // server to try again. The server also retries on its own every hour.
+  const identifyingKey = identifyingPlants.map((p) => p.id).join(',');
+  useEffect(() => {
+    for (const p of identifyingPlants) {
+      if (retriedRef.current.has(p.id)) continue;
+      const started = Date.parse(p.add_info?.started_at || p.created_date) || 0;
+      if (Date.now() - started < 3 * 60 * 1000 || (Number(p.add_info?.tries) || 0) >= 3) continue;
+      retriedRef.current.add(p.id);
+      base44.functions.invoke('identifyPlantWithExpert', { plant_id: p.id }).then(() => refreshPlantData()).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identifyingKey]);
+
   // New plants get a watering profile (how it's watered, finicky or not, seasonal
   // intervals for succulents) right away instead of waiting for the hourly sweep.
   const unprofiled = plantsList.filter((p) => !p.care_profile).length;
@@ -534,6 +588,16 @@ export default function Dashboard() {
     <>
       <DailyWeatherPopup />
       <LocationPrompt plantCount={plants?.length || 0} />
+      {reviewOpen && reviewPlant && (
+        <NewPlantReview
+          plant={reviewPlant}
+          allPlants={plantsList}
+          ui={roundUi}
+          navigate={navigate}
+          onDone={reviewSaved}
+          onLater={() => closeReview(reviewQueue.map((p) => p.id))}
+        />
+      )}
       <WateringRound
         open={roundOpen}
         onClose={() => setRoundOpen(false)}
@@ -582,6 +646,22 @@ export default function Dashboard() {
             <div className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold ${getThemedClasses()} ${getTextColor()}`}>
               🌿 <span>{plantsList.length}</span>
             </div>
+            {/* New plants still being named on the server */}
+            {identifyingPlants.length > 0 && (
+              <div className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold ${getThemedClasses()} ${getTextColor()}`} role="status">
+                <span className="w-3.5 h-3.5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" aria-hidden />
+                Naming {identifyingPlants.length} new plant{identifyingPlants.length === 1 ? '' : 's'}…
+              </div>
+            )}
+            {/* Unchecked new plants (after "Later") */}
+            {!reviewOpen && reviewQueue.length === 0 && plantsList.some((p) => p.add_status === 'review' || p.add_status === 'failed') && (
+              <button
+                onClick={() => setReviewSkip(new Set())}
+                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold bg-amber-500 text-white active:scale-95"
+              >
+                🌱 Check new plants
+              </button>
+            )}
             {/* Watering round: only what's due, by area */}
             {dueToday.length > 0 && (
               <button
