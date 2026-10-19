@@ -500,6 +500,13 @@ function clampInt(v: any, min: number, max: number, dflt: number) {
     return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt;
 }
 const INDOORISH = ['Indoor', 'Window Sill', 'Office'];
+// Snap to the choices the app's schedule editor offers ("every 2 months", not "every 75 days")
+function snapTo(v: number, options: number[]): number {
+    return options.reduce((best, o) => (Math.abs(o - v) < Math.abs(best - v) ? o : best), options[0]);
+}
+const FEED_STEPS = [7, 14, 21, 30, 45, 60, 90, 120, 180, 365];
+const ROTATE_STEPS = [7, 14, 21, 30, 45, 60, 90];
+const REPOT_MONTHS = [6, 12, 18, 24, 36, 48, 60];
 function fallbackCare(p: any) {
     const type = p.plant_type || '';
     const indoor = !p.environment || INDOORISH.includes(p.environment);
@@ -561,12 +568,12 @@ Rules:
             const fb = out[s.id];
             out[s.id] = {
                 fertilize: {
-                    every_days: clampInt(s.fertilize?.every_days, 7, 365, fb.fertilize.every_days),
+                    every_days: snapTo(clampInt(s.fertilize?.every_days, 7, 365, fb.fertilize.every_days), FEED_STEPS),
                     winter_pause: s.fertilize?.winter_pause !== false,
                 },
                 mist: { useful: !!s.mist?.useful, every_days: clampInt(s.mist?.every_days, 1, 14, 3) },
-                rotate: { useful: !!s.rotate?.useful, every_days: clampInt(s.rotate?.every_days, 7, 90, fb.rotate.every_days) },
-                repot: { every_days: clampInt(s.repot?.every_months, 6, 60, 18) * 30 },
+                rotate: { useful: !!s.rotate?.useful, every_days: snapTo(clampInt(s.rotate?.every_days, 7, 90, fb.rotate.every_days), ROTATE_STEPS) },
+                repot: { every_days: snapTo(clampInt(s.repot?.every_months, 6, 60, 18), REPOT_MONTHS) * 30 },
                 note: typeof s.note === 'string' ? s.note.slice(0, 160) : null,
                 source: 'ai',
             };
