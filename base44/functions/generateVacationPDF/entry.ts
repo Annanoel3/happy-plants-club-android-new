@@ -9,10 +9,11 @@ import { jsPDF } from 'npm:jspdf@2.5.1';
 //   { action: 'dismiss', vacation_id }            → don't ask again
 // visit_every: 0 = come only on days a plant needs water; 2 / 3 = every 2 or 3 days;
 // 3.5 = twice a week; 7 = once a week. With set visits, each plant is watered at the visit
-// closest to its due day: early rather than late, late only by a day (a few days for
-// drought-tolerant plants), never late for plants marked "keep exact days". Plants that
-// still have to wait too long are listed as warnings in the app, and the sitter is asked
-// to check them at every visit.
+// closest to its due day (a tie goes to the earlier visit). A later visit is only used if
+// the plant can wait that long: never for plants marked "keep exact days" or watered every
+// 1-3 days, up to half its usual gap for most plants, up to three quarters of it for
+// drought-tolerant ones. Plants that still have to wait too long are listed as warnings in
+// the app, and the sitter is asked to check them at every visit.
 // Before the trip the owner is assumed to keep watering on schedule.
 // All dates are plain YYYY-MM-DD in the owner's calendar (no time zones involved).
 
@@ -113,7 +114,7 @@ function makePlan(plants: any[], vac: any, every: number, plus: boolean, today: 
         if (onPlantVacation(p, start)) { notNeeded.push({ ...item, why: 'paused' }); continue; }
         const drought = !!p.care_profile?.drought_tolerant;
         // how many days late is still fine for this plant
-        const okLate = item.strict || freq <= 3 ? 0 : drought ? Math.max(2, Math.floor(freq / 4)) : 1;
+        const okLate = item.strict || freq <= 3 ? 0 : drought ? Math.max(2, Math.floor(freq * 0.75)) : Math.max(1, Math.floor(freq / 2));
         let last = DATE.test(String(p.last_watered || '').slice(0, 10)) ? String(p.last_watered).slice(0, 10) : null;
         let due = DATE.test(String(p.next_watering_due || '').slice(0, 10)) ? String(p.next_watering_due).slice(0, 10) : (last ? addDays(last, freq) : start);
         // Until the trip starts the owner waters as usual
