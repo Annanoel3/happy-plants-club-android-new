@@ -75,7 +75,7 @@ export default function Schedule() {
     queryKey: ['plants', user?.email],
     queryFn: async () => {
       try {
-        return await base44.entities.Plant.filter({ created_by: user.email }, "-created_date");
+        return await base44.entities.Plant.filter({ created_by: user.email }, "-created_date", 1000);
       } catch (err) {
         return [];
       }
