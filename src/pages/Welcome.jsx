@@ -83,6 +83,9 @@ export default function Welcome() {
       await base44.auth.updateMe({ 
         location: location.trim()
       });
+      // Look the place up on the map in the background (for local weather). If it
+      // can't be found, the garden page asks again later; it never blocks sign-up.
+      import('@/lib/weather').then((m) => m.saveLocation(location.trim())).catch(() => {});
       
       console.log('✅ Location saved successfully');
       toast.success("Welcome to Happy Plants! 🌿");
