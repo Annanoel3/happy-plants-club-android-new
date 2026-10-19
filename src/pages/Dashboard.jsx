@@ -21,6 +21,7 @@ import { whenPopupFree, releasePopup } from "@/lib/popupGate";
 import { showAdForEvent } from "@/lib/admob";
 import { usePlus, useMe } from "@/lib/plus";
 import { refreshPlantData } from "@/lib/query-client";
+import { withPendingWaterings } from "@/lib/outbox";
 import { AnimatePresence } from "framer-motion";
 
 export default function Dashboard() {
@@ -155,10 +156,12 @@ export default function Dashboard() {
       try {
         // Explicit limit: without one the server stops at 100 plants
         const result = await base44.entities.Plant.filter({ created_by: user.email }, undefined, 1000);
-        return Array.isArray(result) ? result : (result?.data || []);
+        // Waterings still waiting on this phone (no signal) show as done
+        return withPendingWaterings(Array.isArray(result) ? result : (result?.data || []));
       } catch (err) {
         console.error("❌ Error fetching plants:", err);
-        return [];
+        // Keep showing the garden we already have (no signal) instead of an empty one
+        throw err;
       }
     },
     placeholderData: [], // (was initialData; that would count as fresh under the 30s staleTime and hide the real data)
