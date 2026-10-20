@@ -182,12 +182,14 @@ export default function GardenGroups() {
       ),
     },
     {
-      title: 'Watch for tricks',
-      text: "Some words look like they fit a group but don't. Every word fits exactly one group.",
+      title: 'One group is word play',
+      text: 'Groups go from easy to tricky. The trickiest one is often word play, so a word might not be a plant on its own.',
       pic: (
-        <div className="flex items-center gap-3">
-          <div className="w-28 shrink-0"><MiniTile word="LEMON BALM" dark={dark} /></div>
-          <p className={`text-sm ${ui.sub}`}>Sounds like a <b className={ui.text}>citrus fruit</b>… but it's an <b className={ui.text}>herb</b> in the mint family.</p>
+        <div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {['DATE', 'FAN', 'QUEEN', 'OIL'].map((w) => <MiniTile key={w} word={w} dark={dark} />)}
+          </div>
+          <p className={`text-sm mt-2 text-center ${ui.sub}`}>Add <b className={ui.text}>PALM</b> to each one: date palm, fan palm, queen palm, oil palm.</p>
         </div>
       ),
     },
