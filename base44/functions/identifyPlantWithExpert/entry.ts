@@ -91,6 +91,11 @@ Lookalikes that get confused in real collections - check these before answering:
 - A cylindrical smooth green segment with a few spine spots is an opuntia-type cutting: Austrocylindropuntia subulata (Eve's needle) is the common one. "Baculellum"/Tephrocactus segments are egg-shaped and grey with papery spines.
 - Small magenta Dendrobium flowers on a thin spike from a small plant = Dendrobium kingianum, far more common than rare Dendrobium species.
 - Fat white/grey caudex with big serrated fleshy leaves = Cyphostemma juttae. Smooth green rounded caudex with thin vining stems = Adenia glauca. Swollen trunk with glossy oval leaves = Adenium (desert rose).
+- Smooth, rounded grey-green caudex at soil level with one tall, thin, smooth stem (often leafless) = Adenia glauca. No spines, ribs or areoles, so it is not a cactus.
+- Partly buried tuberous caudex with thin, branching, spiny stems and tufts of narrow leaves = Pachypodium succulentum. Pachypodium lamerei is one thick, spiny trunk topped by long leaves.
+- Rosettes of flat, smooth, leathery leaves with slightly wavy edges, often a different color at the edge, often with pink, red or white veins or patches, on a short caudex = Euphorbia francoisii (very variable and widely sold).
+- Thick, pointed, powdery grey to lavender leaves in loose rosettes on stems that trail and shed leaves = Graptopetalum paraguayense (ghost plant). Aeonium leaves are thin, flat and glossy, never powdery.
+- Sedum nussbaumerianum is now treated as Sedum adolphii (coppertone stonecrop): use Sedum adolphii.
 - Prefer the common, widely sold species over a rare one when both fit the photo equally well.`;
 
 const NAME_RULE = `common name US nurseries use for THIS species, in sentence case ("Eve's needle cactus") - no parentheses, no hedging words, never a name that belongs to a different species ("Congo fig" is Dorstenia elata, not D. foetida)`;
