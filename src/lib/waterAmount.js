@@ -143,6 +143,8 @@ export function compareOz(oz) {
     let best = null;
     for (const k of NICE) {
       if (k > c.max) continue;
+      // "a quarter of a quart jug" is hard to picture; small fractions only of a cup, can or bottle
+      if (k < 0.5 && c.oz > 17) continue;
       const err = Math.abs(n - k) / k;
       if (!best || err < best.err) best = { k, err };
     }
