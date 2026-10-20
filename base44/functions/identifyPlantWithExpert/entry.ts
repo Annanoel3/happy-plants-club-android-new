@@ -944,31 +944,6 @@ Deno.serve(async (req) => {
             // Seasonal numbers belong to the plant the care sheet was written for
             const clearSeasons = (p: any) => (p.care_profile?.user_interval ? {} : { water_days_grow: null, water_days_rest: null, water_rest_season: null, water_season: null });
 
-            // a) Owner typed a different scientific name
-            if (corrected) {
-                const meter = newMeter();
-                const c = await writeCare(user, plant, today, { scientific_name: corrected, typed: true, meter, cache });
-                const d = c.fields;
-                // Picked from "Is it one of these?": keep the name shown on the card they tapped
-                const picked = typeof body.name === 'string' ? body.name.replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 80) : '';
-                if (picked) d.name = picked;
-                const last = String(plant.last_watered || '').slice(0, 10) || today;
-                const patch: any = {
-                    ...d,
-                    ...clearSeasons(plant),
-                    next_watering_due: addDays(last, d.water_frequency_days),
-                    care_profile: pendingProfile(plant, c.ai, d.water_frequency_days),
-                    add_info: { ...info, error: null, renamed_from: plant.scientific_name || null, renamed_at: new Date().toISOString(), care_done: true, care_pending: false, care_error: null,
-                        rename_cost: { usd: meterUsd(meter), calls: meter.calls } },
-                    // A plant we couldn't name is named now: on to the check
-                    ...(plant.add_status === 'failed' || plant.add_status === 'identifying' ? { add_status: 'review' } : {}),
-                };
-                await db.Plant.update(plant.id, patch);
-                if (!svc) await profileNow(base44, plant.id);
-                const fresh = (await db.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
-                return Response.json({ success: true, plant: fresh });
-            }
-
             // Write the care sheet for a plant that already has its name and save it. The owner
             // can be setting the plant up meanwhile (where it lives, pot, how it's watered), so
             // this re-reads the plant and only touches the care fields; if they renamed it in the
@@ -982,7 +957,7 @@ Deno.serve(async (req) => {
                 const fresh = (await db.Plant.filter({ id: plant.id }))?.[0];
                 if (!fresh) return null;
                 const fi = fresh.add_info || {};
-                if (fi.renamed_at && Date.parse(fi.renamed_at) >= t0 - 1000) return fresh;
+                if (ident.renamedAt ? fi.renamed_at !== ident.renamedAt : (fi.renamed_at && Date.parse(fi.renamed_at) >= t0 - 1000)) return fresh;
                 const d = c.fields;
                 // Numbers for where it lives NOW (the owner may have just said)
                 const n = c.ai?.numbers?.[spotOf(fresh.environment)] || null;
@@ -996,7 +971,7 @@ Deno.serve(async (req) => {
                     // for typed names it only fills in the scientific name, and a common name when
                     // what they typed was the scientific name itself.
                     ...(ident.typed ? { scientific_name: d.scientific_name,
-                        ...(d.name && String(fresh.name || '').trim().toLowerCase() === String(d.scientific_name || '').trim().toLowerCase() ? { name: d.name } : {}) } : {}),
+                        ...(d.name && [d.scientific_name, ident.scientific_name].some((x) => String(fresh.name || '').trim().toLowerCase() === String(x || '').trim().toLowerCase()) ? { name: d.name } : {}) } : {}),
                     ...(own ? {} : { ...clearSeasons(fresh), water_frequency_days: every, next_watering_due: addDays(last, every) }),
                     last_watered: last,
                     care_profile: pendingProfile(fresh, c.ai, every),
@@ -1015,6 +990,27 @@ Deno.serve(async (req) => {
                 await db.Plant.update(plant.id, { add_info: { ...(fresh.add_info || {}), care_pending: true, care_error: (e as Error).message.slice(0, 200) } }).catch(() => {});
                 return Response.json({ error: "Couldn't write this plant's care", detail: (e as Error).message }, { status: 502 });
             };
+
+            // a) Owner changed the name: typed a scientific name, or tapped one in "Is it one of
+            //    these?". The new name is saved right away (the app shows it at once); the care
+            //    sheet for it follows a few seconds later.
+            if (corrected) {
+                const picked = typeof body.name === 'string' ? body.name.replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 80) : '';
+                const renamedAt = new Date().toISOString();
+                await db.Plant.update(plant.id, {
+                    scientific_name: corrected,
+                    // Typed: the care sheet swaps in the common name for it
+                    name: picked || corrected,
+                    add_info: { ...info, error: null, renamed_from: plant.scientific_name || null, renamed_at: renamedAt, care_started_at: renamedAt,
+                        care_pending: true, care_done: false, care_error: null },
+                    // A plant we couldn't name is named now: on to the check
+                    ...(plant.add_status === 'failed' || plant.add_status === 'identifying' ? { add_status: 'review' } : {}),
+                });
+                try {
+                    const fresh = await saveCare({ name: picked || corrected, scientific_name: corrected, typed: true, meter: newMeter(), cache, renamedAt }, null);
+                    return Response.json({ success: true, plant: fresh });
+                } catch (e) { return careFailed(e); }
+            }
 
             // d) A second photo of a named plant (a close-up, a flower, or its nursery tag), sent
             //    inline (no upload, so no Base44 credit): name it again from both photos, and if
