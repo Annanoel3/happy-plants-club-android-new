@@ -62,8 +62,8 @@ const TIPS: { key: string; title: string; body: string; screen: string | ((day: 
         screen: '/PlantChat', skip: (c) => c.usedChat,
     },
     {
-        key: 'plantdoku', title: '🌱 Psst… a hidden game',
-        body: "There's a tiny puzzle game hiding in Happy Plants. Today it's on this screen: look for small text that says \"what's this?\"",
+        key: 'plantdoku', title: '🌱 Psst… hidden games',
+        body: "There are little plant puzzle games hiding in Happy Plants. Today the way in is on this screen: look for small text that says \"what's this?\"",
         screen: (day) => eggPath(day), skip: (c) => c.foundGame || c.plants < 3 || c.ageDays < 7,
     },
     {
