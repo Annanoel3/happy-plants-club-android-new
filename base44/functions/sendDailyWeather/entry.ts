@@ -64,16 +64,6 @@ Deno.serve(async (req) => {
                     body: JSON.stringify({ action: 'weather_note_for', key: sweepKey, email: user.email }),
                 }).then((r) => r.json()).catch(() => null);
                 const message = noteRes?.success ? noteRes.message : '';
-                /* old: base44.asServiceRole.integrations.Core.InvokeLLM({
-                    prompt: `You are a friendly plant care assistant. Look up today's weather forecast for ${user.location} (today is ${localDate}) and write a short morning note about how the user's plants will experience it.
-
-The user has ${hasOutdoor && hasIndoor ? 'both indoor and outdoor plants' : hasOutdoor ? 'outdoor plants' : 'only indoor plants'}.
-${hasOutdoor ? 'Mention sun, heat, rain or wind exposure for the outdoor plants when it matters.' : 'Do not suggest moving plants outside or bringing them in; talk about indoor light, humidity and temperature.'}
-Only mention tonight if there is a real hazard (frost below 35°F, freeze, storms, heavy rain, strong wind) and then give one specific action.
-
-2–3 sentences, warm and practical, one or two emoji. Return only the message text — no links, no headings.`,
-                    add_context_from_internet: true,
-                }) */
 
                 const text = String(typeof message === 'string' ? message : (message as any)?.response ?? '')
                     .replace(/\[?\(?https?:\/\/[^\s)]+\)?[\])]?/gi, '')
