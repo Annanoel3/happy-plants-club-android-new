@@ -944,6 +944,9 @@ Deno.serve(async (req) => {
                 const meter = newMeter();
                 const c = await writeCare(user, plant, today, { scientific_name: corrected, typed: true, meter, cache });
                 const d = c.fields;
+                // Picked from "Is it one of these?": keep the name shown on the card they tapped
+                const picked = typeof body.name === 'string' ? body.name.replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 80) : '';
+                if (picked) d.name = picked;
                 const last = String(plant.last_watered || '').slice(0, 10) || today;
                 const patch: any = {
                     ...d,
