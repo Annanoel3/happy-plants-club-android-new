@@ -28,10 +28,21 @@
   ],
   "rls": {
     "create": {
-      "data.sender_email": "{{user.email}}"
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "delete": {
-      "data.sender_email": "{{user.email}}"
+      "$or": [
+        {
+          "data.sender_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
     },
     "read": {
       "$or": [
@@ -40,16 +51,23 @@
         },
         {
           "data.receiver_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
         }
       ]
     },
     "update": {
       "$or": [
         {
-          "data.sender_email": "{{user.email}}"
+          "data.receiver_email": "{{user.email}}"
         },
         {
-          "data.receiver_email": "{{user.email}}"
+          "user_condition": {
+            "role": "admin"
+          }
         }
       ]
     }
