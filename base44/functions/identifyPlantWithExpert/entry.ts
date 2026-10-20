@@ -70,9 +70,12 @@ Lookalikes that get confused in real collections - check these before answering:
 - Fat white/grey caudex with big serrated fleshy leaves = Cyphostemma juttae. Smooth green rounded caudex with thin vining stems = Adenia glauca. Swollen trunk with glossy oval leaves = Adenium (desert rose).
 - Prefer the common, widely sold species over a rare one when both fit the photo equally well.`;
 
+const NAME_RULE = `common name US nurseries use for THIS species, in sentence case ("Eve's needle cactus") - no parentheses, no hedging words, never a name that belongs to a different species ("Congo fig" is Dorstenia elata, not D. foetida)`;
+
 const JSON_ID_ONLY = `Return ONLY JSON:
 {
-  "name": "common name - no parentheses, no hedging words",
+  "name": "${NAME_RULE}",
+  "plant_size": "Seedling" | "Small" | "Medium" | "Large" | "Mature",
   "scientific_name": "genus and species, or the hybrid/cultivar name if that is the real identity",
   "confidence": "high" | "medium" | "low",
   "what_i_see": "two sentences describing the visible features",
@@ -84,7 +87,7 @@ const JSON_ID_ONLY = `Return ONLY JSON:
 // the settled name WITHOUT the photo: see writeCare below.
 const JSON_JUDGE = `Return ONLY JSON:
 {
-  "name": "common name - no parentheses, no hedging words",
+  "name": "${NAME_RULE}",
   "scientific_name": "genus and species, or the hybrid/cultivar name if that is the real identity",
   "confidence": "high" | "medium" | "low",
   "identification_notes": "one or two sentences: the features that settle it, and anything the owner should know (mixed planting, cutting, lookalike ruled out)",
@@ -682,7 +685,7 @@ Deno.serve(async (req) => {
                     ...clearSeasons(plant),
                     next_watering_due: addDays(last, d.water_frequency_days),
                     care_profile: pendingProfile(plant, c.ai, d.water_frequency_days),
-                    add_info: { ...info, error: null, renamed_from: plant.scientific_name || null, renamed_at: new Date().toISOString(), care_done: true },
+                    add_info: { ...info, error: null, renamed_from: plant.scientific_name || null, renamed_at: new Date().toISOString(), care_done: true, care_pending: false, care_error: null },
                     // A plant we couldn't name is named now: on to the check
                     ...(plant.add_status === 'failed' || plant.add_status === 'identifying' ? { add_status: 'review' } : {}),
                 };
@@ -705,7 +708,7 @@ Deno.serve(async (req) => {
                 const fresh = (await db.Plant.filter({ id: plant.id }))?.[0];
                 if (!fresh) return null;
                 const fi = fresh.add_info || {};
-                if (fi.renamed_at && Date.parse(fi.renamed_at) >= t0 - 1000 && !ident.typed_rename) return fresh;
+                if (fi.renamed_at && Date.parse(fi.renamed_at) >= t0 - 1000) return fresh;
                 const d = c.fields;
                 // Numbers for where it lives NOW (the owner may have just said)
                 const n = c.ai?.numbers?.[spotOf(fresh.environment)] || null;
