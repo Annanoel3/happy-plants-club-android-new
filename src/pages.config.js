@@ -21,6 +21,7 @@ import Plantdoku from './pages/Plantdoku';
 import Games from './pages/Games';
 import SproutWord from './pages/SproutWord';
 import MiniGarden from './pages/MiniGarden';
+import GardenGroups from './pages/GardenGroups';
 import __Layout from './Layout.jsx';
 
 
@@ -48,6 +49,7 @@ export const PAGES = {
     "Games": Games,
     "SproutWord": SproutWord,
     "MiniGarden": MiniGarden,
+    "GardenGroups": GardenGroups,
 }
 
 export const pagesConfig = {
