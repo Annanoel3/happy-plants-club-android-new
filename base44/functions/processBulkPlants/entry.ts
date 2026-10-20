@@ -87,14 +87,14 @@ Return ONLY JSON: {"plants":[{"name":"the plant's common name, spelled correctly
                 next_watering_due: addDays(today, 7),
                 ...(location ? { location } : {}),
                 ...(environment ? { environment } : {}),
-                add_status: 'identifying',
                 // One plant: the app asks right away where it is, the pot and the name.
                 // Several: no question per plant; they wait under "Newly added" in the garden
                 // until the owner opens each one and says where it lives (or skip it when
                 // the area was already picked on the Add screen; the names were typed).
+                // The owner can do that right away; the care sheet lands a few seconds later.
+                add_status: bulk && location ? 'done' : 'review',
                 add_info: {
-                    typed: true, bulk, tries: 0,
-                    final_status: bulk && location ? 'done' : 'review',
+                    typed: true, bulk, tries: 0, care_pending: true,
                     added_at: new Date().toISOString(), started_at: new Date().toISOString(),
                 },
             });
