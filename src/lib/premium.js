@@ -111,6 +111,17 @@ export function manageSubscriptionUrl(productId) {
 export async function handleAiLimit(err, navigate) {
   const info = aiLimitInfo(err);
   if (!info) return false;
+  // Free users get the small "get Plus" popup (with the reward video for photo IDs)
+  if (!info.plus) {
+    const { nudgeUpgrade } = await import('@/lib/upgradeNudge');
+    let canWatch = false;
+    if (info.kind === 'identify' && info.ids) {
+      const ids = await import('@/lib/plantIds');
+      canWatch = ids.canWatchForIds(info.ids);
+    }
+    const reason = info.kind === 'identify' ? 'ids' : info.kind;
+    if (nudgeUpgrade(reason, { limit: info.limit, ids: info.ids, canWatch })) return true;
+  }
   const { toast } = await import('sonner');
   const go = () => (navigate ? navigate('/Premium') : window.location.assign('/Premium'));
   if (info.kind === 'identify' && info.ids) {
