@@ -271,11 +271,7 @@ export default function CommunityFeed() {
                 from_user_name: user.full_name,
                 from_user_handle: user.handle,
               });
-              await base44.functions.invoke('sendPushNotification', {
-                target_email: post.created_by,
-                title: 'New Like',
-                message: `${user.full_name} liked your post`,
-              });
+              // The push itself is sent by the "Notify on Post Like" automation
             }
           }
       }
@@ -322,11 +318,7 @@ export default function CommunityFeed() {
              from_user_name: user.full_name,
              from_user_handle: user.handle,
            });
-           await base44.functions.invoke('sendPushNotification', {
-             target_email: post.created_by,
-             title: 'New Comment',
-             message: `${user.full_name} commented on your post`,
-           });
+           // The push itself is sent by the "Notify on Comment" automation
          }
        }
     },
