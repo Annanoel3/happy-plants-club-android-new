@@ -54,7 +54,7 @@ function pill(ctx, text, x, y, { align = 'left', size = 26, bg = 'rgba(0,0,0,0.5
   const left = align === 'right' ? x - w : x;
   ctx.fillStyle = bg;
   ctx.beginPath();
-  ctx.roundRect(left, y, w, h, h / 2);
+  if (ctx.roundRect) ctx.roundRect(left, y, w, h, h / 2); else ctx.rect(left, y, w, h);
   ctx.fill();
   ctx.fillStyle = '#fff';
   ctx.textBaseline = 'middle';
