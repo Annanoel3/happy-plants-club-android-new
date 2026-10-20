@@ -753,7 +753,8 @@ Deno.serve(async (req) => {
 
             // a) Owner typed a different scientific name
             if (corrected) {
-                const c = await writeCare(user, plant, today, { scientific_name: corrected, typed: true });
+                const meter = newMeter();
+                const c = await writeCare(user, plant, today, { scientific_name: corrected, typed: true, meter });
                 const d = c.fields;
                 const last = String(plant.last_watered || '').slice(0, 10) || today;
                 const patch: any = {
@@ -761,7 +762,8 @@ Deno.serve(async (req) => {
                     ...clearSeasons(plant),
                     next_watering_due: addDays(last, d.water_frequency_days),
                     care_profile: pendingProfile(plant, c.ai, d.water_frequency_days),
-                    add_info: { ...info, error: null, renamed_from: plant.scientific_name || null, renamed_at: new Date().toISOString(), care_done: true, care_pending: false, care_error: null },
+                    add_info: { ...info, error: null, renamed_from: plant.scientific_name || null, renamed_at: new Date().toISOString(), care_done: true, care_pending: false, care_error: null,
+                        rename_cost: { usd: meterUsd(meter), calls: meter.calls } },
                     // A plant we couldn't name is named now: on to the check
                     ...(plant.add_status === 'failed' || plant.add_status === 'identifying' ? { add_status: 'review' } : {}),
                 };
@@ -781,7 +783,6 @@ Deno.serve(async (req) => {
                 let c: any = ready ? await ready : null;
                 const early = !!c;
                 if (!c) c = await writeCare(user, plant, today, ident);
-                else if (ident.meter) { /* the early care sheet was already counted */ }
                 const fresh = (await db.Plant.filter({ id: plant.id }))?.[0];
                 if (!fresh) return null;
                 const fi = fresh.add_info || {};
