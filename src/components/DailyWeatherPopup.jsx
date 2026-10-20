@@ -140,13 +140,8 @@ export default function DailyWeatherPopup() {
         return;
       }
 
-      // Only fetch when it would be shown (mornings, or when asked): the note is cheap now
-      // (real forecast numbers, our own OpenAI key), but there's no reason to make it unseen
-      const hourNow = new Date().getHours();
-      if (!forceShow && (hourNow < 6 || hourNow >= 12)) {
-        localStorage.removeItem('lastWeatherShown'); // try again tomorrow morning, or later today if they come back before noon
-        return;
-      }
+      // Written from real forecast numbers on our own OpenAI key (functions/plus). It used
+      // Base44's InvokeLLM with internet search, which cost Base44 credits every day.
       const { data } = await base44.functions.invoke('plus', { action: 'weather_note' });
       
       if (data?.message) {
