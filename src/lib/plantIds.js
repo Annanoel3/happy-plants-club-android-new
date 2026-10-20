@@ -48,6 +48,17 @@ export async function nameNewPlants(plantIds) {
   return { approved, waiting };
 }
 
+/** Plants added by typing their names: write each one's care sheet (no photo ID used).
+ *  Runs in the background; the Dashboard and the hourly sweep retry any that get stuck. */
+export function writeTypedCare(plants) {
+  for (const p of plants || []) {
+    if (!p?.id) continue;
+    base44.functions.invoke('identifyPlantWithExpert', { plant_id: p.id })
+      .then(() => refreshPlantData())
+      .catch(() => refreshPlantData());
+  }
+}
+
 /** Plants waiting for a photo ID: name as many as today's IDs allow, oldest first. */
 export async function nameWaitingPlants() {
   const me = await base44.auth.me();
