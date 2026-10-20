@@ -6,6 +6,8 @@ const openai = new OpenAI({
 });
 
 const MODEL = "gpt-6-astra";
+// The care sheet's model (the photo ID always uses MODEL). Set CARE_MODEL to switch it.
+const CARE_MODEL = (Deno.env.get('CARE_MODEL') || MODEL).trim();
 
 // ---------------------------------------------------------------------------
 // Identification runs as three steps:
@@ -110,16 +112,20 @@ function imageMessage(imageUrl, text) {
 // Prices: developers.openai.com/docs/models/gpt-6-astra (Oct 2026): $10 input, $1 cached
 // input, $50 output per 1M tokens (output includes reasoning tokens); web search $10 per
 // 1,000 calls. Pl@ntNet is free (500 a day). Saved on each new plant as add_info.cost.
-const PRICE: Record<string, { in: number; cached: number; out: number }> = { [MODEL]: { in: 10, cached: 1, out: 50 } };
+// gpt-6-luna: $0.10 input, $0.01 cached, $0.50 output (developers.openai.com/docs/models/gpt-6-luna).
+const PRICE: Record<string, { in: number; cached: number; out: number }> = {
+    'gpt-6-astra': { in: 10, cached: 1, out: 50 },
+    'gpt-6-luna': { in: 0.10, cached: 0.01, out: 0.50 },
+};
 const SEARCH_USD = 0.01;
 type Meter = { calls: any[] };
 const newMeter = (): Meter => ({ calls: [] });
-function meterAdd(m: Meter | null | undefined, step: string, u: { input?: number; cached?: number; output?: number; reasoning?: number; searches?: number }) {
+function meterAdd(m: Meter | null | undefined, step: string, u: { input?: number; cached?: number; output?: number; reasoning?: number; searches?: number; model?: string }) {
     if (!m) return;
-    const p = PRICE[MODEL];
+    const p = PRICE[u.model || MODEL] || PRICE['gpt-6-astra'];
     const input = u.input || 0, cached = u.cached || 0, output = u.output || 0, searches = u.searches || 0;
     const usd = ((input - cached) * p.in + cached * p.cached + output * p.out) / 1e6 + searches * SEARCH_USD;
-    m.calls.push({ step, input, cached, output, reasoning: u.reasoning || 0, searches, usd: Math.round(usd * 10000) / 10000 });
+    m.calls.push({ step, model: u.model || MODEL, input, cached, output, reasoning: u.reasoning || 0, searches, usd: Math.round(usd * 10000) / 10000 });
 }
 const meterUsd = (m: Meter | null | undefined) => Math.round((m?.calls || []).reduce((s, c) => s + c.usd, 0) * 10000) / 10000;
 
@@ -533,8 +539,9 @@ function parseJsonLoose(s: string): any {
     if (a < 0 || b <= a) throw new Error('no JSON in reply');
     return JSON.parse(s.slice(a, b + 1));
 }
-async function askCare(system: string, userText: string, effortIn?: string, meter?: Meter | null, step = 'care sheet') {
+async function askCare(system: string, userText: string, effortIn?: string, meter?: Meter | null, step = 'care sheet', modelIn?: string) {
     const key = Deno.env.get('OPENAI_API_KEY') || '';
+    const model = modelIn || CARE_MODEL;
     const t0 = Date.now();
     // Low reasoning effort: same numbers and facts in a 4-plant side-by-side test, in half the time (it still
     // searches). Set CARE_EFFORT=medium/high to change it, or pass "default" to leave it unset.
@@ -547,7 +554,7 @@ async function askCare(system: string, userText: string, effortIn?: string, mete
                 const res = await fetch('https://api.openai.com/v1/responses', {
                     method: 'POST', signal: ctl.signal,
                     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: MODEL, instructions: system, input: userText, tools: [{ type: tool }], max_output_tokens: 12000, ...(['low', 'medium', 'high'].includes(effort) ? { reasoning: { effort } } : {}) }),
+                    body: JSON.stringify({ model, instructions: system, input: userText, tools: [{ type: tool }], max_output_tokens: 12000, ...(['low', 'medium', 'high'].includes(effort) ? { reasoning: { effort } } : {}) }),
                 });
                 const j = await res.json().catch(() => null);
                 if (!res.ok) throw new Error(`HTTP ${res.status} ${JSON.stringify(j?.error?.message || j).slice(0, 200)}`);
@@ -565,7 +572,7 @@ async function askCare(system: string, userText: string, effortIn?: string, mete
                     }
                 }
                 const u: any = j?.usage || {};
-                meterAdd(meter, step, { input: u.input_tokens, cached: u.input_tokens_details?.cached_tokens, output: u.output_tokens, reasoning: u.output_tokens_details?.reasoning_tokens, searches });
+                meterAdd(meter, step, { model, input: u.input_tokens, cached: u.input_tokens_details?.cached_tokens, output: u.output_tokens, reasoning: u.output_tokens_details?.reasoning_tokens, searches });
                 const data = parseJsonLoose(text);
                 return { data, searched: tool, searches, cited, ms: Date.now() - t0 };
             } catch (e) {
@@ -574,13 +581,13 @@ async function askCare(system: string, userText: string, effortIn?: string, mete
         }
     }
     const r = await openai.chat.completions.create({
-        model: MODEL,
+        model,
         messages: [{ role: 'system', content: system }, { role: 'user', content: userText }],
         response_format: { type: 'json_object' },
         max_completion_tokens: 8000,
     });
     const u: any = r.usage || {};
-    meterAdd(meter, `${step} (no search)`, { input: u.prompt_tokens, cached: u.prompt_tokens_details?.cached_tokens, output: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens });
+    meterAdd(meter, `${step} (no search)`, { model, input: u.prompt_tokens, cached: u.prompt_tokens_details?.cached_tokens, output: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens });
     return { data: JSON.parse(r.choices[0].message.content || '{}'), searched: null, searches: 0, cited: [] as string[], ms: Date.now() - t0 };
 }
 
@@ -595,7 +602,7 @@ function cleanNumbers(x: any, hasRest: boolean) {
 // Write the care sheet for a plant whose name is settled.
 //   ident.scientific_name / ident.name: what the photo ID settled on, or what the owner typed
 //   ident.typed: true when the name came from the owner (fix the spelling, keep the plant)
-async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null; effort?: string; meter?: Meter | null; step?: string }) {
+async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null; effort?: string; meter?: Meter | null; step?: string; model?: string }) {
     const us = isUsOwner(user);
     const spotBits = [plant?.location, plant?.environment, plant?.pot_type, Number(plant?.pot_diameter_in) > 0 ? `${plant.pot_diameter_in}-inch pot` : null, plant?.sun_exposure].filter(Boolean);
     const who = ident.typed
@@ -608,7 +615,7 @@ async function writeCare(user: any, plant: any, today: string, ident: { name?: s
         spotBits.length ? `What the owner has said about its spot so far: ${spotBits.join(', ')}.` : 'The owner has not said yet where it is kept; give both indoor and outdoor numbers.',
         'Write the care sheet. Return the JSON.',
     ].filter(Boolean).join('\n');
-    const r = await askCare(`${CARE_RULES}\n\n${CARE_JSON}`, userText, ident.effort, ident.meter, ident.step);
+    const r = await askCare(`${CARE_RULES}\n\n${CARE_JSON}`, userText, ident.effort, ident.meter, ident.step, ident.model);
     const d = r.data || {};
     const ci = d.care_instructions && typeof d.care_instructions === 'object' ? d.care_instructions : {};
     const wp = d.watering_profile && typeof d.watering_profile === 'object' ? d.watering_profile : {};
@@ -688,7 +695,7 @@ Deno.serve(async (req) => {
             const fake = { environment: tc.environment || null, location: tc.location || null };
             const today = aiLocalDay(owner.timezone);
             const meter = newMeter();
-            const c = await writeCare(owner, fake, today, { name: tc.name, scientific_name: tc.scientific_name, typed: !!tc.typed, effort: tc.effort, meter });
+            const c = await writeCare(owner, fake, today, { name: tc.name, scientific_name: tc.scientific_name, typed: !!tc.typed, effort: tc.effort, meter, model: tc.model });
             return Response.json({ success: true, today, ...c, cost: { usd: meterUsd(meter), calls: meter.calls } });
         }
         // Admin test: the whole photo flow (name + care sheet) for a photo, without saving anything,
