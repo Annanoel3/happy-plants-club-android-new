@@ -634,6 +634,35 @@ Rules:
 const PROFILE_V = 1;
 const WATER_METHODS = ['pour', 'reservoir', 'soak', 'mist', 'bottom', 'in_water'];
 const PROFILE_GROUPS = ['succulent', 'cactus', 'caudiciform', 'forest_cactus', 'tropical_foliage', 'fern', 'orchid', 'air_plant', 'carnivorous', 'aquatic', 'bulb', 'herb_vegetable', 'flowering', 'tree_shrub', 'other'];
+const DRY_RULES = ['dry', 'top_half', 'top_inch', 'moist', 'in_water'];
+
+// Every plant gets numbers for indoors AND outdoors (the owner says where it lives after it's
+// named, and can move it), and the app uses the pair for where it is now. Same split as
+// functions/identifyPlantWithExpert: keep in sync.
+const OUTDOOR_ENVS = ['Outdoor', 'Patio', 'Balcony', 'Greenhouse'];
+const spotOf = (env: any) => (OUTDOOR_ENVS.includes(String(env || '')) ? 'outdoor' : 'indoor');
+
+// The watering text when the care sheet's own text can't be used. The numbers only ever come
+// from {grow}/{rest}, so the text and the schedule can't disagree. Same text in
+// functions/identifyPlantWithExpert: keep in sync.
+function defaultWaterTpl(dry: string, restSeason: string | null): string {
+    const how = dry === 'dry' ? 'Water until it drains out the bottom, then let the soil dry out completely before watering again.'
+        : dry === 'top_half' ? 'Water until it drains out the bottom, then let the top half of the soil dry before watering again.'
+        : dry === 'moist' ? 'Keep the soil evenly moist, but never soggy.'
+        : 'Water until it drains out the bottom once the top inch of soil is dry.';
+    const check = dry === 'moist' ? 'Check the soil first, and wait if it is still wet.' : 'Check the soil first, and skip a watering if it is not dry yet.';
+    if (!restSeason) return `${how} That's about every {grow} days. ${check}`;
+    const rest = restSeason === 'summer' ? 'in summer, when it rests' : dry === 'dry' ? 'in winter, when it rests' : 'in winter, when it grows more slowly';
+    return `${how} While it's growing, that's about every {grow} days; ${rest}, about every {rest} days${dry === 'dry' ? ', or even less often' : ''}. ${check}`;
+}
+function waterTplOk(tpl: any, hasRest: boolean): boolean {
+    if (typeof tpl !== 'string' || !tpl.includes('{grow}')) return false;
+    if (hasRest !== tpl.includes('{rest}')) return false;
+    const bare = tpl.replace(/\{(grow|rest)\}/g, '');
+    return !/\{|\}/.test(bare) && !/\b\d+\s*(?:(?:-|–|to)\s*\d+\s*)?(?:days?|weeks?)\b/i.test(bare);
+}
+const fillTpl = (tpl: string, grow: number, rest: number | null) =>
+    tpl.replace(/\{grow\}/g, String(grow)).replace(/\{rest\}/g, String(rest ?? grow));
 
 function inRestSeason(day: string, hemi: string, rest: string | null | undefined): boolean {
     if (!rest || hemi === 'tropics') return false;
@@ -714,52 +743,100 @@ Keep the same ids. Be realistic, not cautious-to-a-fault: overwatering kills mor
     return out;
 }
 
-// The watering paragraph for seasonal plants, written from the saved numbers so the text
-// and the schedule can never disagree.
-function seasonalWateringText(grow: number, rest: number, restSeason: string): string {
-    const resting = restSeason === 'summer' ? 'in summer, when it rests' : 'in winter, when it rests';
-    return `Water until it drains out the bottom, then let the soil dry out completely. While it's growing, that's about every ${grow} days; ${resting}, about every ${rest} days, or even less often. Always check that the soil is dry first, and skip a watering if it isn't.`;
+// Either answer shape → one shape. 'care' answers come from the care sheet (identifyPlantWithExpert,
+// already checked there); others from aiProfiles below.
+function normalizeAi(ai: any) {
+    const method = WATER_METHODS.includes(ai?.method) && ai.method !== 'reservoir' ? ai.method : 'pour';
+    let dry = DRY_RULES.includes(ai?.dry_rule) ? ai.dry_rule : ai?.drought_tolerant ? 'dry' : 'top_inch';
+    if (method === 'in_water') dry = 'in_water';
+    const restSeason = dry === 'in_water' ? null : ai?.rest_season === 'summer' ? 'summer' : ai?.rest_season === 'winter' ? 'winter' : null;
+    const num = (x: any) => {
+        const g = clampInt(x?.grow ?? x?.grow_days, 1, 60, 0);
+        if (!g) return null;
+        return { grow: g, rest: restSeason ? Math.max(clampInt(x?.rest ?? x?.rest_days, 1, 90, g), g) : null };
+    };
+    const indoor = num(ai?.numbers?.indoor) || num(ai?.indoor) || num(ai);
+    const outdoor = num(ai?.numbers?.outdoor) || num(ai?.outdoor) || indoor;
+    return {
+        care: ai?.source === 'care',
+        method, dry_rule: dry, rest_season: restSeason,
+        strict: !!ai?.strict,
+        group: PROFILE_GROUPS.includes(ai?.group) ? ai.group : 'other',
+        drought_tolerant: dry === 'dry',
+        numbers: indoor ? { indoor, outdoor: outdoor || indoor } : null,
+        water_tpl: typeof ai?.water_tpl === 'string' ? ai.water_tpl : null,
+        why: typeof ai?.why === 'string' ? ai.why.slice(0, 200) : null,
+        sources: Array.isArray(ai?.sources) ? ai.sources.slice(0, 6) : [],
+    };
 }
 
-// What to save for one plant, given the AI's answer. Never undoes a person's own choices.
+// Put the numbers for where the plant is kept now (indoors/outdoors) into the schedule, with
+// the watering text filled in from the same numbers. Null when there's nothing to apply: the
+// owner set their own interval, it lives in water, or it has no numbers (older plants).
+function applyNumbers(p: any, today: string, hemi: string): any {
+    const prof = p.care_profile || {};
+    if (prof.user_interval || !prof.numbers || p.water_method === 'in_water') return null;
+    const spot = spotOf(p.environment);
+    const n = prof.numbers[spot] || prof.numbers.indoor || prof.numbers.outdoor;
+    const grow = Number(n?.grow) || 0;
+    if (!grow) return null;
+    const restSeason = hemi === 'tropics' ? null : (prof.rest_season || null);
+    const rest = restSeason ? Math.max(Number(n.rest) || grow, grow) : null;
+    const patch: any = { care_profile: { ...prof, spot } };
+    const tpl = waterTplOk(prof.water_tpl, !!rest) ? prof.water_tpl : defaultWaterTpl(prof.dry_rule || (prof.drought_tolerant ? 'dry' : 'top_inch'), rest ? restSeason : null);
+    const text = fillTpl(tpl, grow, rest);
+    if (p.care_instructions?.watering !== text) patch.care_instructions = { ...(p.care_instructions || {}), watering: text };
+    if (rest) {
+        patch.water_days_grow = grow;
+        patch.water_days_rest = rest;
+        patch.water_rest_season = restSeason;
+        Object.assign(patch, seasonalPatch({ ...p, ...patch, water_season: null }, today, hemi) || {});
+    } else {
+        Object.assign(patch, { water_days_grow: null, water_days_rest: null, water_rest_season: null, water_season: null, water_frequency_days: grow });
+        const last = String(p.last_watered || '').slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(last)) { const next = addDays(last, grow); patch.next_watering_due = next < today ? today : next; }
+    }
+    return patch;
+}
+
+// What to save for one plant, given the answer. Never undoes a person's own choices.
 function profilePatch(p: any, ai: any, today: string, hemi: string): any {
     const prof = p.care_profile || {};
+    const a = normalizeAi(ai);
     const patch: any = {};
     const every = Number(p.water_frequency_days) || 7;
-    if (!prof.user_method) {
-        const m = p.pot_type === 'Self-watering' ? 'reservoir'
-            : (WATER_METHODS.includes(ai?.method) && ai.method !== 'reservoir' ? ai.method : 'pour');
-        patch.water_method = m;
+    if (!prof.user_method) patch.water_method = p.pot_type === 'Self-watering' ? 'reservoir' : a.method;
+    const fastest = a.numbers ? Math.min(a.numbers.indoor.grow, a.numbers.outdoor.grow) : every;
+    if (!prof.user_strict) patch.water_strict = a.strict || fastest <= 3;
+    let numbers = a.numbers;
+    // The quick model (aiProfiles) can contradict itself: a drought-tolerant plant watered more
+    // often than every 5 days indoors, resting less than 2 weeks, or a big jump to more watering
+    // than it had (under half its old interval) is not applied. Care-sheet answers are trusted.
+    if (numbers && !a.care) {
+        const g = numbers.indoor.grow, r = numbers.indoor.rest;
+        const prevEvery = Number(prof.prev_every) || every;
+        if ((a.drought_tolerant && (g < 5 || (r !== null && r < 14))) || g < Math.floor(prevEvery / 2)) numbers = null;
     }
-    if (!prof.user_strict) patch.water_strict = !!ai?.strict || every <= 3;
-    const grow = clampInt(ai?.grow_days, 3, 45, 0);
-    const rest = clampInt(ai?.rest_days, 7, 60, 0);
-    // Sanity limits, because the model can contradict itself: a drought-tolerant plant
-    // watered more often than every 5 days, resting less than 2 weeks, or a big jump to
-    // more watering than it had (under half its old interval) is not applied.
-    const prevEvery = Number(prof.prev_every) || every;
-    const sane = grow >= 5 && rest >= 14 && grow >= Math.floor(prevEvery / 2);
-    const seasonal = !!ai?.drought_tolerant && grow > 0 && rest > 0 && sane && !prof.user_interval
-        && (patch.water_method || p.water_method) !== 'in_water';
-    if (seasonal) {
-        const restSeason = ai.rest_season === 'summer' ? 'summer' : 'winter';
-        const restDays = Math.max(rest, grow);
-        patch.water_days_grow = grow;
-        patch.water_days_rest = restDays;
-        patch.water_rest_season = restSeason;
-        patch.care_instructions = { ...(p.care_instructions || {}), watering: seasonalWateringText(grow, restDays, restSeason) };
-        Object.assign(patch, seasonalPatch({ ...p, ...patch, water_season: null }, today, hemi) || {});
-    }
-    patch.care_profile = {
+    const next: any = {
         ...prof,
         v: PROFILE_V,
-        group: PROFILE_GROUPS.includes(ai?.group) ? ai.group : 'other',
-        why: typeof ai?.why === 'string' ? ai.why.slice(0, 200) : null,
+        group: a.group,
+        why: a.why,
         at: new Date().toISOString(),
-        source: 'ai',
+        source: a.care ? 'care' : 'ai',
         prev_every: every,
         prev_next_due: p.next_watering_due || null,
+        drought_tolerant: a.drought_tolerant,
+        dry_rule: a.dry_rule,
+        rest_season: a.rest_season,
+        numbers,
+        water_tpl: a.water_tpl,
+        ...(a.sources.length ? { sources: a.sources } : {}),
     };
+    delete next.ai;
+    delete next.spot;
+    patch.care_profile = next;
+    Object.assign(patch, applyNumbers({ ...p, ...patch }, today, hemi) || {});
     return patch;
 }
 
@@ -778,17 +855,24 @@ async function profilePlants(db: any, plants: any[], owner: any, now: number) {
     let done = 0;
     for (let i = 0; i < plants.length; i += 25) {
         const batch = plants.slice(i, i + 25);
-        let ai: Record<string, any> | null = null;
-        try { ai = await aiProfiles(batch, ctx); } catch (e) { console.warn('profile AI failed', (e as Error).message); }
-        if (!ai) break; // try again on the next run
+        // New plants carry their answer from the care sheet (care_profile.ai); only the rest
+        // need the quick model.
+        const ask = batch.filter((p) => !p.care_profile?.ai);
+        let ai: Record<string, any> | null = {};
+        if (ask.length) {
+            try { ai = await aiProfiles(ask, ctx); } catch (e) { console.warn('profile AI failed', (e as Error).message); ai = null; }
+            if (!ai && ask.length === batch.length) break; // try again on the next run
+        }
         for (const p of batch) {
-            if (!ai[p.id]) continue;
+            if (!p.care_profile?.ai && !ai?.[p.id]) continue;
             try {
                 // The app and the hourly sweep can both be profiling the same plants (the AI
                 // call takes a while): re-read and skip any plant the other one already did.
                 const fresh = (await db.Plant.filter({ id: p.id }))?.[0];
                 if (!fresh || !needsProfile(fresh)) continue;
-                await db.Plant.update(p.id, profilePatch(fresh, ai[p.id], ctx.today, ctx.hemi));
+                const answer = fresh.care_profile?.ai || ai?.[p.id];
+                if (!answer) continue;
+                await db.Plant.update(p.id, profilePatch(fresh, answer, ctx.today, ctx.hemi));
                 done++;
             } catch (e) { console.warn('profile save failed', p.id, (e as Error).message); }
         }
