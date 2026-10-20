@@ -292,14 +292,37 @@ async function profileNow(base44: any, plantId: string) {
 // onBlind: called with the blind opinion as soon as it's in, so the care sheet can start
 // while the judge works (most of the time the judge keeps the same species).
 async function identify(rid: string, imageUrl: string, context: string, onBlind?: (b: any) => void) {
+    const t0 = Date.now();
+    const timing: Record<string, number | null> = { plantnet_ms: null, blind_ms: null, judge_ms: null };
     const [pn, blind] = await Promise.all([
-        identifyWithPlantNet(imageUrl),
+        identifyWithPlantNet(imageUrl).finally(() => { timing.plantnet_ms = Date.now() - t0; }),
         askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, imageUrl, "Identify this plant following the method. Return the JSON.", 1200)
-            .then((b) => { try { onBlind?.(b); } catch { /* ignore */ } return b; })
+            .then((b) => { timing.blind_ms = Date.now() - t0; try { onBlind?.(b); } catch { /* ignore */ } return b; })
             .catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; })
     ]);
     console.log(`[${rid}] 🌿 PlantNet:`, pn ? pn.map(c => `${c.scientific_name} ${c.score.toFixed(2)}`).join(' | ') : 'none');
     console.log(`[${rid}] 🌿 Blind LLM:`, blind ? `${blind.scientific_name} (${blind.confidence})` : 'none');
+    // Pl@ntNet is sure (0.50+) and the botanist, who never saw Pl@ntNet's answer, named the same
+    // species: two independent opinions agree, which is the case where the judge confirms
+    // anyway. Skip the judge (it's the slowest step) and use the botanist's answer.
+    if (pn && blind?.scientific_name && pn[0].score >= 0.5 && blind.confidence !== 'low' && sameSpecies(pn[0].scientific_name, blind.scientific_name)) {
+        console.log(`[${rid}] 🌿 Both agree: ${blind.scientific_name}; judge skipped`);
+        return {
+            plantData: { name: blind.name, scientific_name: blind.scientific_name, plant_size: blind.plant_size },
+            identification: {
+                source: 'plantnet+llm',
+                plantnet_top: pn[0].scientific_name,
+                plantnet_score: pn[0].score,
+                blind_llm: blind.scientific_name,
+                plantnet_agreement: true,
+                confidence: blind.confidence || null,
+                notes: blind.reasoning || null,
+                alternatives: Array.isArray(blind.alternatives) ? blind.alternatives.slice(0, 4) : [],
+                judge: 'skipped (both agreed)',
+                timing,
+            },
+        };
+    }
     const judgePrompt = `${BOTANIST}
 
 You are now the JUDGE. Two independent identifications of this photo were made:
@@ -320,7 +343,9 @@ Then assess its size.
 ${context}
 
 ${JSON_JUDGE}`;
+    const tj = Date.now();
     const parsed = await askJson(judgePrompt, imageUrl, "Judge the identification. Return the JSON.", 2500);
+    timing.judge_ms = Date.now() - tj;
     const { confidence, identification_notes, alternatives, plantnet_agreement, ...plantData } = parsed;
     console.log(`[${rid}] 🌿 Final:`, plantData.name, '|', plantData.scientific_name, '| confidence:', confidence);
     return {
@@ -334,6 +359,7 @@ ${JSON_JUDGE}`;
             confidence: confidence || null,
             notes: identification_notes || null,
             alternatives: Array.isArray(alternatives) ? alternatives.slice(0, 4) : [],
+            timing,
         },
     };
 }
