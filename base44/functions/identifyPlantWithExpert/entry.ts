@@ -342,23 +342,267 @@ ${JSON_JUDGE}`;
     };
 }
 
-// The owner corrected the scientific name: trust them, and redo the care for that plant.
-async function careForName(imageUrl: string | null, scientificName: string, context: string) {
-    const prompt = `${BOTANIST}
+// ===========================================================================
+// Care sheet. Written for the settled name, WITHOUT the photo, and checked against
+// sources on the web when the model can search.
+//
+// Why (audit of 50 real plants, Oct 2026): when the judge wrote the care text while looking
+// at the photo, the text described the photo ("the black nursery pot", "can't be determined
+// from this picture", that day's leaf damage) and once was written for the wrong plant. The
+// watering numbers came from a second, cheaper model that gave rot-prone caudiciforms a
+// 21-day winter, gave only succulents a winter schedule, and put "let it dry out completely"
+// on plants that must not dry out. Now ONE call writes the texts and the numbers together,
+// the watering text uses {grow}/{rest} placeholders so text and schedule can never disagree,
+// and there are numbers for indoors AND outdoors, because the owner says where the plant
+// lives after it's named (the app picks the right pair then: functions/plus applyNumbers).
+// ===========================================================================
+const PROFILE_GROUPS = ['succulent', 'cactus', 'caudiciform', 'forest_cactus', 'tropical_foliage', 'fern', 'orchid', 'air_plant', 'carnivorous', 'aquatic', 'bulb', 'herb_vegetable', 'flowering', 'tree_shrub', 'other'];
+const DRY_RULES = ['dry', 'top_half', 'top_inch', 'moist', 'in_water'];
 
-The owner says this plant is "${scientificName}". Trust the owner's name (they may know a cultivar or hybrid you can't see). If it is clearly misspelled, use the correct spelling of the same plant. Give its usual common name and write the care instructions for THAT plant.
+const CARE_RULES = `You are a horticulturist writing the care sheet a plant-care app shows for ONE plant. Write for exactly the plant named, and get the facts right: if you can search the web, check the plant on reliable sources (university extension services, botanical gardens, LLIFLE, World of Succulents, SANBI, RHS, specialist societies) before writing.
 
-${context}
+First settle these facts, and make everything you write agree with them: where it grows wild; whether it grows in the warm months (summer grower) or the cool months (winter grower); whether it drops its leaves or goes dormant; the coldest temperature it handles; whether its soil should dry out completely.
 
-${JSON_FULL}`;
-    if (imageUrl) return askJson(prompt, imageUrl, `This is my ${scientificName}. Return the JSON.`, 3500);
-    const response = await openai.chat.completions.create({
+Every text:
+- Is general advice for this plant in the owner's climate and spot. Never mention a photo, picture or image, the pot it is in now, its current condition, or how sure anyone is about the identification.
+- Uses plain everyday words and short sentences. No filler. "watering" up to 4 sentences, every other text up to 3.
+- Follows the units and spelling rule in the context.
+
+The texts:
+- watering: how to water and when (until it drains, then let the soil dry out completely / the top half / the top inch...). Write the placeholders {grow} and {rest} where the numbers of days go, for example "about every {grow} days while it grows" and "about every {rest} days in winter". The app fills in the numbers for the plant's spot. Never write a number of days or weeks yourself. If it drops its leaves to rest, say to stop or nearly stop watering once the leaves fall. If rest_season is null, use only {grow}.
+- sunlight: how much direct sun it wants, and whether it needs shade from hot afternoon sun in this climate.
+- soil: the mix to use.
+- humidity: only what it really needs.
+- temperature: the coldest it can take, as a clear action ("Bring it inside before nights drop below 50°F"), and whether frost kills it.
+- fertilizing: only in its growing season, and say when to stop. Winter growers are fed from fall to spring, never in summer. Carnivorous plants are never fed through the soil.
+- tips: two or three practical tips, then whether it is toxic to pets and people (say "not known to be toxic" when that is the case; never invent toxicity).
+
+name: the common name US nurseries and extension services use for THIS species. Some popular names belong to a different species ("Congo fig" is Dorstenia elata, not Dorstenia foetida). Never borrow one. If it has no real common name, use the genus name.
+
+watering_profile (the app reminds the owner on these numbers):
+- rest_season: "winter" if it grows in the warm months. "summer" if it grows in the cool months and rests in summer (Aeonium, Aloinopsis, Conophytum, Lithops-type mesembs, winter-rainfall bulbs such as Albuca spiralis and Oxalis versicolor). Check this one: plants are often wrongly called winter growers (Albuca bracteata grows in summer). null only for plants that live in water, or that grow the same all year because the owner is in the tropics.
+- indoor and outdoor: grow_days and rest_days for the plant kept indoors in a home, and kept outdoors in a pot, in the owner's climate. If it can't stay outdoors in the owner's winter, outdoor.rest_days is for it brought in or sheltered.
+  grow_days: days between waterings while it grows. Guide: outdoor potted succulents in warm, dry weather 5-7; indoor succulents and cacti 10-21; tropical houseplants indoors 7-10; orchids in bark 4-7 (outdoors in heat 2-4); ferns and carnivorous plants 2-4.
+  rest_days: days between waterings in its rest season, never less than grow_days. Almost every plant needs less water then, houseplants too (about 1.5 to 2 times longer indoors in winter). Most cacti and succulents: 30. Plants that rot easily when cold and wet, and plants that drop their leaves to rest (Adenium, Adenia, Cyphostemma, Pachypodium, Euphorbia bupleurifolia and other deciduous euphorbias): 45-60, and the watering text says to keep it nearly dry. Orchids that need a dry rest to flower (Dendrobium kingianum, nobile dendrobiums): 3 to 5 times grow_days. null when rest_season is null.
+- dry_rule: "dry" (let the soil dry out completely: cacti, most succulents, snake plants), "top_half" (let the top half dry: Dorstenia, Albuca, hoya, peperomia, epiphytic cacti such as fishbone and Christmas cactus), "top_inch" (most houseplants and garden plants), "moist" (never let it dry out: ferns, carnivorous plants), "in_water" (lives in water).
+- drought_tolerant: true only for plants whose soil should dry out completely between waterings.
+- group: one of ${PROFILE_GROUPS.join(', ')}. "caudiciform" only for plants with a swollen trunk or caudex (Adenium, Cyphostemma, Pachypodium, Dorstenia foetida); Aloe vera is "succulent".
+- method: "pour" (normal watering, most plants), "soak" (mounted staghorn ferns, mounted orchids, air plants), "mist" (only when misting IS its watering, rare), "bottom" (African violets and other gesneriads that rot if the crown gets wet), "in_water" (lucky bamboo in water, cuttings in water, aquatic plants).
+- strict: true if moving its watering day by a day or two could hurt it (tropical and humidity-loving plants, ferns, orchids, carnivorous plants, air plants, rare collector plants, plants with unusual growth cycles, seedlings and cuttings, anything watered every 3 days or less). false for tough, forgiving plants.
+- why: one short sentence on the numbers.`;
+
+const CARE_JSON = `Return ONLY the JSON, no markdown:
+{
+  "name": "common name",
+  "scientific_name": "genus and species, or the cultivar/hybrid name",
+  "plant_type": "Houseplants" | "Succulents & Cacti" | "Flowers" | "Herbs" | "Vegetables" | "Trees & Shrubs" | "Perennials" | "Annuals" | "Seedlings",
+  "care_instructions": { "watering": "...{grow}...{rest}...", "sunlight": "", "soil": "", "humidity": "", "temperature": "", "fertilizing": "", "tips": "" },
+  "watering_profile": {
+    "group": "succulent", "method": "pour", "strict": false, "drought_tolerant": true, "dry_rule": "dry",
+    "rest_season": "winter",
+    "indoor": { "grow_days": 14, "rest_days": 30 },
+    "outdoor": { "grow_days": 7, "rest_days": 30 },
+    "why": "one short sentence"
+  },
+  "sources": ["https://..."]
+}`;
+
+const OUTDOOR_ENVS = ['Outdoor', 'Patio', 'Balcony', 'Greenhouse'];
+const spotOf = (env: any) => (OUTDOOR_ENVS.includes(String(env || '')) ? 'outdoor' : 'indoor');
+
+// Is `day` in this plant's rest season at the owner's latitude? Same rule as functions/plus
+// (winter rest: Nov-Feb north, May-Aug south; summer rest: Jun-Aug north, Dec-Feb south).
+function restNow(day: string, lat: any, restSeason: string | null): boolean {
+    if (!restSeason) return false;
+    if (typeof lat === 'number' && Math.abs(lat) < 23.5) return false;
+    const south = typeof lat === 'number' && lat < 0;
+    const m = Number(day.slice(5, 7));
+    if (restSeason === 'summer') return south ? [12, 1, 2].includes(m) : [6, 7, 8].includes(m);
+    return south ? [5, 6, 7, 8].includes(m) : [11, 12, 1, 2].includes(m);
+}
+
+// The watering text the app falls back to when the model's text can't be used.
+// Same text in functions/plus: keep in sync.
+function defaultWaterTpl(dry: string, restSeason: string | null): string {
+    const how = dry === 'dry' ? 'Water until it drains out the bottom, then let the soil dry out completely before watering again.'
+        : dry === 'top_half' ? 'Water until it drains out the bottom, then let the top half of the soil dry before watering again.'
+        : dry === 'moist' ? 'Keep the soil evenly moist, but never soggy.'
+        : 'Water until it drains out the bottom once the top inch of soil is dry.';
+    const check = dry === 'moist' ? 'Check the soil first, and wait if it is still wet.' : 'Check the soil first, and skip a watering if it is not dry yet.';
+    if (!restSeason) return `${how} That's about every {grow} days. ${check}`;
+    const rest = restSeason === 'summer' ? 'in summer, when it rests' : dry === 'dry' ? 'in winter, when it rests' : 'in winter, when it grows more slowly';
+    return `${how} While it's growing, that's about every {grow} days; ${rest}, about every {rest} days${dry === 'dry' ? ', or even less often' : ''}. ${check}`;
+}
+// The model's watering text is used only if the numbers come from the placeholders alone.
+function waterTplOk(tpl: any, hasRest: boolean): boolean {
+    if (typeof tpl !== 'string' || !tpl.includes('{grow}')) return false;
+    if (hasRest !== tpl.includes('{rest}')) return false;
+    const bare = tpl.replace(/\{(grow|rest)\}/g, '');
+    return !/\{|\}/.test(bare) && !/\b\d+\s*(?:(?:-|–|to)\s*\d+\s*)?(?:days?|weeks?)\b/i.test(bare);
+}
+const fillTpl = (tpl: string, grow: number, rest: number | null) =>
+    tpl.replace(/\{grow\}/g, String(grow)).replace(/\{rest\}/g, String(rest ?? grow));
+
+// ---- Text clean-up (a backstop; the prompt asks for all of this) ----
+const fRound = (c: number) => Math.round(c * 9 / 5 + 32);
+const inRound = (cm: number) => { const v = cm / 2.54; return v >= 3 ? Math.round(v) : Math.round(v * 2) / 2; };
+const ozRound = (ml: number) => { const v = ml / 29.57; return v >= 4 ? Math.round(v) : Math.round(v * 2) / 2 || 0.5; };
+const BRITISH: [RegExp, string][] = [
+    [/\bcolour/gi, 'color'], [/\bfertiliser/gi, 'fertilizer'], [/\bfertilis(e|ing|ed)\b/gi, 'fertiliz$1'],
+    [/\blabelled\b/gi, 'labeled'], [/\blitres?\b/gi, 'liter'], [/\bcentre\b/gi, 'center'], [/\bmould/gi, 'mold'],
+    [/\borganis(e|ed|ing)\b/gi, 'organiz$1'], [/\bfavour/gi, 'favor'], [/\bbehaviour/gi, 'behavior'],
+];
+const RANGE = '(-?\\d+(?:\\.\\d+)?)(?:\\s*(?:–|-|to)\\s*(-?\\d+(?:\\.\\d+)?))?';
+function toUsUnits(s: string): string {
+    let t = s;
+    // "50°F (10°C)" → "50°F"; "4 inches (10 cm)" → "4 inches"
+    t = t.replace(new RegExp(`\\s*\\((?:about |around |approx\\.? |roughly )?${RANGE}\\s*°\\s*C\\)`, 'g'), '');
+    t = t.replace(new RegExp(`\\s*\\((?:about |around )?${RANGE}\\s*(?:cm|mm|ml|mL|L)\\)`, 'g'), '');
+    t = t.replace(new RegExp(`${RANGE}\\s*°\\s*C\\b`, 'g'), (_m, a, b) => b ? `${fRound(+a)}–${fRound(+b)}°F` : `${fRound(+a)}°F`);
+    t = t.replace(new RegExp(`${RANGE}\\s*cm\\b`, 'g'), (_m, a, b) => b ? `${inRound(+a)}–${inRound(+b)} inches` : `${inRound(+a)} inch${inRound(+a) === 1 ? '' : 'es'}`);
+    t = t.replace(new RegExp(`${RANGE}\\s*(?:ml|mL|millilit(?:er|re)s?)\\b`, 'g'), (_m, a, b) => b ? `${ozRound(+a)}–${ozRound(+b)} fl oz` : `${ozRound(+a)} fl oz`);
+    for (const [re, to] of BRITISH) t = t.replace(re, (m) => (m[0] === m[0].toUpperCase() ? to[0].toUpperCase() + to.slice(1) : to));
+    return t;
+}
+// Sentences about the photo or the identification don't belong in a care sheet.
+const PHOTO_TALK = /\b(photo|photograph|picture|pictured|image|snapshot)s?\b|\b(?:can ?not|can't|couldn't) be (?:determined|assessed|confirmed|seen|told)|identification (?:is |was |remains )?(?:uncertain|unclear|not certain|tentative)|\bthis (?:specimen|particular pot|container)\b/i;
+function tidyText(s: any, us: boolean): string {
+    let t = String(s || '').replace(/\s+/g, ' ').trim();
+    if (!t) return '';
+    const kept = t.split(/(?<=[.!?])\s+(?=[A-Z"'(])/).filter((x) => !PHOTO_TALK.test(x));
+    t = kept.join(' ').trim();
+    return us ? toUsUnits(t) : t;
+}
+const isUsOwner = (user: any) => { const label = String(user?.location_label || ''); return !label || /,\s*(US|USA|United States)\s*$/i.test(label); };
+
+// ---- The model call: Responses API with web search, else plain chat (no search) ----
+function parseJsonLoose(s: string): any {
+    try { return JSON.parse(s); } catch { /* fall through */ }
+    const a = s.indexOf('{'), b = s.lastIndexOf('}');
+    if (a < 0 || b <= a) throw new Error('no JSON in reply');
+    return JSON.parse(s.slice(a, b + 1));
+}
+async function askCare(system: string, userText: string) {
+    const key = Deno.env.get('OPENAI_API_KEY') || '';
+    const t0 = Date.now();
+    if ((Deno.env.get('CARE_WEB_SEARCH') || 'on').trim().toLowerCase() !== 'off') {
+        for (const tool of ['web_search', 'web_search_preview']) {
+            const ctl = new AbortController();
+            const timer = setTimeout(() => ctl.abort(), 100_000);
+            try {
+                const res = await fetch('https://api.openai.com/v1/responses', {
+                    method: 'POST', signal: ctl.signal,
+                    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: MODEL, instructions: system, input: userText, tools: [{ type: tool }], max_output_tokens: 12000 }),
+                });
+                const j = await res.json().catch(() => null);
+                if (!res.ok) throw new Error(`HTTP ${res.status} ${JSON.stringify(j?.error?.message || j).slice(0, 200)}`);
+                let text = typeof j?.output_text === 'string' ? j.output_text : '';
+                const cited: string[] = [];
+                let searches = 0;
+                for (const item of j?.output || []) {
+                    if (item?.type === 'web_search_call') searches++;
+                    if (item?.type !== 'message') continue;
+                    for (const c of item.content || []) {
+                        if (c?.type === 'output_text') {
+                            if (!j?.output_text) text += c.text || '';
+                            for (const a of c.annotations || []) if (a?.url) cited.push(String(a.url));
+                        }
+                    }
+                }
+                const data = parseJsonLoose(text);
+                return { data, searched: tool, searches, cited, ms: Date.now() - t0 };
+            } catch (e) {
+                console.warn(`care call with ${tool} failed:`, (e as Error).message);
+            } finally { clearTimeout(timer); }
+        }
+    }
+    const r = await openai.chat.completions.create({
         model: MODEL,
-        messages: [{ role: 'system', content: prompt }, { role: 'user', content: `My plant is ${scientificName}. Return the JSON.` }],
+        messages: [{ role: 'system', content: system }, { role: 'user', content: userText }],
         response_format: { type: 'json_object' },
-        max_completion_tokens: 3500,
+        max_completion_tokens: 8000,
     });
-    return JSON.parse(response.choices[0].message.content || '{}');
+    return { data: JSON.parse(r.choices[0].message.content || '{}'), searched: null, searches: 0, cited: [] as string[], ms: Date.now() - t0 };
+}
+
+const clampDays = (v: any, min: number, max: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n > 0 ? Math.min(max, Math.max(min, n)) : null; };
+function cleanNumbers(x: any, hasRest: boolean) {
+    const grow = clampDays(x?.grow_days, 1, 60);
+    if (!grow) return null;
+    const rest = hasRest ? clampDays(x?.rest_days, 1, 90) : null;
+    return { grow, rest: hasRest ? Math.max(rest || grow, grow) : null };
+}
+
+// Write the care sheet for a plant whose name is settled.
+//   ident.scientific_name / ident.name: what the photo ID settled on, or what the owner typed
+//   ident.typed: true when the name came from the owner (fix the spelling, keep the plant)
+async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null }) {
+    const us = isUsOwner(user);
+    const spotBits = [plant?.location, plant?.environment, plant?.pot_type, Number(plant?.pot_diameter_in) > 0 ? `${plant.pot_diameter_in}-inch pot` : null, plant?.sun_exposure].filter(Boolean);
+    const who = ident.typed
+        ? `The owner says the plant is "${ident.scientific_name || ident.name}". Trust the owner (they may know a cultivar or hybrid). If it is clearly misspelled or a common name, use the correct scientific name of the same plant.`
+        : `The plant is ${ident.scientific_name || ident.name}${ident.name && ident.scientific_name ? ` (identified from a photo; the identifier called it "${ident.name}")` : ''}. Keep this scientific name.`;
+    const userText = [
+        who,
+        ident.plant_size ? `Its size: ${ident.plant_size}.` : null,
+        contextFor(user, plant, today),
+        spotBits.length ? `What the owner has said about its spot so far: ${spotBits.join(', ')}.` : 'The owner has not said yet where it is kept; give both indoor and outdoor numbers.',
+        'Write the care sheet. Return the JSON.',
+    ].filter(Boolean).join('\n');
+    const r = await askCare(`${CARE_RULES}\n\n${CARE_JSON}`, userText);
+    const d = r.data || {};
+    const ci = d.care_instructions && typeof d.care_instructions === 'object' ? d.care_instructions : {};
+    const wp = d.watering_profile && typeof d.watering_profile === 'object' ? d.watering_profile : {};
+    const method = ['pour', 'soak', 'mist', 'bottom', 'in_water'].includes(wp.method) ? wp.method : 'pour';
+    let dry = DRY_RULES.includes(wp.dry_rule) ? wp.dry_rule : wp.drought_tolerant ? 'dry' : 'top_inch';
+    if (method === 'in_water') dry = 'in_water';
+    const restSeason = dry === 'in_water' ? null : wp.rest_season === 'summer' ? 'summer' : wp.rest_season === 'winter' ? 'winter' : null;
+    const indoor = cleanNumbers(wp.indoor, !!restSeason);
+    const outdoor = cleanNumbers(wp.outdoor, !!restSeason) || indoor;
+    const numbers = indoor || outdoor ? { indoor: indoor || outdoor, outdoor: outdoor || indoor } : null;
+    const rawTpl = tidyText(ci.watering, us);
+    const tpl = waterTplOk(rawTpl, !!restSeason) ? rawTpl : (numbers ? defaultWaterTpl(dry, restSeason) : null);
+    // Right now: this spot's numbers for today's season
+    const n = numbers?.[spotOf(plant?.environment)] || null;
+    const every = n ? (restNow(today, user?.location_lat, restSeason) ? (n.rest || n.grow) : n.grow) : (clampDays(d.water_frequency_days, 1, 60) || 7);
+    const care: Record<string, string> = {};
+    for (const k of ['watering', 'sunlight', 'soil', 'humidity', 'temperature', 'fertilizing', 'tips']) {
+        const v = k === 'watering' ? (tpl && n ? fillTpl(tpl, n.grow, n.rest) : rawTpl.replace(/\{(grow|rest)\}/g, String(every))) : tidyText(ci[k], us);
+        if (v) care[k] = v;
+    }
+    const sources = [...new Set([...(Array.isArray(d.sources) ? d.sources : []), ...r.cited].map(String).filter((u) => /^https?:\/\//.test(u)).map((u) => u.replace(/[?&]utm_[^&]+/g, '')))].slice(0, 6);
+    const ai = {
+        source: 'care', group: PROFILE_GROUPS.includes(wp.group) ? wp.group : 'other', method, strict: !!wp.strict,
+        drought_tolerant: dry === 'dry' || (!!wp.drought_tolerant && dry !== 'moist'), dry_rule: dry, rest_season: restSeason, numbers,
+        water_tpl: tpl, why: typeof wp.why === 'string' ? wp.why.slice(0, 200) : null, sources,
+    };
+    const name = String(d.name || ident.name || 'Plant').replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 80);
+    const sci = ident.typed ? String(d.scientific_name || ident.scientific_name || ident.name || '').slice(0, 120) : String(ident.scientific_name || d.scientific_name || '').slice(0, 120);
+    console.log(`care for ${sci}: search=${r.searched || 'none'} (${r.searches}) ${r.ms}ms, ${numbers ? `in ${numbers.indoor.grow}/${numbers.indoor.rest} out ${numbers.outdoor.grow}/${numbers.outdoor.rest}` : 'no numbers'} ${restSeason || ''} ${dry}`);
+    return {
+        fields: {
+            name: name || 'Plant',
+            scientific_name: sci || null,
+            care_instructions: care,
+            water_frequency_days: every,
+            ...(PLANT_TYPES.includes(d.plant_type) ? { plant_type: d.plant_type } : {}),
+        },
+        ai,
+        meta: { searched: r.searched, searches: r.searches, ms: r.ms },
+        raw: d,
+    };
+}
+
+// The care_profile to save with a fresh care sheet: the owner's own choices are kept, and the
+// new answer waits in `ai` for functions/plus to apply (it sets v when it does).
+function pendingProfile(plant: any, ai: any, every: number) {
+    const prof = { ...(plant?.care_profile || {}) };
+    delete prof.v;
+    delete prof.ai;
+    prof.prev_every = every;
+    prof.ai = ai;
+    return prof;
 }
 
 Deno.serve(async (req) => {
