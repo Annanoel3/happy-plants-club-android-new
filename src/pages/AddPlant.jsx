@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { getIdStatus, nameNewPlants, writeTypedCare } from "@/lib/plantIds";
+import { getIdStatus, nameNewPlants, writeTypedCare, canWatchForIds } from "@/lib/plantIds";
+import { nudgeUpgrade } from "@/lib/upgradeNudge";
 import PhotoIdsBar from "@/components/PhotoIdsBar";
 import { setMicActive, showAdForEvent } from "@/lib/admob";
 import { transcribe } from "@/lib/transcribe";
@@ -150,11 +151,16 @@ export default function AddPlant() {
 
       // Use today's photo IDs, then name them on the server (don't wait for the naming).
       // Photos over the limit are kept and wait under "Newly added".
-      const { approved, waiting } = await nameNewPlants(created.map((p) => p.id));
+      const { approved, waiting, ids } = await nameNewPlants(created.map((p) => p.id));
       try { sessionStorage.setItem('hp_add_ad_pending', '1'); } catch { /* ignore */ }
       refreshPlantData();
+      // Free users who ran out get the small "get Plus" popup instead of the long toast
+      const nudged = waiting.length > 0 && !ids?.plus
+        && nudgeUpgrade('ids', { ids, saved: true, canWatch: canWatchForIds(ids) });
       if (!waiting.length) {
         toast.success(created.length === 1 ? 'Got it! Naming your plant…' : `Got them! Naming ${created.length} plants…`);
+      } else if (nudged) {
+        if (approved.length) toast.success(`Naming ${approved.length} now.`);
       } else if (!approved.length) {
         toast(`Saved ${waiting.length === 1 ? 'your plant' : `${waiting.length} plants`}. You're out of photo IDs for today, so ${waiting.length === 1 ? 'it gets' : 'they get'} named tomorrow. Typing a name is always free.`, { duration: 8000 });
       } else {
