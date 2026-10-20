@@ -201,7 +201,7 @@ export default function Dashboard() {
     if (!plants?.length || thumbJobRef.current) return;
     // Skip brand-new plants (their own thumbnail is still uploading) and photos that failed twice
     const missing = plants.filter(p => p.image_url && !p.thumbnail_url && (Number(p.add_info?.thumb_tries) || 0) < 2
-      && Date.now() - (Date.parse(p.created_date) || 0) > 10 * 60 * 1000).length;
+      && Date.now() - (Date.parse(/Z$|[+-]\d\d:?\d\d$/.test(String(p.created_date)) ? p.created_date : `${p.created_date}Z`) || 0) > 10 * 60 * 1000).length;
     if (!missing) return;
     thumbJobRef.current = true;
     (async () => {
