@@ -5,6 +5,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 // Everyone gets the same puzzle for a date (the player's local date). The clock runs only
 // while the puzzle is on screen: the app calls "start" when it shows and "pause" when the
 // app goes to the background. Hints add 30 seconds. Finishing checks the answer here.
+//   { action: 'peek', date }             → state without touching the clock (has it been started?)
 //   { action: 'start', date }            → state (starts or resumes the clock; nothing if done)
 //   { action: 'pause', date }
 //   { action: 'hint', date, plants }     → one hint (counted, +30 s)
@@ -593,6 +594,20 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, date, board: await boardFor(db, date, user.id), name: nameOf(user) });
         }
 
+        if (body.action === 'peek') {
+            const done = !!run?.finished_at;
+            return Response.json({
+                success: true, date, size,
+                started: !!run,
+                finished: done,
+                elapsed_ms: run ? (done ? (run.raw_seconds || 0) * 1000 : activeMs(run, now)) : 0,
+                hints: run?.hints || 0,
+                seconds: done ? run.seconds : null,
+                name: nameOf(user),
+                ...(done ? { board: await boardFor(db, date, user.id), stats: await statsFor(db, user.id, date) } : {}),
+            });
+        }
+
         if (body.action === 'start') {
             if (!run) {
                 run = await db.PlantdokuRun.create({
@@ -606,7 +621,7 @@ Deno.serve(async (req) => {
             }
             const done = !!run.finished_at;
             return Response.json({
-                success: true, date, size,
+                success: true, date, size, started: true,
                 elapsed_ms: done ? (run.raw_seconds || 0) * 1000 : activeMs(run, now),
                 hints: run.hints || 0,
                 finished: done,
