@@ -1,0 +1,34 @@
+{
+  "name": "Notify on Follow Request",
+  "description": "When someone asks to follow a private profile, push the owner: 'X wants to follow you'.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "create"
+      ],
+      "entity_name": "FollowRequest"
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {},
+            "function_name": "sendFollowNotifications"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "notify_on_follow_request",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
