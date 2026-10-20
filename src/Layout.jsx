@@ -33,6 +33,7 @@ import ThemeMode from "@/components/ThemeMode";
 import PermissionsCheck from "@/components/PermissionsCheck";
 import AdManager from './components/shared/AdManager';
 import UpdatePrompt from '@/components/UpdatePrompt';
+import UpgradeNudge from '@/components/UpgradeNudge';
 import PushRouter from '@/components/PushRouter';
 
 function LayoutContent({ children, currentPageName }) {
@@ -416,6 +417,7 @@ export default function Layout({ children, currentPageName }) {
       <NotificationPopup user={user} />
       <PermissionsCheck user={user} />
       {user && <UpdatePrompt />}
+      {user && <UpgradeNudge />}
       <LayoutContent children={children} currentPageName={currentPageName} />
       
       <style>{`
@@ -723,6 +725,22 @@ export default function Layout({ children, currentPageName }) {
            wallpaper layer (Layout's) instead of one per page nested in the scroller. */
         .theme-bg {
           background: transparent;
+        }
+        /* A short page (every plant card collapsed) lets a fast fling slam into the top edge.
+           The page's base layer under the wallpaper was plain white (body's background), and
+           that's what flashed at the top. The base now carries the wallpaper too, and the page
+           itself no longer overscrolls. */
+        html {
+          overscroll-behavior: none;
+          height: 100%;
+          background: var(--theme-bg, #ffffff);
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+        }
+        body {
+          background: transparent !important;
+          overscroll-behavior: none;
         }
         .hp-wallpaper::before {
           content: '';
