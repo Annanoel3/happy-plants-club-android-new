@@ -687,8 +687,35 @@ Deno.serve(async (req) => {
             const owner = (await base44.asServiceRole.entities.User.filter({ email: String(tc.owner_email || '') }))?.[0] || {};
             const fake = { environment: tc.environment || null, location: tc.location || null };
             const today = aiLocalDay(owner.timezone);
-            const c = await writeCare(owner, fake, today, { name: tc.name, scientific_name: tc.scientific_name, typed: !!tc.typed, effort: tc.effort });
-            return Response.json({ success: true, today, ...c });
+            const meter = newMeter();
+            const c = await writeCare(owner, fake, today, { name: tc.name, scientific_name: tc.scientific_name, typed: !!tc.typed, effort: tc.effort, meter });
+            return Response.json({ success: true, today, ...c, cost: { usd: meterUsd(meter), calls: meter.calls } });
+        }
+        // Admin test: the whole photo flow (name + care sheet) for a photo, without saving anything,
+        // with timings and what it cost. { key, test_photo: { image_url, owner_email, environment?, location? } }
+        if (sweepKey && body?.key === sweepKey && body?.test_photo) {
+            const tp = body.test_photo;
+            const owner = (await base44.asServiceRole.entities.User.filter({ email: String(tp.owner_email || '') }))?.[0] || {};
+            const fake = { environment: tp.environment || null, location: tp.location || null };
+            const today = aiLocalDay(owner.timezone);
+            const meter = newMeter();
+            const t0 = Date.now();
+            let spec: any = null;
+            const r = await identify(rid, String(tp.image_url), contextFor(owner, fake, today), (b) => {
+                if (b?.scientific_name && tp.speculate !== false) spec = { sci: b.scientific_name, p: writeCare(owner, fake, today, { name: b.name, scientific_name: b.scientific_name, meter, step: 'care sheet (started early)' }).catch(() => null) };
+            }, meter);
+            const namedMs = Date.now() - t0;
+            const same = !!spec && sameSpecies(spec.sci, r.plantData.scientific_name);
+            let c: any = same ? await spec.p : null;
+            if (!c) c = await writeCare(owner, fake, today, { name: r.plantData.name, scientific_name: r.plantData.scientific_name, meter });
+            const careMs = Date.now() - t0;
+            if (spec && !same) await spec.p; // wasted, but paid for: count it
+            return Response.json({
+                success: true, name: c.fields.name, scientific_name: r.plantData.scientific_name, confidence: r.identification.confidence,
+                judge: r.identification.judge || 'ran', blind: spec?.sci || null, early_care_used: same,
+                named_ms: namedMs, care_ready_ms: careMs, timing: r.identification.timing,
+                cost: { usd: meterUsd(meter), calls: meter.calls },
+            });
         }
         let user: any = null;
         if (!svc) {
@@ -754,6 +781,7 @@ Deno.serve(async (req) => {
                 let c: any = ready ? await ready : null;
                 const early = !!c;
                 if (!c) c = await writeCare(user, plant, today, ident);
+                else if (ident.meter) { /* the early care sheet was already counted */ }
                 const fresh = (await db.Plant.filter({ id: plant.id }))?.[0];
                 if (!fresh) return null;
                 const fi = fresh.add_info || {};
@@ -774,7 +802,8 @@ Deno.serve(async (req) => {
                     last_watered: last,
                     care_profile: pendingProfile(fresh, c.ai, every),
                     add_info: { ...fi, ...extraInfo, care_pending: false, care_done: true, care_error: null, done_at: new Date().toISOString(),
-                        care_run: { early, searches: c.meta?.searches ?? null, ms: Date.now() - t0 } },
+                        care_run: { early, searches: c.meta?.searches ?? null, ms: Date.now() - t0 },
+                        ...(ident.meter ? { cost: { usd: meterUsd(ident.meter), calls: ident.meter.calls } } : {}) },
                 };
                 if (fresh.add_status === 'identifying') patch.add_status = fi.final_status === 'done' ? 'done' : 'review';
                 await db.Plant.update(plant.id, patch);
@@ -799,9 +828,10 @@ Deno.serve(async (req) => {
                 if (typedPlant) info.started_at = info.care_started_at;
                 await db.Plant.update(plant.id, { add_info: { ...info, care_pending: true } }).catch(() => {});
                 try {
+                    const meter = newMeter();
                     const fresh = await saveCare(typedPlant
-                        ? { name: plant.name, scientific_name: plant.scientific_name || plant.name, typed: true }
-                        : { name: plant.name, scientific_name: plant.scientific_name, plant_size: plant.plant_size || null }, null);
+                        ? { name: plant.name, scientific_name: plant.scientific_name || plant.name, typed: true, meter }
+                        : { name: plant.name, scientific_name: plant.scientific_name, plant_size: plant.plant_size || null, meter }, null);
                     return Response.json({ success: true, plant: fresh });
                 } catch (e) { return careFailed(e); }
             }
@@ -817,12 +847,13 @@ Deno.serve(async (req) => {
             await db.Plant.update(plant.id, { add_status: 'identifying', add_info: info });
             let spec: any = null;
             let r: any = null;
+            const meter = newMeter();
             try {
                 // Start the care sheet for the blind opinion's species while the name is settled;
                 // use it if the final name is the same species, else write it again.
                 r = await identify(rid, plant.image_url, context, (b) => {
-                    if (b?.scientific_name) spec = { sci: b.scientific_name, p: writeCare(user, plant, today, { name: b.name, scientific_name: b.scientific_name }).catch(() => null) };
-                });
+                    if (b?.scientific_name) spec = { sci: b.scientific_name, p: writeCare(user, plant, today, { name: b.name, scientific_name: b.scientific_name, meter, step: 'care sheet (started early)' }).catch(() => null) };
+                }, meter);
             } catch (e) {
                 console.error(`[${rid}] identify failed`, (e as Error).message);
                 await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: (e as Error).message.slice(0, 200) } }).catch(() => {});
@@ -844,7 +875,14 @@ Deno.serve(async (req) => {
             await db.Plant.update(plant.id, named);
             try {
                 const ready = spec && sameSpecies(spec.sci, judged.scientific_name) ? spec.p : null;
-                const fresh = await saveCare({ name: named.name, scientific_name: named.scientific_name, plant_size: size }, ready);
+                let fresh = await saveCare({ name: named.name, scientific_name: named.scientific_name, plant_size: size, meter }, ready);
+                // An early care sheet for a different species was paid for too: count it
+                if (spec && !ready && fresh) {
+                    await spec.p;
+                    const cost = { usd: meterUsd(meter), calls: meter.calls };
+                    await db.Plant.update(plant.id, { add_info: { ...(fresh.add_info || {}), cost } }).catch(() => {});
+                    fresh = { ...fresh, add_info: { ...(fresh.add_info || {}), cost } };
+                }
                 return Response.json({ success: true, plant: fresh });
             } catch (e) { return careFailed(e); }
         }
