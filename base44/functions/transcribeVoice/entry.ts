@@ -21,32 +21,33 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Get the file URL from request body
+        // The recording comes either inline ({ audio_base64, mime }: no file upload, so no Base44
+        // integration credit) or as an uploaded file ({ file_url }, older app versions).
         const body = await req.json();
         const fileUrl = body.file_url;
+        const mime = typeof body.mime === 'string' && /^audio\/[\w.+-]+(;.*)?$/.test(body.mime) ? body.mime.split(';')[0] : 'audio/webm';
+        const ext = mime.includes('wav') ? 'wav' : (mime.includes('mp4') || mime.includes('aac') || mime.includes('m4a')) ? 'm4a' : mime.includes('ogg') ? 'ogg' : mime.includes('mpeg') ? 'mp3' : 'webm';
 
-        if (!fileUrl) {
-            console.error('❌ No file_url in request');
-            return Response.json({ error: 'No file_url provided' }, { status: 400 });
+        let audioBlob: Blob;
+        if (typeof body.audio_base64 === 'string' && body.audio_base64.length) {
+            if (body.audio_base64.length > 8_000_000) return Response.json({ error: 'Recording too long' }, { status: 413 });
+            const bin = atob(body.audio_base64.replace(/^data:[^,]*,/, ''));
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            audioBlob = new Blob([bytes], { type: mime });
+        } else if (fileUrl) {
+            const audioResponse = await fetch(fileUrl);
+            if (!audioResponse.ok) throw new Error('Failed to download audio file');
+            audioBlob = await audioResponse.blob();
+        } else {
+            return Response.json({ error: 'No audio provided' }, { status: 400 });
         }
-
-        console.log('📁 Fetching audio file from:', fileUrl);
-
-        // Download the audio file
-        const audioResponse = await fetch(fileUrl);
-        if (!audioResponse.ok) {
-            throw new Error('Failed to download audio file');
-        }
-        
-        const audioBlob = await audioResponse.blob();
-        console.log('📁 Audio file downloaded:', audioBlob.size, 'bytes');
+        console.log('📁 Audio:', audioBlob.size, 'bytes', mime);
 
         const openai = new OpenAI({ apiKey });
 
         // Convert blob to File for OpenAI
-        const file = new File([audioBlob], 'recording.webm', { 
-            type: 'audio/webm' 
-        });
+        const file = new File([audioBlob], `recording.${ext}`, { type: mime });
 
         console.log('🔄 Sending to OpenAI transcription API (gpt-transcribe)...');
 
