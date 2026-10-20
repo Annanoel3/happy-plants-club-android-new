@@ -9,6 +9,7 @@ import { localToday } from '@/lib/dates';
 import { waterAmount, POT_SIZES } from '@/lib/waterAmount';
 import { todayHint, getsRain, weatherApplies, setGetsRain, RAIN_ENVS } from '@/lib/weather';
 import LocationDialog from '@/components/plus/LocationDialog';
+import WaterCompare from '@/components/WaterCompare';
 
 // Plant page: "How to water" — how much (oz) and what today's weather changed. Plus.
 export default function PlantWaterPanel({ plant, user, plus, plusReady, ui }) {
@@ -85,9 +86,9 @@ export default function PlantWaterPanel({ plant, user, plus, plusReady, ui }) {
             <>
               <p className={`text-lg font-bold ${ui.text}`}>{amount.headline}</p>
               <p className={`text-sm ${ui.sub}`}>
-                Pour slowly; stop when a little drains out the bottom.{' '}
-                {amount.guessed ? 'This is a rough guess from the plant’s size. Pick the pot width below for a better number.' : `Estimate for your ${plant.pot_diameter_in}-inch pot.`}
+                Pour slowly; stop when a little drains out the bottom. Estimate for your {plant.pot_diameter_in}-inch pot.
               </p>
+              <WaterCompare oz={amount.oz} ui={ui} className="mt-2" />
             </>
           )}
           {amount.kind === 'ground' && (
@@ -100,7 +101,7 @@ export default function PlantWaterPanel({ plant, user, plus, plusReady, ui }) {
             </>
           )}
           {amount.kind === 'unknown' && (
-            <p className={`text-sm ${ui.text}`}>Pick the pot width below and we'll tell you how many ounces to give.</p>
+            <p className={`text-sm ${ui.text}`}><b>How much?</b> Pick the pot width below and we'll tell you how many ounces to give. We don't guess, because a guess can be way off.</p>
           )}
         </div>
 
