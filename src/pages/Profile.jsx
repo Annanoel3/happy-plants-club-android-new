@@ -2,7 +2,9 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, User, UserPlus, UserMinus, Lock, MapPin, Sparkles, ShieldX } from "lucide-react";
+import { ArrowLeft, User, UserPlus, UserMinus, Lock, MapPin, Sparkles, ShieldX, Flag } from "lucide-react";
+import { community } from "@/lib/community";
+import ReportSheet from "@/components/community/ReportSheet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -18,6 +20,8 @@ export default function Profile() {
   const [hasRequestedFollow, setHasRequestedFollow] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isBlocked, setIsBlocked] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [theme, setTheme] = useState('light');
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -80,9 +84,11 @@ export default function Profile() {
       const { data } = await base44.functions.invoke('getUserByEmail', { email: profileEmail });
       
       if (data.user) {
-        console.log('👤 Profile user loaded:', data.user);
-        console.log('📸 Profile picture URL:', data.user.profile_picture);
         setProfileUser(data.user);
+      } else if (data.unavailable) {
+        // They blocked this person: show nothing about them
+        setUnavailable(true);
+        return;
       } else {
         toast.error('User not found');
         navigate('/Search');
@@ -165,32 +171,26 @@ export default function Profile() {
     enabled: !!profileUser,
   });
 
+  // Blocking goes through the community function, which also removes follows and follow
+  // requests in both directions. Blocked people can't see each other's posts, comments,
+  // profiles or messages.
   const blockMutation = useMutation({
     mutationFn: async () => {
       if (isBlocked) {
-        const blocks = await base44.entities.Block.filter({
-          blocker_email: currentUser.email,
-          blocked_email: profileEmail
-        });
-        if (blocks.length > 0) await base44.entities.Block.delete(blocks[0].id);
+        await community('unblock', { email: profileEmail });
         setIsBlocked(false);
-        toast.success('User unblocked');
+        toast.success('Unblocked');
       } else {
-        await base44.entities.Block.create({
-          blocker_email: currentUser.email,
-          blocked_email: profileEmail
-        });
-        // Also unfollow if following
-        const follows = await base44.entities.Follow.filter({
-          follower_email: currentUser.email,
-          following_email: profileEmail
-        });
-        if (follows.length > 0) await base44.entities.Follow.delete(follows[0].id);
+        await community('block', { email: profileEmail });
         setIsBlocked(true);
         setIsFollowing(false);
-        toast.success('User blocked');
+        setHasRequestedFollow(false);
+        toast.success(`${profileUser?.full_name || 'They'} is blocked`);
       }
+      queryClient.invalidateQueries({ queryKey: ['followerCount', profileEmail] });
+      queryClient.invalidateQueries({ queryKey: ['communityFeed'] });
     },
+    onError: (e) => toast.error(e.message),
   });
 
   const followMutation = useMutation({
@@ -241,6 +241,15 @@ export default function Profile() {
     );
   }
 
+  if (unavailable) {
+    return (
+      <div className={cn("min-h-screen flex flex-col items-center justify-center p-6 text-center", getBackgroundColor())}>
+        <p className={cn("font-semibold", getTextColor())}>This profile isn’t available.</p>
+        <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>Go back</Button>
+      </div>
+    );
+  }
+
   if (!profileUser || !currentUser) {
     return (
       <div className={cn("min-h-screen flex items-center justify-center", getBackgroundColor())}>
@@ -251,6 +260,10 @@ export default function Profile() {
 
   return (
     <div className="min-h-screen theme-bg p-6 pb-24">
+      {reporting && (
+        <ReportSheet target={{ type: 'user', email: profileUser.email, name: profileUser.full_name }}
+          onClose={() => setReporting(false)} onBlocked={() => { setIsBlocked(true); setIsFollowing(false); }} />
+      )}
       <div className="max-w-2xl mx-auto">
         <button onClick={() => navigate(-1)} className="mb-6 hover:opacity-70">
           <ArrowLeft className={cn("w-6 h-6", getTextColor())} />
@@ -344,8 +357,19 @@ export default function Profile() {
                     size="lg"
                     className={cn(isBlocked ? "border-green-500 text-green-600" : "border-red-400 text-red-500")}
                     title={isBlocked ? "Unblock user" : "Block user"}
+                    aria-label={isBlocked ? "Unblock user" : "Block user"}
                   >
                     <ShieldX className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    onClick={() => setReporting(true)}
+                    variant="outline"
+                    size="lg"
+                    className="border-gray-300"
+                    title="Report user"
+                    aria-label="Report user"
+                  >
+                    <Flag className={cn("w-4 h-4", getTextColor())} />
                   </Button>
                 </div>
               )}
@@ -353,8 +377,17 @@ export default function Profile() {
           </CardContent>
         </Card>
 
+        {isBlocked && (
+          <Card className={cn("mb-6", getThemedClasses())}>
+            <CardContent className="p-6 text-center">
+              <p className={cn("font-semibold", getTextColor())}>You blocked {profileUser.full_name}.</p>
+              <p className={cn("text-sm mt-1", getSecondaryTextColor())}>You won’t see each other’s posts, comments or messages. Tap the shield to unblock.</p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Stats Card - Only show if can view garden */}
-        {canViewGarden && (
+        {canViewGarden && !isBlocked && (
           <Card className={cn("mb-6", getThemedClasses())}>
             <CardContent className="p-6">
               <h3 className={cn("text-lg font-bold mb-4 flex items-center gap-2", getTextColor())}>
@@ -381,7 +414,7 @@ export default function Profile() {
         )}
 
         {/* Garden Section */}
-        {canViewGarden ? (
+        {isBlocked ? null : canViewGarden ? (
           <div>
             <h3 className={cn("text-2xl font-bold mb-4", getTextColor())}>Garden</h3>
             {plantsLoading ? (
