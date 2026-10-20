@@ -268,6 +268,11 @@ function contextFor(user: any, plant: any, day: string): string {
     ];
     if (plant?.location || plant?.environment) lines.push(`Where the plant is kept: ${plant?.location || 'not given'} (${plant?.environment || 'not given'}).`);
     lines.push('water_frequency_days is for THIS time of year in this location and spot. Do not assume summer heat unless it is summer there. Describe how watering changes in other seasons in care_instructions.watering.');
+    // Units people actually use where they live (the care text used to come back in °C and cm for US owners)
+    const us = !place || /(,\s*(US|USA|United States))\s*$/i.test(String(place));
+    lines.push(us
+        ? 'Write every care text in US units: temperatures in °F, lengths and depths in inches, water in fluid ounces. Never use °C, cm or mL.'
+        : 'Write every care text in metric units: temperatures in °C, lengths in cm, water in mL.');
     return lines.join('\n');
 }
 function addDays(day: string, n: number): string {
