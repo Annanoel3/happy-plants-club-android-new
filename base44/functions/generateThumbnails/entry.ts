@@ -107,14 +107,18 @@ Deno.serve(async (req) => {
         if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
         const body = await req.json().catch(() => ({}));
-        const onlyMine = body?.scope !== 'all';
+        // Every thumbnail made costs a Base44 integration credit (UploadFile), so only an admin
+        // can run it over everyone's plants; the in-app safety net only does your own.
+        const onlyMine = body?.scope !== 'all' || user.role !== 'admin';
 
         // Service role so a single run can fix every user's garden; "mine" scope for the in-app safety net.
         const db = base44.asServiceRole.entities.Plant;
         const filter: Record<string, unknown> = onlyMine ? { created_by: user.email } : {};
         const plants = await db.filter(filter);
-        const todo = plants.filter(p => p.image_url && !p.thumbnail_url).slice(0, BATCH);
-        const remaining = plants.filter(p => p.image_url && !p.thumbnail_url).length - todo.length;
+        // A photo that failed twice isn't tried again (it used to be retried on every garden load)
+        const needs = (p: any) => p.image_url && !p.thumbnail_url && (Number(p.add_info?.thumb_tries) || 0) < 2;
+        const todo = plants.filter(needs).slice(0, BATCH);
+        const remaining = plants.filter(needs).length - todo.length;
 
         const done: string[] = [];
         const failed: string[] = [];
@@ -129,6 +133,9 @@ Deno.serve(async (req) => {
             } catch (e) {
                 failed.push(p.id);
                 console.warn('thumb failed', p.id, p.name, e?.message || e);
+                // Count it; after the second failure the card just uses the full photo
+                const tries = (Number(p.add_info?.thumb_tries) || 0) + 1;
+                await db.update(p.id, { add_info: { ...(p.add_info || {}), thumb_tries: tries }, ...(tries >= 2 ? { thumbnail_url: p.image_url } : {}) }).catch(() => {});
             }
         }
         return Response.json({ success: true, done, failed, remaining });
