@@ -17,7 +17,7 @@ const AI_LIMITS: Record<string, { free: number; plus: number }> = {
 
 // ---- Photo IDs (always on) -----------------------------------------------------
 // Same block as functions/identifyPlantWithExpert — keep them in step.
-const ID_RULES = { intro: 30, introHours: 24, daily: 5, perAd: 5, maxAds: 3, plus: 200 };
+const ID_RULES = { intro: 15, introHours: 24, daily: 5, perAd: 5, maxAds: 3, plus: 200 };
 function dayIn(tz: string | undefined, when: Date): string {
     let zone = tz || 'America/Chicago';
     try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); } catch { zone = 'America/Chicago'; }
@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
         const usageRows = await db.AiUsage.filter({ user_id: user.id, day });
         const usage: Record<string, any> = {};
         for (const k of Object.keys(AI_LIMITS)) {
-            usage[k] = { used: usageRows.find((r: any) => r.kind === k)?.count || 0, limit: AI_LIMITS[k][plus ? 'plus' : 'free'] };
+            usage[k] = { used: usageRows.find((r: any) => r.kind === k)?.count || 0, limit: AI_LIMITS[k][idPlus ? 'plus' : 'free'] };
         }
         return Response.json({
             success: true,

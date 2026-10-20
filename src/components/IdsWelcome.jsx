@@ -14,7 +14,7 @@ export default function IdsWelcome({ ids, ui, onClose }) {
         <p className="text-3xl mb-2" aria-hidden>📸🌿</p>
         <h2 className={`text-xl font-bold ${ui?.text || ''}`}>Add your whole garden today</h2>
         <ul className={`mt-3 space-y-2 text-sm ${ui?.sub || ''}`}>
-          <li>✅ <b className={ui?.text}>First 24 hours:</b> add up to {ids?.intro_total || 30} plants by photo, free{ids?.intro_ends_at ? ` (${introEndsText(ids)})` : ''}.</li>
+          <li>✅ <b className={ui?.text}>First 24 hours:</b> add up to {ids?.intro_total || 15} plants by photo, free{ids?.intro_ends_at ? ` (${introEndsText(ids)})` : ''}.</li>
           <li>📷 <b className={ui?.text}>After that:</b> {ids?.daily || 5} photo IDs a day.{video ? ` Watch a short video any time for ${ids?.per_ad || 5} more.` : ''}</li>
           <li>⌨️ <b className={ui?.text}>Typing a plant's name</b> is always free.</li>
           <li>✨ <b className={ui?.text}>Plus</b> gets 200 photo IDs a day and no ads.</li>

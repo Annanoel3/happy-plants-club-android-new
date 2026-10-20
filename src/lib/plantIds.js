@@ -1,6 +1,6 @@
 // Photo IDs: how many plants a person can name from a photo today.
 // Rules live on the server (functions/premium + identifyPlantWithExpert):
-//   free: 30 in the first 24 hours, then 5 a day, +5 per reward video (3 videos a day max)
+//   free: 15 in the first 24 hours, then 5 a day, +5 per reward video (3 videos a day max)
 //   Plus: 200 a day. Typing a plant's name never uses a photo ID.
 // Photos over the limit are still saved; they wait under "Newly added" and get named
 // when IDs are back (next day, a reward video, or Plus).
@@ -88,7 +88,7 @@ export async function watchForIds() {
   return { ok: true, ids: last, named: named.approved.length };
 }
 
-/** "5 left today" / "First day: 27 of 30 left" */
+/** "5 left today" / "First day: 12 of 15 left" */
 export function idsLine(ids) {
   if (!ids) return '';
   if (ids.plus) return `${ids.left} of ${ids.limit} photo IDs left today`;

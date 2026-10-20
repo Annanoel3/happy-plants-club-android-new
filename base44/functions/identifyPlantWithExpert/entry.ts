@@ -199,11 +199,11 @@ const AI_LIMITS: Record<string, { free: number; plus: number }> = {
 };
 
 // ---- Photo IDs (always on) -----------------------------------------------------
-// Free: 30 in the first 24 hours after signing up (to add the whole garden), then 5 a
+// Free: 15 in the first 24 hours after signing up (to add the whole garden), then 5 a
 // day; each reward video adds 5 more (up to 3 videos a day). Plus: 200 a day. Admins
 // count as Plus. A plant is charged once, however many times naming it is retried.
 // The same block is in functions/premium (status, reserve, reward) — keep them in step.
-const ID_RULES = { intro: 30, introHours: 24, daily: 5, perAd: 5, maxAds: 3, plus: 200 };
+const ID_RULES = { intro: 15, introHours: 24, daily: 5, perAd: 5, maxAds: 3, plus: 200 };
 function dayIn(tz: string | undefined, when: Date): string {
     let zone = tz || 'America/Chicago';
     try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); } catch { zone = 'America/Chicago'; }
@@ -281,7 +281,8 @@ async function useAiQuota(base44: any, user: any, kind: string) {
             db.AiUsage.filter({ user_id: user.id, day, kind }),
         ]);
         const sub = subs?.[0];
-        const plus = !!(sub && sub.active && (!sub.expires_at || Date.parse(sub.expires_at) > Date.now()));
+        // Admins (you) get Plus limits, same as photo IDs, so testing never hits the free caps
+        const plus = user?.role === 'admin' || !!(sub && sub.active && (!sub.expires_at || Date.parse(sub.expires_at) > Date.now()));
         const limit = (AI_LIMITS[kind] || AI_LIMITS.chat)[plus ? 'plus' : 'free'];
         const enforce = (Deno.env.get('AI_LIMITS_ON') || '').trim().toLowerCase() === 'true';
         const row = rows?.[0];

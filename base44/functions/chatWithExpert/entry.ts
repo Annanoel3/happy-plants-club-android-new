@@ -29,7 +29,8 @@ async function useAiQuota(base44: any, user: any, kind: string) {
             db.AiUsage.filter({ user_id: user.id, day, kind }),
         ]);
         const sub = subs?.[0];
-        const plus = !!(sub && sub.active && (!sub.expires_at || Date.parse(sub.expires_at) > Date.now()));
+        // Admins (you) get Plus limits, same as photo IDs, so testing never hits the free caps
+        const plus = user?.role === 'admin' || !!(sub && sub.active && (!sub.expires_at || Date.parse(sub.expires_at) > Date.now()));
         const limit = (AI_LIMITS[kind] || AI_LIMITS.chat)[plus ? 'plus' : 'free'];
         const enforce = (Deno.env.get('AI_LIMITS_ON') || '').trim().toLowerCase() === 'true';
         const row = rows?.[0];
