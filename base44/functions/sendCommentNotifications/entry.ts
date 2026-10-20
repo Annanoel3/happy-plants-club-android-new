@@ -23,10 +23,6 @@ Deno.serve(async (req) => {
 
         const comment = (await db.Comment.filter({ id }))?.[0];
         if (!comment) return Response.json({ success: true, message: 'Skipped: comment not found' });
-        // TEMP debug (remove): record what the automation sends
-        if (String(comment.content || '').startsWith('payload probe')) {
-            await db.Comment.update(comment.id, { content: 'payload probe: ' + JSON.stringify({ keys: Object.keys(body || {}), event: body?.event || null, event_type: body?.event_type || null }).slice(0, 400) });
-        }
         const post = (await db.Post.filter({ id: comment.post_id }))?.[0];
         const to = post?.author_email || post?.created_by;
         const from = comment.author_email || comment.created_by;
