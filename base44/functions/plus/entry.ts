@@ -944,24 +944,6 @@ Deno.serve(async (req) => {
         const now = Date.now();
         const memo = new Map<string, any>();
 
-        // Admin, one-time repair: rewrite the watering paragraph of every seasonal plant from its
-        // saved numbers (the first rollout used the model's own text, which could disagree).
-        if (action === 'profile_retext') {
-            const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
-            if (!sweepKey || body.key !== sweepKey) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-            const rows = (await db.Plant.filter({ water_days_rest: { $gt: 0 } }, '-created_date', 2000)) || [];
-            let n = 0;
-            for (const p of rows) {
-                const g = Number(p.water_days_grow) || 0, r = Number(p.water_days_rest) || 0;
-                if (!g || !r) continue;
-                const text = seasonalWateringText(g, r, p.water_rest_season || 'winter');
-                if (p.care_instructions?.watering === text) continue;
-                await db.Plant.update(p.id, { care_instructions: { ...(p.care_instructions || {}), watering: text } });
-                n++;
-            }
-            return Response.json({ success: true, rewritten: n });
-        }
-
         // Admin check: what "Even out my schedule" would move for one account (no writes).
         if (action === 'even_out_preview') {
             const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
@@ -990,7 +972,7 @@ Deno.serve(async (req) => {
                     const patch = a ? profilePatch(p, a, ctx.today, ctx.hemi) : null;
                     rows.push({
                         name: plantName(p), area: p.location || null, was_every: p.water_frequency_days, was_next: p.next_watering_due,
-                        ai: a ? { group: a.group, method: a.method, strict: a.strict, drought_tolerant: a.drought_tolerant, rest_season: a.rest_season, grow_days: a.grow_days, rest_days: a.rest_days, why: a.why } : null,
+                        ai: a ? normalizeAi(a) : null,
                         now_every: patch?.water_frequency_days ?? p.water_frequency_days, now_next: patch?.next_watering_due ?? p.next_watering_due,
                         method: patch?.water_method, strict: patch?.water_strict, watering_text: patch?.care_instructions?.watering ?? null,
                     });
@@ -1115,10 +1097,13 @@ Deno.serve(async (req) => {
                     if (n) stats.profiled = (stats.profiled || 0) + n;
                 }
                 // 2) Season changes (checked every run; writes only on the switch day)
+                //    and plants moved indoors/outdoors since their numbers were applied
                 const seasonal = (await db.Plant.filter({ water_days_rest: { $gt: 0 } }, '-created_date', 2000)) || [];
                 for (const p of seasonal) {
                     const ctx = ownerCtx(byEmail.get(p.created_by), now);
-                    const patch = seasonalPatch(p, ctx.today, ctx.hemi);
+                    const prof = p.care_profile || {};
+                    const moved = prof.numbers && !prof.user_interval && prof.spot && prof.spot !== spotOf(p.environment);
+                    const patch = (moved ? applyNumbers(p, ctx.today, ctx.hemi) : null) || seasonalPatch(p, ctx.today, ctx.hemi);
                     if (!patch) continue;
                     try { await db.Plant.update(p.id, patch); bump('season_switched'); } catch { bump('season_failed'); }
                 }
@@ -1215,6 +1200,24 @@ Deno.serve(async (req) => {
             const todo = (ids ? mine.filter((p: any) => ids.has(p.id)) : mine).slice(0, 50);
             const n = await profilePlants(db, todo, user, now);
             return Response.json({ success: true, profiled: n, remaining: Math.max(0, mine.length - n) });
+        }
+
+        // The owner said where a plant lives (new-plant check, plant edit): use its indoor or
+        // outdoor numbers. { plant_ids: [...] }. Plants with their own interval are left alone.
+        if (action === 'retune') {
+            const ids = Array.isArray(body.plant_ids) ? body.plant_ids.map(String).slice(0, 50) : [];
+            const ctx = ownerCtx(user, now);
+            let retuned = 0;
+            for (const id of ids) {
+                const p = (await db.Plant.filter({ id }))?.[0];
+                if (!p || p.created_by !== user.email) continue;
+                if (p.care_profile?.spot === spotOf(p.environment)) continue;
+                const patch = applyNumbers(p, ctx.today, ctx.hemi);
+                if (!patch) continue;
+                await db.Plant.update(id, patch);
+                retuned++;
+            }
+            return Response.json({ success: true, retuned });
         }
 
         // Even out my schedule: { apply?: boolean }. Without apply it's only a preview.
