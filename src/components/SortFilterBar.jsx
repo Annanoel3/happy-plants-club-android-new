@@ -18,7 +18,8 @@ export default function SortFilterBar({ sortBy, onSortChange, textColor, seconda
       <button
         onClick={() => setOpen(true)}
         className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold transition-all ${
-          sortBy ? "bg-emerald-500/30 text-emerald-300 border border-emerald-500/40" : `${themedClasses} ${secondaryTextColor}`
+          // Solid green with white text reads on every theme (the old pale green text vanished on light ones)
+          sortBy ? "bg-emerald-600 text-white border border-emerald-700 shadow-sm" : `${themedClasses} ${secondaryTextColor}`
         }`}
       >
         <ArrowUpDown className="w-3.5 h-3.5" />
