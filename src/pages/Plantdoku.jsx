@@ -10,6 +10,7 @@ import { usePlus } from '@/lib/plus';
 import { showAdForEvent, rewardedAvailable, showRewardedAd } from '@/lib/admob';
 import { makePuzzle, dailySeed, dailySize, isSolved, hintFor, REGION_COLORS, REGION_COLORS_DARK } from '@/lib/plantdoku/engine';
 import { markPlantdokuFound } from '@/lib/plantdoku/egg';
+import { setDone, getDone } from '@/lib/games/common';
 
 // Plantdoku: every color is a garden bed. One plant in every bed, every row and every
 // column; plants never touch, not even at corners. Each bed has its own plant, so a
@@ -406,6 +407,7 @@ export default function Plantdoku() {
     setDaily(d);
     clock.current = { ms: d.elapsed_ms || 0, at: Date.now(), running: !!d.started && !d.finished };
     if (d.finished) {
+      if (!getDone('plantdoku', today)) setDone('plantdoku', { seconds: d.seconds }, today);
       setResult({ daily: true, seconds: d.seconds, raw: Math.round((d.elapsed_ms || 0) / 1000), hints: d.hints, board: d.board, stats: d.stats, name: d.name });
       // Solved on another phone (or this one was cleared): show the finished board
       const sol = makePuzzle(dailySeed(today), dailySize(today));
@@ -503,6 +505,7 @@ export default function Plantdoku() {
       clock.current = { ms: (d.raw_seconds || elapsedSec) * 1000, at: Date.now(), running: false };
       if (!d.already) countFinish();
       setDaily((x) => ({ ...(x || {}), finished: true, hints: d.hints }));
+      setDone('plantdoku', { seconds: d.seconds }, today);
       setResult({ daily: true, seconds: d.seconds, raw: d.raw_seconds, hints: d.hints, board: d.board, stats: d.stats, name: daily?.name });
     } catch (e) {
       const code = e?.response?.data?.error;
@@ -615,8 +618,8 @@ export default function Plantdoku() {
       )}
       <div className="max-w-xl mx-auto px-4 pt-4">
         <div className="flex items-center justify-between mb-2">
-          <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/Dashboard'))} className={`flex items-center gap-1.5 py-2 -ml-1 text-sm font-semibold ${ui.text}`}>
-            <ArrowLeft className="w-5 h-5" /> Back
+          <button onClick={() => navigate('/Games')} className={`flex items-center gap-1.5 py-2 -ml-1 text-sm font-semibold ${ui.text}`}>
+            <ArrowLeft className="w-5 h-5" /> Games
           </button>
           <button onClick={openTutorial} className={`flex items-center gap-1 text-sm font-semibold ${ui.text}`}>
             <HelpCircle className="w-4 h-4" /> How to play
