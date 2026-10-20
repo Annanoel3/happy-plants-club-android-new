@@ -156,8 +156,15 @@ Return ONLY valid JSON:
                 plantsToWater.push(...plants.filter(p => p.next_watering_due && p.next_watering_due <= today));
                 console.log('OVERDUE filter - today:', today, 'matched:', plantsToWater.map(p => p.name));
             } else if (token.startsWith('LOCATION:')) {
-                const loc = token.replace('LOCATION:', '').trim().toLowerCase();
-                plantsToWater.push(...plants.filter(p => p.location?.toLowerCase().includes(loc)));
+                // "everything on the deck" may come back as "the deck", "deck plants", "outside"...
+                const clean = (s: string) => String(s || '').toLowerCase().replace(/\b(the|my|on|in|at|all|everything|plants?|area)\b/g, ' ').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+                const loc = clean(token.replace('LOCATION:', ''));
+                const envWord = /^(outside|outdoors?|outdoor)$/.test(loc) ? 'outdoor' : /^(inside|indoors?|indoor)$/.test(loc) ? 'indoor' : null;
+                plantsToWater.push(...plants.filter(p => {
+                    if (envWord) return String(p.environment || '').toLowerCase() === envWord;
+                    const l = clean(p.location);
+                    return !!loc && !!l && (l.includes(loc) || loc.includes(l));
+                }));
             } else {
                 const found = findPlant(token);
                 if (found) plantsToWater.push(found);
