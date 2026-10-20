@@ -793,7 +793,7 @@ async function commonsPhoto(sci: string) {
     const okLic = /^(cc0|public domain|cc by( |-)?[\d.]*|cc by-sa( |-)?[\d.]*)$/i.test(lic) || /^cc[- ]by(-sa)?[- ][\d.]+$/i.test(lic);
     if (!ii?.thumburl || !okLic) return null;
     const artist = stripHtml(meta.Artist?.value).slice(0, 100) || 'Wikimedia Commons';
-    return { url: ii.thumburl, credit: `${artist} / Wikimedia Commons, ${lic}`.slice(0, 160), license: lic, source: 'Wikimedia Commons', page: ii.descriptionurl || null };
+    return { url: String(ii.thumburl).replace(/\?utm_[^#]*$/, ''), credit: `${artist} / Wikimedia Commons, ${lic}`.slice(0, 160), license: lic, source: 'Wikimedia Commons', page: ii.descriptionurl || null };
 }
 async function photoFor(sci: string, pn: any[] | null, cache: any) {
     const sp = speciesKey(sci);
@@ -803,12 +803,13 @@ async function photoFor(sci: string, pn: any[] | null, cache: any) {
     if (p) return { url: p.url, credit: String(p.citation || p.author || 'Pl@ntNet').slice(0, 160), license: p.license, source: 'Pl@ntNet' };
     if (!cache) return null;
     const row = (await cache.PlantPhotoRef.filter({ species: sp }).catch(() => []))?.[0];
-    // A species with no free photo is checked again after 30 days
-    if (row && (row.url || Date.now() - Date.parse(row.checked_at || 0) < 30 * 86400e3)) {
+    // A species with no free photo is checked again after 30 days (rows from before the
+    // Wikimedia fallback, without source 'none-v2', are checked again now)
+    if (row && (row.url || (row.source === 'none-v2' && Date.now() - Date.parse(row.checked_at || 0) < 30 * 86400e3))) {
         return row.url ? { url: row.url, credit: row.credit, license: row.license, source: row.source, page: row.page } : null;
     }
     const got = (await inatPhoto(sci)) || (await commonsPhoto(sci).catch(() => null));
-    const data = { species: sp, url: got?.url || null, credit: got?.credit || null, license: got?.license || null, source: got?.source || null, page: got?.page || null, checked_at: new Date().toISOString() };
+    const data = { species: sp, url: got?.url ? String(got.url).replace(/\?utm_[^#]*$/, '') : null, credit: got?.credit || null, license: got?.license || null, source: got?.source || 'none-v2', page: got?.page || null, checked_at: new Date().toISOString() };
     await (row ? cache.PlantPhotoRef.update(row.id, data) : cache.PlantPhotoRef.create(data)).catch(() => {});
     return got;
 }
