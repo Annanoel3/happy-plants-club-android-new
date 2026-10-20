@@ -389,6 +389,9 @@ export default function CommunityFeed() {
 
   return (
     <div className="min-h-screen theme-bg p-6 pb-24">
+      {reportTarget && (
+        <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} onBlocked={() => refreshFeed()} />
+      )}
       {/* Easter Egg GIF Popup */}
       <AnimatePresence>
         {showEasterEgg && (
@@ -450,7 +453,15 @@ export default function CommunityFeed() {
             </button>
           </div>
 
-          <Card className={`mb-6 ${getThemedClasses()}`}>
+          {isBanned && (
+            <Card className={`mb-6 ${getThemedClasses()}`}>
+              <CardContent className="p-6">
+                <p className={getTextColor()}>Your Community access has been turned off because of reports about your posts or messages. You can still read the feed.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card className={`mb-6 ${getThemedClasses()} ${isBanned ? 'hidden' : ''}`}>
             <CardContent className="p-6">
               <Textarea
                 placeholder="Share something about your plants..."
@@ -566,17 +577,36 @@ export default function CommunityFeed() {
                           </p>
                         </div>
                       </button>
-                      {post.created_by === user?.email && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deletePostMutation.mutate(post.id)}
-                          className="text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" aria-label="More options" className={getIconColor()}>
+                            <MoreHorizontal className="w-5 h-5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {post.author_email === user?.email ? (
+                            <DropdownMenuItem onClick={() => deletePostMutation.mutate(post.id)} className="text-red-600">
+                              <Trash2 className="w-4 h-4 mr-2" /> Delete post
+                            </DropdownMenuItem>
+                          ) : (
+                            <>
+                              <DropdownMenuItem onClick={() => setReportTarget({ type: 'post', id: post.id, email: post.author_email, name: post.author_name })}>
+                                <Flag className="w-4 h-4 mr-2" /> Report post
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => blockPerson(post.author_email, post.author_name)} className="text-red-600">
+                                <ShieldX className="w-4 h-4 mr-2" /> Block {post.author_name || 'this person'}
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
+
+                    {post.hidden && (
+                      <p className="mb-3 inline-flex items-center gap-1 text-xs font-semibold text-red-500">
+                        <EyeOff className="w-3 h-3" /> Hidden from everyone ({post.hidden_reason || 'reports'}). Only admins see this.
+                      </p>
+                    )}
 
                     <p className={`mb-4 whitespace-pre-wrap ${getTextColor()}`}>{post.content}</p>
 
@@ -633,22 +663,36 @@ export default function CommunityFeed() {
                                     {comment.author_name}
                                   </span>
                                 </button>
-                                {comment.author_email === user?.email && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => deleteCommentMutation.mutate(comment.id)}
-                                    className="h-6 w-6 text-red-500"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </Button>
-                                )}
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" aria-label="Comment options" className={`h-7 w-7 ${getIconColor()}`}>
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    {comment.author_email === user?.email ? (
+                                      <DropdownMenuItem onClick={() => deleteCommentMutation.mutate(comment.id)} className="text-red-600">
+                                        <Trash2 className="w-4 h-4 mr-2" /> Delete comment
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <>
+                                        <DropdownMenuItem onClick={() => setReportTarget({ type: 'comment', id: comment.id, email: comment.author_email, name: comment.author_name })}>
+                                          <Flag className="w-4 h-4 mr-2" /> Report comment
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => blockPerson(comment.author_email, comment.author_name)} className="text-red-600">
+                                          <ShieldX className="w-4 h-4 mr-2" /> Block {comment.author_name || 'this person'}
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
+                              {comment.hidden && <p className="text-xs font-semibold text-red-500 mb-1">Hidden ({comment.hidden_reason || 'reports'}). Only admins see this.</p>}
                               <p className={`text-sm ${getTextColor()}`}>{comment.content}</p>
                             </div>
                           ))}
                         </div>
-                        <div className="flex gap-2">
+                        <div className={`flex gap-2 ${isBanned ? 'hidden' : ''}`}>
                           <Input
                             placeholder="Write a comment..."
                             value={commentInputs[post.id] || ''}
