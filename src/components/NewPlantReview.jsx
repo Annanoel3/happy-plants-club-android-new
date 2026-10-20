@@ -127,6 +127,11 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
     const value = String(sci || '').trim();
     if (!value || renaming) return;
     setRenaming(true);
+    // Show the new name right away; its care sheet follows in a few seconds
+    const prev = local;
+    setLocal((l) => ({ ...l, scientific_name: value, ...(pickedName ? { name: pickedName } : {}), add_info: { ...(l?.add_info || {}), renamed_at: new Date().toISOString() } }));
+    setSciText(value);
+    setSciEdit(false);
     try {
       const { data } = await base44.functions.invoke('identifyPlantWithExpert', { plant_id: plant.id, scientific_name: value, ...(pickedName ? { name: pickedName } : {}) });
       if (!data?.success || !data.plant) throw new Error(data?.error || 'failed');
@@ -137,6 +142,8 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
       refreshPlantData();
       toast.success(`Updated care for ${data.plant.scientific_name || value}`);
     } catch (e) {
+      setLocal(prev);
+      setSciText(prev?.scientific_name || '');
       if (aiLimitInfo(e)) { await handleAiLimit(e, navigate); return; }
       toast.error("Couldn't update that. Check the spelling and try again.");
     } finally {
@@ -273,7 +280,7 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
                       {c.photo?.url
                         ? <img src={c.photo.url} alt={c.name || c.scientific_name} className="w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
                         : <span className="w-full h-full flex items-center justify-center text-4xl" aria-hidden>🪴</span>}
-                      {current && <span className="absolute top-1.5 left-1.5 rounded-full bg-green-600 text-white text-[10px] font-bold px-2 py-0.5">Our best guess</span>}
+                      {current && <span className="absolute top-1.5 left-1.5 rounded-full bg-green-600 text-white text-[10px] font-bold px-2 py-0.5">{info.renamed_at ? 'Your pick' : 'Our best guess'}</span>}
                     </div>
                     <div className="px-2 py-1.5">
                       <p className={`text-sm font-semibold leading-tight ${ui.text}`}>{c.name || c.scientific_name}</p>
