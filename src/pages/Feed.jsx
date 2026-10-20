@@ -3,17 +3,24 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import PlantdokuEgg from "@/components/PlantdokuEgg";
 import CommunityFeed from "@/components/community/CommunityFeed";
+import CommunityTerms, { useCommunityTerms } from "@/components/community/CommunityTerms";
+import { useGameTheme } from "@/lib/games/common";
 
 // Community is built (restored Oct 19, 2026) but hidden: everyone sees "Coming soon".
-// Set to true to open it. Before opening:
-//  - the feed's like/comment code calls a push function (sendPushNotification) that no
-//    longer exists, so a like or comment would show an error after saving; the
-//    "Notify on Post Like" / "Notify on Comment" automations already send those pushes
-//  - Google Play requires terms users accept, in-app report and block, for posts/comments
+// Set to true to open it. People agree to the community rules the first time they open
+// it. Still needed before opening (Google Play): in-app Report and Block.
 const COMMUNITY_OPEN = false;
 
 export default function Feed() {
-  return COMMUNITY_OPEN ? <CommunityFeed /> : <ComingSoon />;
+  return COMMUNITY_OPEN ? <CommunityGate /> : <ComingSoon />;
+}
+
+function CommunityGate() {
+  const { state, agree } = useCommunityTerms();
+  const { dark } = useGameTheme();
+  if (state === 'checking') return <div className="min-h-screen theme-bg" />;
+  if (state === 'needed') return <CommunityTerms onAgree={agree} dark={dark} />;
+  return <CommunityFeed />;
 }
 
 function ComingSoon() {
