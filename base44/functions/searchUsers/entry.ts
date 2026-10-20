@@ -19,12 +19,18 @@ Deno.serve(async (req) => {
 
         // Use service role to search all users
         const allUsers = await base44.asServiceRole.entities.User.list('-created_date', 1000);
+        // People who blocked you, or you blocked, don't show up in search
+        const [mine, theirs] = await Promise.all([
+            base44.asServiceRole.entities.Block.filter({ blocker_email: user.email }),
+            base44.asServiceRole.entities.Block.filter({ blocked_email: user.email }),
+        ]);
+        const hidden = new Set([...(mine || []).map(b => b.blocked_email), ...(theirs || []).map(b => b.blocker_email)]);
         
         const results = allUsers
             .filter(u => {
                 const handleMatch = u.handle?.toLowerCase().includes(cleanQuery);
                 const nameMatch = u.full_name?.toLowerCase().includes(cleanQuery);
-                return (handleMatch || nameMatch) && u.email !== user.email; // Don't show current user
+                return (handleMatch || nameMatch) && u.email !== user.email && !hidden.has(u.email); // Don't show current user
             })
             .slice(0, 20)
             .map(u => ({
