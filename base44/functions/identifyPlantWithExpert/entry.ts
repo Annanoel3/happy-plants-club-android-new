@@ -411,7 +411,7 @@ const CARE_RULES = `You are a horticulturist writing the care sheet a plant-care
 First settle these facts, and make everything you write agree with them: where it grows wild; whether it grows in the warm months (summer grower) or the cool months (winter grower); whether it drops its leaves or goes dormant; the coldest temperature it handles; whether its soil should dry out completely.
 
 Every text:
-- Is general advice for this plant in the owner's climate and spot. Never mention a photo, picture or image, the pot it is in now, its current condition, or how sure anyone is about the identification.
+- Is general advice for this plant in the owner's climate. Never mention a photo, picture or image, the pot it is in now, its current condition, or how sure anyone is about the identification.
 - Uses plain everyday words and short sentences. No filler. "watering" up to 4 sentences, every other text up to 3.
 - Follows the units and spelling rule in the context.
 - Has no links or citations in it. List the pages you relied on only in "sources".
@@ -957,7 +957,7 @@ Deno.serve(async (req) => {
         if (t.blocked) return t.blocked;
         console.log(`[${rid}] 🌱 identifyPlantWithExpert`, image_url);
         const r = await identify(rid, image_url, contextFor(user, null, today));
-        const c = await writeCare(user, null, today, { name: r.plantData.name, scientific_name: r.plantData.scientific_name });
+        const c = await writeCare(user, null, today, { name: r.plantData.name, scientific_name: r.plantData.scientific_name, cache: base44.asServiceRole.entities });
         return Response.json({ success: true, plantData: { ...r.plantData, ...c.fields }, identification: r.identification });
     } catch (error) {
         console.error(`[${rid}] Error in identifyPlantWithExpert:`, error.message);
