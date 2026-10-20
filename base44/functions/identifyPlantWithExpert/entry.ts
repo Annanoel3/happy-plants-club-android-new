@@ -5,9 +5,12 @@ const openai = new OpenAI({
     apiKey: Deno.env.get("OPENAI_API_KEY"),
 });
 
-const MODEL = "gpt-6-astra";
-// The care sheet's model (the photo ID always uses MODEL). Set CARE_MODEL to switch it.
-const CARE_MODEL = (Deno.env.get('CARE_MODEL') || MODEL).trim();
+// Which OpenAI model names the plant and which writes its care sheet. Both are gpt-6-luna
+// since Oct 20, 2026: on 33 of Anna's own plant photos Luna named 21 right and Astra about
+// 22, at under 1/50th of the price (Astra: ~12 cents a photo, Luna: ~0.15 cents). Set the
+// ID_MODEL / CARE_MODEL secrets to "gpt-6-astra" to switch back without a code change.
+const MODEL = (Deno.env.get('ID_MODEL') || 'gpt-6-luna').trim();
+const CARE_MODEL = (Deno.env.get('CARE_MODEL') || 'gpt-6-luna').trim();
 
 // ---------------------------------------------------------------------------
 // Identification runs as three steps:
@@ -547,9 +550,9 @@ async function askCare(system: string, userText: string, effortIn?: string, mete
     // How much of each web page the model reads. Most of a care sheet's cost is reading pages.
     const searchSize = (searchSizeIn || Deno.env.get('CARE_SEARCH_SIZE') || '').trim().toLowerCase();
     const t0 = Date.now();
-    // Low reasoning effort: same numbers and facts in a 4-plant side-by-side test, in half the time (it still
-    // searches). Set CARE_EFFORT=medium/high to change it, or pass "default" to leave it unset.
-    const effort = (effortIn || Deno.env.get('CARE_EFFORT') || 'low').trim().toLowerCase();
+    // Reasoning effort. Astra: "low" gave the same numbers as the default in half the time.
+    // Luna: its default (medium) was closer to the researched answers than "low" (8-plant test).
+    const effort = (effortIn || Deno.env.get('CARE_EFFORT') || (model === 'gpt-6-astra' ? 'low' : 'medium')).trim().toLowerCase();
     if ((Deno.env.get('CARE_WEB_SEARCH') || 'on').trim().toLowerCase() !== 'off') {
         for (const tool of ['web_search', 'web_search_preview']) {
             const ctl = new AbortController();
@@ -558,7 +561,8 @@ async function askCare(system: string, userText: string, effortIn?: string, mete
                 const res = await fetch('https://api.openai.com/v1/responses', {
                     method: 'POST', signal: ctl.signal,
                     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model, instructions: system, input: userText, tools: [{ type: tool, ...(['low', 'medium', 'high'].includes(searchSize) ? { search_context_size: searchSize } : {}) }], max_output_tokens: 12000, ...(['low', 'medium', 'high'].includes(effort) ? { reasoning: { effort } } : {}) }),
+                    // At most 2 searches: each one is a cent, more than the rest of the care sheet
+                    body: JSON.stringify({ model, instructions: system, input: userText, tools: [{ type: tool, ...(['low', 'medium', 'high'].includes(searchSize) ? { search_context_size: searchSize } : {}) }], max_tool_calls: 2, max_output_tokens: 12000, ...(['low', 'medium', 'high'].includes(effort) ? { reasoning: { effort } } : {}) }),
                 });
                 const j = await res.json().catch(() => null);
                 if (!res.ok) throw new Error(`HTTP ${res.status} ${JSON.stringify(j?.error?.message || j).slice(0, 200)}`);
@@ -864,9 +868,11 @@ Deno.serve(async (req) => {
                 const patch: any = {
                     care_instructions: d.care_instructions,
                     ...(d.plant_type ? { plant_type: d.plant_type } : {}),
-                    // Typed names: the care sheet fixes the spelling and finds the scientific name.
-                    // Photo IDs keep the identified name unless the owner already changed it.
-                    ...(ident.typed ? { name: d.name, scientific_name: d.scientific_name } : (fresh.name === ident.name && d.name ? { name: d.name } : {})),
+                    // The care sheet never renames the plant (the photo ID or the owner named it);
+                    // for typed names it only fills in the scientific name, and a common name when
+                    // what they typed was the scientific name itself.
+                    ...(ident.typed ? { scientific_name: d.scientific_name,
+                        ...(d.name && String(fresh.name || '').trim().toLowerCase() === String(d.scientific_name || '').trim().toLowerCase() ? { name: d.name } : {}) } : {}),
                     ...(own ? {} : { ...clearSeasons(fresh), water_frequency_days: every, next_watering_due: addDays(last, every) }),
                     last_watered: last,
                     care_profile: pendingProfile(fresh, c.ai, every),
