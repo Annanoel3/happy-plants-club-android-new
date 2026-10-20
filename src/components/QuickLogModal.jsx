@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { refreshPlantData } from '@/lib/query-client';
 import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
+import { transcribe } from "@/lib/transcribe";
 import { X, Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -72,13 +73,8 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
     setIsProcessing(true);
     setInputMessage("🎙️ Transcribing...");
     try {
-      const ext = (mimeType.includes('mp4') || mimeType.includes('aac')) ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
-      const filename = 'recording.' + ext;
-      const audioFile = new File([audioBlob], filename, { type: mimeType });
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: audioFile });
-
-      const transcribeResponse = await base44.functions.invoke("transcribeAudio", { file_url, filename });
-      const transcript = transcribeResponse.data.transcript;
+      // Sent inline to our own transcription (no upload: saves a Base44 credit)
+      const transcript = await transcribe(audioBlob, mimeType);
       // Optimistic: show transcript immediately before processing
       setInputMessage(transcript);
       await submitTranscript(transcript);
