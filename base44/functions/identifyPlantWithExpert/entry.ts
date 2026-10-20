@@ -485,9 +485,10 @@ function parseJsonLoose(s: string): any {
     if (a < 0 || b <= a) throw new Error('no JSON in reply');
     return JSON.parse(s.slice(a, b + 1));
 }
-async function askCare(system: string, userText: string) {
+async function askCare(system: string, userText: string, effortIn?: string) {
     const key = Deno.env.get('OPENAI_API_KEY') || '';
     const t0 = Date.now();
+    const effort = (effortIn || Deno.env.get('CARE_EFFORT') || '').trim().toLowerCase();
     if ((Deno.env.get('CARE_WEB_SEARCH') || 'on').trim().toLowerCase() !== 'off') {
         for (const tool of ['web_search', 'web_search_preview']) {
             const ctl = new AbortController();
@@ -496,7 +497,7 @@ async function askCare(system: string, userText: string) {
                 const res = await fetch('https://api.openai.com/v1/responses', {
                     method: 'POST', signal: ctl.signal,
                     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: MODEL, instructions: system, input: userText, tools: [{ type: tool }], max_output_tokens: 12000 }),
+                    body: JSON.stringify({ model: MODEL, instructions: system, input: userText, tools: [{ type: tool }], max_output_tokens: 12000, ...(['low', 'medium', 'high'].includes(effort) ? { reasoning: { effort } } : {}) }),
                 });
                 const j = await res.json().catch(() => null);
                 if (!res.ok) throw new Error(`HTTP ${res.status} ${JSON.stringify(j?.error?.message || j).slice(0, 200)}`);
@@ -540,7 +541,7 @@ function cleanNumbers(x: any, hasRest: boolean) {
 // Write the care sheet for a plant whose name is settled.
 //   ident.scientific_name / ident.name: what the photo ID settled on, or what the owner typed
 //   ident.typed: true when the name came from the owner (fix the spelling, keep the plant)
-async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null }) {
+async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null; effort?: string }) {
     const us = isUsOwner(user);
     const spotBits = [plant?.location, plant?.environment, plant?.pot_type, Number(plant?.pot_diameter_in) > 0 ? `${plant.pot_diameter_in}-inch pot` : null, plant?.sun_exposure].filter(Boolean);
     const who = ident.typed
@@ -553,7 +554,7 @@ async function writeCare(user: any, plant: any, today: string, ident: { name?: s
         spotBits.length ? `What the owner has said about its spot so far: ${spotBits.join(', ')}.` : 'The owner has not said yet where it is kept; give both indoor and outdoor numbers.',
         'Write the care sheet. Return the JSON.',
     ].filter(Boolean).join('\n');
-    const r = await askCare(`${CARE_RULES}\n\n${CARE_JSON}`, userText);
+    const r = await askCare(`${CARE_RULES}\n\n${CARE_JSON}`, userText, ident.effort);
     const d = r.data || {};
     const ci = d.care_instructions && typeof d.care_instructions === 'object' ? d.care_instructions : {};
     const wp = d.watering_profile && typeof d.watering_profile === 'object' ? d.watering_profile : {};
@@ -632,7 +633,7 @@ Deno.serve(async (req) => {
             const owner = (await base44.asServiceRole.entities.User.filter({ email: String(tc.owner_email || '') }))?.[0] || {};
             const fake = { environment: tc.environment || null, location: tc.location || null };
             const today = aiLocalDay(owner.timezone);
-            const c = await writeCare(owner, fake, today, { name: tc.name, scientific_name: tc.scientific_name, typed: !!tc.typed });
+            const c = await writeCare(owner, fake, today, { name: tc.name, scientific_name: tc.scientific_name, typed: !!tc.typed, effort: tc.effort });
             return Response.json({ success: true, today, ...c });
         }
         let user: any = null;
