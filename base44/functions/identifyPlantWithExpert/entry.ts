@@ -796,8 +796,9 @@ async function buildChoices(best: any, alternatives: any[], pn: any[] | null, ca
     const seen = new Set<string>();
     const list: any[] = [];
     for (const c of [best, ...(alternatives || [])]) {
-        const k = speciesKey(c?.scientific_name);
-        if (!k || seen.has(k)) continue;
+        if (!c?.scientific_name) continue;
+        const k = speciesKey(c.scientific_name) || String(c.scientific_name).toLowerCase().trim();
+        if (seen.has(k)) continue;
         seen.add(k);
         list.push({ name: String(c.name || '').slice(0, 80) || null, scientific_name: String(c.scientific_name).slice(0, 120) });
         if (list.length >= 4) break;
@@ -862,9 +863,11 @@ Deno.serve(async (req) => {
                 if (b?.scientific_name && tp.speculate !== false && tp.care !== false) spec = { sci: b.scientific_name, p: writeCare(owner, fake, today, { name: b.name, scientific_name: b.scientific_name, meter, step: 'care sheet (started early)', model: tp.model, search_size: tp.search_size, cache: tp.cache === true ? base44.asServiceRole.entities : null }).catch(() => null) };
             }, meter, { blind: tp.blind_model, judge: tp.judge_model, effort: tp.id_effort });
             if (tp.care === false) {
+                const choices = tp.choices ? await buildChoices(r.plantData, r.identification.alternatives, r.pn, base44.asServiceRole.entities) : undefined;
                 return Response.json({ success: true, name: r.plantData.name, scientific_name: r.plantData.scientific_name, confidence: r.identification.confidence,
                     judge: r.identification.judge || 'ran', blind: r.identification.blind_llm, plantnet: r.identification.plantnet_top, plantnet_score: r.identification.plantnet_score,
-                    named_ms: Date.now() - t0, timing: r.identification.timing, cost: { usd: meterUsd(meter), calls: meter.calls } });
+                    named_ms: Date.now() - t0, timing: r.identification.timing, cost: { usd: meterUsd(meter), calls: meter.calls },
+                    choices, pn_photos: tp.choices ? (r.pn || []).map((c: any) => ({ sci: c.scientific_name, photos: c.photos })) : undefined });
             }
             const namedMs = Date.now() - t0;
             const same = !!spec && sameSpecies(spec.sci, r.plantData.scientific_name);
@@ -1030,12 +1033,14 @@ Deno.serve(async (req) => {
             // Added in bulk with the area already picked, and a sure name: nothing left to
             // ask, so it skips "Newly added". Otherwise the owner checks it.
             const settled = info.bulk && String(plant.location || '').trim() && r.identification?.confidence === 'high';
+            // Photos for "Is it one of these?" (only shown when the name isn't certain)
+            const choices = r.identification?.confidence === 'high' ? [] : await buildChoices(judged, r.identification?.alternatives || [], r.pn, cache).catch(() => []);
             const named = {
                 name: String(judged.name || 'Plant').replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 80) || 'Plant',
                 scientific_name: judged.scientific_name ? String(judged.scientific_name).slice(0, 120) : null,
                 ...(size ? { plant_size: size } : {}),
                 add_status: settled ? 'done' : 'review',
-                add_info: { ...info, ...r.identification, care_pending: true, named_at: new Date().toISOString(),
+                add_info: { ...info, ...r.identification, choices, care_pending: true, named_at: new Date().toISOString(),
                     named_ms: Date.now() - Date.parse(info.started_at) },
             };
             await db.Plant.update(plant.id, named);
