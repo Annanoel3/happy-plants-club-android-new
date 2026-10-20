@@ -774,7 +774,7 @@ export default function PlantDetail() {
         {plant.add_status === 'identifying' && (
           <div className={`mt-4 ${sectionCls} flex items-center gap-3`} role="status">
             <Loader2 className="w-5 h-5 animate-spin text-green-600" />
-            <p className={`text-sm ${ui.text}`}>Naming this plant… it usually takes under a minute.</p>
+            <p className={`text-sm ${ui.text}`}>{plant.add_info?.typed ? 'Looking up how to care for it…' : 'Naming this plant…'} It usually takes under a minute.</p>
           </div>
         )}
         {(plant.add_status === 'review' || plant.add_status === 'failed') && (
