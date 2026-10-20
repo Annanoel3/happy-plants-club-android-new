@@ -1116,15 +1116,18 @@ Deno.serve(async (req) => {
             // 3) New plants stuck mid-add (app closed or no signal while it was being named):
             //    try again here on the server, up to 3 tries per plant.
             try {
-                const stuck = (await db.Plant.filter({ add_status: { $in: ['identifying', 'failed'] } }, 'created_date', 20)) || [];
+                // ...and named plants whose care sheet didn't finish (typed names, or the app closed)
+                const pendingCare = ((await db.Plant.filter({ 'add_info.care_pending': true }, 'created_date', 20).catch(() => [])) || [])
+                    .filter((p: any) => !p.add_info?.care_done && !['identifying', 'failed'].includes(p.add_status));
+                const stuck = [...((await db.Plant.filter({ add_status: { $in: ['identifying', 'failed'] } }, 'created_date', 20)) || []), ...pendingCare];
                 let retried = 0;
                 for (const p of stuck) {
                     if (retried >= 3) break; // each one takes up to a minute
                     const info = p.add_info || {};
                     const tries = Number(info.tries) || 0;
                     if (tries >= 3 || info.error === 'limit_reached' || (!p.image_url && !info.typed)) continue;
-                    const started = Date.parse(info.started_at || p.created_date) || 0;
-                    const wait = p.add_status === 'identifying' ? 10 * 60 * 1000 : 30 * 60 * 1000;
+                    const started = Date.parse(info.care_started_at || info.named_at || info.started_at || p.created_date) || 0;
+                    const wait = p.add_status === 'failed' ? 30 * 60 * 1000 : 10 * 60 * 1000;
                     if (now - started < wait) continue;
                     retried++;
                     try {
