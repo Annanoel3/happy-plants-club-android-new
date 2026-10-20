@@ -1,6 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import OpenAI from 'npm:openai@4.73.1';
 
+// Add > type or say plant names. The quick model only pulls the plant names out of what the
+// person typed or said. Each plant's care sheet is then written by identifyPlantWithExpert
+// (the same researched care sheet a photo gets, with indoor and outdoor watering numbers);
+// the app starts those right after this returns, and the Dashboard and the hourly sweep
+// retry any that get stuck. This used to write the care here with the quick model and none
+// of the rules (units, seasons, which plants may dry out), so typed plants came out worse
+// than photographed ones.
+
 // "Today" in the USER's calendar, not the server's (UTC). The app sends localDate
 // (YYYY-MM-DD) with every request; without it, fall back to the UTC date.
 const __DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -8,7 +16,11 @@ function todayFor(body: any): string {
     const d = body?.localDate;
     return (typeof d === 'string' && __DATE_RE.test(d)) ? d : new Date().toISOString().split('T')[0];
 }
-
+function addDays(day: string, n: number): string {
+    const d = new Date(day + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+}
 
 const openai = new OpenAI({
     apiKey: Deno.env.get("OPENAI_API_KEY"),
@@ -31,46 +43,20 @@ Deno.serve(async (req) => {
         }
 
         // Join input (handles both natural language and comma-separated lists)
-        const rawInput = plant_names.join(', ');
+        const rawInput = plant_names.join(', ').slice(0, 4000);
         const today = todayFor(__body);
-        const m = Number(today.slice(5, 7));
-        const lat = typeof user.location_lat === 'number' ? user.location_lat : null;
-        const nSeason = m === 12 || m <= 2 ? 'winter' : m <= 5 ? 'spring' : m <= 8 ? 'summer' : 'fall';
-        const flip: Record<string, string> = { winter: 'summer', summer: 'winter', spring: 'fall', fall: 'spring' };
-        const season = lat !== null && Math.abs(lat) < 23.5 ? 'tropics (no real winter)' : (lat !== null && lat < 0 ? flip[nSeason] : nSeason);
-        const context = `Today is ${today}; at the owner's location it is ${season}. Owner's location: ${user.location_label || user.location || 'unknown (assume a temperate northern-hemisphere climate)'}.${location || environment ? ` The plants are kept: ${location || ''} ${environment ? `(${environment})` : ''}.` : ''}
-water_frequency_days is the number of days between waterings for THIS time of year in this location and spot (do not assume summer heat unless it is summer there). Describe other seasons in care_instructions.watering.`;
 
         const response = await openai.chat.completions.create({
             model: "gpt-6-luna",
             messages: [
                 {
                     role: "system",
-                    content: `You are a botanist. The user will describe their plants in natural language or list them by name. Extract each plant name and provide care information.
-
-Return ONLY a JSON object with a "plants" array:
-{
-  "plants": [
-    {
-      "name": "common name",
-      "scientific_name": "scientific name",
-      "care_instructions": {
-        "watering": "detailed watering instructions",
-        "sunlight": "sunlight requirements",
-        "soil": "soil preferences",
-        "humidity": "humidity needs",
-        "temperature": "temperature range",
-        "fertilizing": "fertilizing schedule",
-        "tips": "care tips"
-      },
-      "water_frequency_days": number
-    }
-  ]
-}
-
-Extract only actual plant names. Skip filler words like "I have a", "and", "also", etc.
-
-${context}`
+                    content: `The user describes the plants they want to add, in their own words or as a list. Pull out each plant.
+Return ONLY JSON: {"plants":[{"name":"the plant's common name, spelled correctly","scientific_name":"its scientific name, or null if you are not sure which plant they mean"}]}
+- One entry per plant they mention ("two aloes" is one entry).
+- Skip filler words ("I have a", "and", "also") and anything that isn't a plant.
+- Keep cultivar names they give ("pothos Manjula" -> scientific_name "Epipremnum aureum 'Manjula'").
+- At most 25 plants.`
                 },
                 {
                     role: "user",
@@ -80,39 +66,44 @@ ${context}`
             response_format: { type: "json_object" }
         });
 
-        const result = JSON.parse(response.choices[0].message.content);
-        const plantsData = result.plants || [];
+        const result = JSON.parse(response.choices[0].message.content || '{}');
+        const found = (Array.isArray(result.plants) ? result.plants : [])
+            .filter((p: any) => p && typeof p.name === 'string' && p.name.trim())
+            .slice(0, 25);
 
-        if (!Array.isArray(plantsData) || plantsData.length === 0) {
+        if (found.length === 0) {
             return Response.json({ success: false, error: 'Could not identify any plants' }, { status: 400 });
         }
 
+        const bulk = found.length > 1;
         const addedPlants = [];
-
-        for (const plantData of plantsData) {
-            const nextWatering = new Date(today + 'T12:00:00Z');
-            nextWatering.setDate(nextWatering.getDate() + (plantData.water_frequency_days || 7));
-
+        for (const p of found) {
             const newPlant = await base44.entities.Plant.create({
-                ...plantData,
+                name: String(p.name).trim().slice(0, 80),
+                scientific_name: typeof p.scientific_name === 'string' && p.scientific_name.trim() ? p.scientific_name.trim().slice(0, 120) : null,
+                // Placeholder until its care sheet is written (a minute or less)
+                water_frequency_days: 7,
                 last_watered: today,
-                next_watering_due: nextWatering.toISOString().split('T')[0],
+                next_watering_due: addDays(today, 7),
                 ...(location ? { location } : {}),
                 ...(environment ? { environment } : {}),
+                add_status: 'identifying',
                 // One plant: the app asks right away where it is, the pot and the name.
                 // Several: no question per plant; they wait under "Newly added" in the garden
                 // until the owner opens each one and says where it lives (or skip it when
                 // the area was already picked on the Add screen; the names were typed).
-                add_status: plantsData.length > 1 && location ? 'done' : 'review',
-                add_info: { bulk: plantsData.length > 1, added_at: new Date().toISOString() },
+                add_info: {
+                    typed: true, bulk, tries: 0,
+                    final_status: bulk && location ? 'done' : 'review',
+                    added_at: new Date().toISOString(), started_at: new Date().toISOString(),
+                },
             });
-
             addedPlants.push(newPlant);
         }
 
         return Response.json({ success: true, count: addedPlants.length, plants: addedPlants });
     } catch (error) {
-        console.error('Error in processBulkPlants:', error.message);
-        return Response.json({ success: false, error: error.message }, { status: 500 });
+        console.error('Error in processBulkPlants:', (error as Error).message);
+        return Response.json({ success: false, error: (error as Error).message }, { status: 500 });
     }
 });
