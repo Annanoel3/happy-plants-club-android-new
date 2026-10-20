@@ -1,103 +1,55 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+
+// Follow pushes, run by two automations:
+//   "Notify on Follow Request" (FollowRequest created) → "X wants to follow you"
+//   "Notify on New Follower"   (Follow created)        → "X started following you"
+// (This used to check every 5 minutes with a secret, but nothing ever ran it, so no
+// follow notification was ever sent.) Checks the record really exists and skips people
+// who turned notifications or follow notifications off.
 
 // Internal-call token: only our own backend functions can call push senders.
-// Derived from an existing secret, so there's nothing extra to configure.
 async function internalToken(): Promise<string> {
     const key = (Deno.env.get('ONESIGNAL_REST_API_KEY') || '').trim();
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key + '|hp-internal-v1'));
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-
 Deno.serve(async (req) => {
     try {
-        const CRON_SECRET = Deno.env.get('CRON_SECRET');
-        
-        const url = new URL(req.url);
-        const providedSecret = url.searchParams.get('secret') || '';
-        
-        if (!CRON_SECRET || providedSecret !== CRON_SECRET) {
-            return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-        }
-
         const base44 = createClientFromRequest(req, { serviceRole: true });
-        
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-        
-        const followRequests = await base44.entities.FollowRequest.filter({ status: 'pending' });
-        const recentRequests = followRequests.filter(fr => fr.created_date > fiveMinutesAgo);
+        const db = base44.asServiceRole.entities;
+        const body = await req.json().catch(() => ({}));
+        const type = body?.event?.type || body?.event_type;
+        const data = body?.data || {};
+        const id = data.id || body?.event?.entity_id || body?.entity_id;
+        const entity = body?.event?.entity_name || body?.entity_name || (data.requester_email ? 'FollowRequest' : data.follower_email ? 'Follow' : '');
+        if (type !== 'create' || !id) return Response.json({ success: false, error: 'Invalid event' }, { status: 400 });
 
-        let requestsSent = 0;
-        let requestsSkipped = 0;
-        
-        for (const request of recentRequests) {
-            try {
-                const targetUsers = await base44.entities.User.filter({ email: request.target_email });
-                if (targetUsers.length === 0 || targetUsers[0].notifications_follows === false) {
-                    requestsSkipped++;
-                    continue;
-                }
-                
-                await base44.asServiceRole.functions.invoke('sendNotification', { _internal: await internalToken(),
-                    toUserEmail: request.target_email,
-                    title: `👤 New Follow Request`,
-                    body: `${request.requester_name || request.requester_email} wants to follow you`,
-                    screen: '/FollowRequests'
-                });
-                requestsSent++;
-            } catch (err) {
-                console.error('Error sending follow request notification:', err);
-                requestsSkipped++;
-            }
-        }
-        
-        const allFollows = await base44.entities.Follow.filter({});
-        const recentFollows = allFollows.filter(f => f.created_date > fiveMinutesAgo);
+        const wantsPush = async (email: string) => {
+            const u = (await db.User.filter({ email }))?.[0];
+            return !u || (u.notifications_enabled !== false && u.notifications_follows !== false);
+        };
+        const send = async (to: string, title: string, text: string, screen: string) =>
+            base44.asServiceRole.functions.invoke('sendNotification', { _internal: await internalToken(), toUserEmail: to, title, body: text, screen });
 
-        let followersSent = 0;
-        let followersSkipped = 0;
-        
-        for (const follow of recentFollows) {
-            try {
-                const followingUsers = await base44.entities.User.filter({ email: follow.following_email });
-                if (followingUsers.length === 0 || followingUsers[0].notifications_follows === false) {
-                    followersSkipped++;
-                    continue;
-                }
-                
-                const followerUsers = await base44.entities.User.filter({ email: follow.follower_email });
-                await base44.asServiceRole.functions.invoke('sendNotification', { _internal: await internalToken(),
-                    toUserEmail: follow.following_email,
-                    title: `👥 New Follower`,
-                    body: `${followerUsers[0]?.full_name || follow.follower_email} started following you`,
-                    screen: '/Feed'
-                });
-                followersSent++;
-            } catch (err) {
-                console.error('Error sending follow notification:', err);
-                followersSkipped++;
-            }
+        if (entity === 'FollowRequest') {
+            const r = (await db.FollowRequest.filter({ id }))?.[0];
+            if (!r || r.status !== 'pending' || !r.target_email) return Response.json({ success: true, message: 'Skipped: no pending request' });
+            if (!(await wantsPush(r.target_email))) return Response.json({ success: true, message: 'Skipped: notifications off' });
+            await send(r.target_email, '👤 New follow request', `${r.requester_name || 'Someone'} wants to follow you`, '/FollowRequests');
+            return Response.json({ success: true, message: 'Follow request notification sent' });
         }
-        
-        return Response.json({ 
-            success: true,
-            follow_requests: {
-                total: recentRequests.length,
-                sent: requestsSent,
-                skipped: requestsSkipped
-            },
-            new_followers: {
-                total: recentFollows.length,
-                sent: followersSent,
-                skipped: followersSkipped
-            },
-            at: new Date().toISOString()
-        });
+        if (entity === 'Follow') {
+            const f = (await db.Follow.filter({ id }))?.[0];
+            if (!f || !f.following_email || f.following_email === f.follower_email) return Response.json({ success: true, message: 'Skipped: no follow' });
+            if (!(await wantsPush(f.following_email))) return Response.json({ success: true, message: 'Skipped: notifications off' });
+            const follower = (await db.User.filter({ email: f.follower_email }))?.[0];
+            await send(f.following_email, '👥 New follower', `${follower?.full_name || 'Someone'} started following you`, '/MyProfile');
+            return Response.json({ success: true, message: 'New follower notification sent' });
+        }
+        return Response.json({ success: true, message: 'Skipped: unknown entity' });
     } catch (err) {
-        return Response.json({ 
-            success: false, 
-            error: String(err),
-            message: err.message
-        }, { status: 500 });
+        console.error('follow notification error', (err as Error)?.message);
+        return Response.json({ success: false, error: (err as Error)?.message }, { status: 500 });
     }
 });
