@@ -130,7 +130,7 @@ export default function Messages() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6 pb-32">
         <div className="max-w-4xl mx-auto space-y-4">
           {convo.messages.map((msg) => {
             const isMe = msg.sender_email === user.email;
@@ -155,7 +155,8 @@ export default function Messages() {
       </div>
 
       {/* Input */}
-      <div className="theme-card border-t theme-border p-4 sticky bottom-0 z-10" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+      {/* Pinned to the bottom of the screen so the box is always visible (the page sits under the app header) */}
+      <div className="theme-card border-t theme-border p-4 fixed bottom-0 inset-x-0 z-20" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <div className="max-w-4xl mx-auto">
           {canSend ? (
             <div className="flex gap-2">
