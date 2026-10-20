@@ -732,13 +732,16 @@ Deno.serve(async (req) => {
                 const r = await identify(rid, plant.image_url, context, (b) => {
                     if (b?.scientific_name) spec = { sci: b.scientific_name, p: writeCare(user, plant, today, { name: b.name, scientific_name: b.scientific_name }).catch(() => null) };
                 });
+                const tJudged = Date.now();
                 let c: any = spec && sameSpecies(spec.sci, r.plantData.scientific_name) ? await spec.p : null;
+                const early = !!c;
                 if (c) c.fields.scientific_name = String(r.plantData.scientific_name || c.fields.scientific_name).slice(0, 120);
                 else c = await writeCare(user, plant, today, {
                     name: r.plantData.name, scientific_name: r.plantData.scientific_name,
                     plant_size: PLANT_SIZES.includes(r.plantData.plant_size) ? r.plantData.plant_size : null,
                 });
-                console.log(`[${rid}] care sheet: ${spec && c && sameSpecies(spec.sci, r.plantData.scientific_name) ? 'early (same species)' : 'after judge'}`);
+                console.log(`[${rid}] care sheet: ${early ? 'early (same species)' : 'after judge'}`);
+                info.care_run = { early, blind: spec?.sci || null, wait_after_judge_ms: Date.now() - tJudged, searches: c.meta?.searches ?? null, total_ms: Date.now() - Date.parse(info.started_at) };
                 const d = c.fields;
                 const last = String(plant.last_watered || '').slice(0, 10) || today;
                 // Added in bulk with the area already picked, and a sure name: nothing left to
