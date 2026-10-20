@@ -20,7 +20,9 @@ export default function UpgradeNudge() {
       if (pending.current) return;
       pending.current = true;
       const detail = e.detail || {};
-      cancelWait.current = whenPopupFree('upgrade', () => setNudge(detail), { firstDelay: 400, interval: 1200, maxWaitMs: 90000 });
+      // A tapped Plus feature answers right away; limit and ad nudges let the moment settle first
+      const tapped = ['water', 'care', 'followup', 'timelapse', 'more'].includes(detail.reason);
+      cancelWait.current = whenPopupFree('upgrade', () => setNudge(detail), { firstDelay: tapped ? 0 : 400, interval: 1200, maxWaitMs: 90000 });
       // If it never got a turn, let the next one try
       setTimeout(() => { if (!document.getElementById('hp-upgrade-nudge')) pending.current = false; }, 92000);
     };
