@@ -66,51 +66,6 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
     return [...mine, ...AREA_OPTIONS.filter((a) => !seen.has(a.value.toLowerCase()))].slice(0, 14);
   }, [allPlants, plant?.id]);
 
-  if (!plant) return null;
-
-  const failed = local?.add_status === 'failed';
-  const info = local?.add_info || {};
-  const waitingForId = failed && info.error === 'limit_reached';
-  const alts = (Array.isArray(info.alternatives) ? info.alternatives : [])
-    .filter((a) => a?.scientific_name && a.scientific_name !== local?.scientific_name).slice(0, 3);
-  const showAlts = !failed && info.confidence && info.confidence !== 'high' && alts.length > 0;
-  // "Is it one of these?": the best guess and the others, each with a reference photo
-  const choices = (Array.isArray(info.choices) ? info.choices : []).filter((c) => c?.scientific_name);
-  const showPicker = !failed && info.confidence && info.confidence !== 'high' && choices.length >= 2 && choices.some((c) => c.photo?.url);
-  const canAddPhoto = !failed && !!local?.image_url && info.confidence !== 'high' && (Number(info.extra_tries) || 0) < 3;
-  const isCurrent = (c) => String(c.scientific_name).toLowerCase() === String(local?.scientific_name || '').toLowerCase();
-  const pours = (method || 'pour') === 'pour';
-
-  const chip = (active) => `px-3 py-2 rounded-xl text-sm font-medium border active:scale-95 transition ${
-    active ? 'bg-green-600 border-green-600 text-white' : ui.light ? 'bg-white border-gray-300 text-gray-800' : 'bg-white/10 border-white/20 text-white'}`;
-
-  const pickArea = (a) => {
-    setShowOther(false);
-    setArea(a);
-    if (a.environment) setEnv(a.environment);
-  };
-
-  const rename = async (sci) => {
-    const value = String(sci || '').trim();
-    if (!value || renaming) return;
-    setRenaming(true);
-    try {
-      const { data } = await base44.functions.invoke('identifyPlantWithExpert', { plant_id: plant.id, scientific_name: value });
-      if (!data?.success || !data.plant) throw new Error(data?.error || 'failed');
-      setLocal(data.plant);
-      setSciText(data.plant.scientific_name || value);
-      setSciEdit(false);
-      if (!methodTouched && data.plant.care_profile) setMethod(waterMethod(data.plant));
-      refreshPlantData();
-      toast.success(`Updated care for ${data.plant.scientific_name || value}`);
-    } catch (e) {
-      if (aiLimitInfo(e)) { await handleAiLimit(e, navigate); return; }
-      toast.error("Couldn't update that. Check the spelling and try again.");
-    } finally {
-      setRenaming(false);
-    }
-  };
-
   // A close-up, a flower or the nursery tag: name it again from both photos. Sent inline
   // (no upload), so it costs no Base44 credit and no photo ID.
   const [extraBusy, setExtraBusy] = useState(false);
@@ -143,6 +98,52 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plant?.id, local?.scientific_name, extraBusy, methodTouched]);
   const extraPhoto = usePhotoSource(addPhoto, { title: 'A close-up, a flower, or its plant tag' });
+
+  if (!plant) return null;
+
+  const failed = local?.add_status === 'failed';
+  const info = local?.add_info || {};
+  const waitingForId = failed && info.error === 'limit_reached';
+  const alts = (Array.isArray(info.alternatives) ? info.alternatives : [])
+    .filter((a) => a?.scientific_name && a.scientific_name !== local?.scientific_name).slice(0, 3);
+  const showAlts = !failed && info.confidence && info.confidence !== 'high' && alts.length > 0;
+  // "Is it one of these?": the best guess and the others, each with a reference photo
+  const choices = (Array.isArray(info.choices) ? info.choices : []).filter((c) => c?.scientific_name);
+  const showPicker = !failed && info.confidence && info.confidence !== 'high' && choices.length >= 2 && choices.some((c) => c.photo?.url);
+  const canAddPhoto = !failed && !!local?.image_url && info.confidence !== 'high' && (Number(info.extra_tries) || 0) < 3;
+  const isCurrent = (c) => String(c.scientific_name).toLowerCase() === String(local?.scientific_name || '').toLowerCase();
+  const pours = (method || 'pour') === 'pour';
+
+  const chip = (active) => `px-3 py-2 rounded-xl text-sm font-medium border active:scale-95 transition ${
+    active ? 'bg-green-600 border-green-600 text-white' : ui.light ? 'bg-white border-gray-300 text-gray-800' : 'bg-white/10 border-white/20 text-white'}`;
+
+  const pickArea = (a) => {
+    setShowOther(false);
+    setArea(a);
+    if (a.environment) setEnv(a.environment);
+  };
+
+  const rename = async (sci, pickedName) => {
+    const value = String(sci || '').trim();
+    if (!value || renaming) return;
+    setRenaming(true);
+    try {
+      const { data } = await base44.functions.invoke('identifyPlantWithExpert', { plant_id: plant.id, scientific_name: value, ...(pickedName ? { name: pickedName } : {}) });
+      if (!data?.success || !data.plant) throw new Error(data?.error || 'failed');
+      setLocal(data.plant);
+      setSciText(data.plant.scientific_name || value);
+      setSciEdit(false);
+      if (!methodTouched && data.plant.care_profile) setMethod(waterMethod(data.plant));
+      refreshPlantData();
+      toast.success(`Updated care for ${data.plant.scientific_name || value}`);
+    } catch (e) {
+      if (aiLimitInfo(e)) { await handleAiLimit(e, navigate); return; }
+      toast.error("Couldn't update that. Check the spelling and try again.");
+    } finally {
+      setRenaming(false);
+    }
+  };
+
 
   const retry = async () => {
     setRetrying(true);
@@ -265,7 +266,7 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
               {choices.map((c) => {
                 const current = isCurrent(c);
                 return (
-                  <button key={c.scientific_name} onClick={() => (current ? toast.success(`Keeping ${c.name || c.scientific_name}`) : rename(c.scientific_name))}
+                  <button key={c.scientific_name} onClick={() => (current ? toast.success(`Keeping ${c.name || c.scientific_name}`) : rename(c.scientific_name, c.name))}
                     disabled={renaming}
                     className={`text-left rounded-xl overflow-hidden border active:scale-[0.98] transition disabled:opacity-60 ${current ? 'border-green-600 ring-2 ring-green-600' : ui.light ? 'border-gray-200 bg-white' : 'border-white/15 bg-white/5'}`}>
                     <div className={`relative aspect-square ${ui.light ? 'bg-gray-100' : 'bg-white/10'}`}>
