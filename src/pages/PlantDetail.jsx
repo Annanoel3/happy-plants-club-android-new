@@ -49,6 +49,7 @@ import LightMeter from "@/components/LightMeter";
 import PhotoViewer from "@/components/PhotoViewer";
 import WaterCompare from "@/components/WaterCompare";
 import { lightMeterAvailable } from "@/lib/lightMeter";
+import { carePendingNow } from "@/lib/plantIds";
 
 export default function PlantDetail() {
   const navigate = useNavigate();
@@ -167,7 +168,7 @@ export default function PlantDetail() {
     enabled: !!plantId && !!user && userLoaded,
     retry: 1,
     // Still being named on the server: check back every few seconds
-    refetchInterval: (q) => (q.state.data?.add_status === 'identifying' ? 4000 : false),
+    refetchInterval: (q) => (q.state.data?.add_status === 'identifying' || carePendingNow(q.state.data) ? 4000 : false),
   });
 
   // New plant (added in bulk, or "Later" on the check): its setup card offers the areas
@@ -838,6 +839,12 @@ export default function PlantDetail() {
           </TabsList>
 
           <TabsContent value="care" className="space-y-4 mt-0">
+            {carePendingNow(plant) && (
+              <div className={`${sectionCls} flex items-center gap-3`} role="status">
+                <Loader2 className="w-5 h-5 animate-spin text-green-600 shrink-0" />
+                <p className={`text-sm ${ui.text}`}>Writing its care sheet from trusted plant sources. It shows up here in a few seconds.</p>
+              </div>
+            )}
             {plus ? (
               <>
                 <div id="how-to-water"><PlantWaterPanel plant={plant} user={me} plus={plus} plusReady={plusReady} ui={ui} /></div>
