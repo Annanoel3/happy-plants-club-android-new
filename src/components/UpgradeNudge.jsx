@@ -17,12 +17,19 @@ export default function UpgradeNudge() {
 
   useEffect(() => {
     const onNudge = (e) => {
+      const detail = e.detail || {};
+      // The rest answer something the person just tapped, so they show now (replacing a
+      // "tired of ads?" one that's still waiting for its turn).
+      if (detail.reason !== 'ads') {
+        if (document.getElementById('hp-upgrade-nudge')) return; // one is already on screen
+        cancelWait.current?.();
+        pending.current = true;
+        setNudge(detail);
+        return;
+      }
+      // The "tired of ads?" one is the app's own idea, so it waits its turn behind any other popup.
       if (pending.current) return;
       pending.current = true;
-      const detail = e.detail || {};
-      // The "tired of ads?" one is the app's own idea, so it waits its turn behind any
-      // other popup. The rest answer something the person just tapped, so they show now.
-      if (detail.reason !== 'ads') { setNudge(detail); return; }
       cancelWait.current = whenPopupFree('upgrade', () => setNudge(detail), { firstDelay: 600, interval: 1200, maxWaitMs: 90000 });
       // If it never got a turn, let the next one try
       setTimeout(() => { if (!document.getElementById('hp-upgrade-nudge')) pending.current = false; }, 92000);
