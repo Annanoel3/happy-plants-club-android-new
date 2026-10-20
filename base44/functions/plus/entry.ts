@@ -714,7 +714,7 @@ async function aiProfiles(plants: any[], ctx: { today: string; place: string | n
                 role: 'system',
                 content: `You are a careful horticulturist setting up a plant-care app's watering schedule.
 Today is ${ctx.today}. The owner's location: ${ctx.place || 'unknown'} (${ctx.hemi === 'tropics' ? 'tropics' : ctx.hemi + 'ern hemisphere'}).
-Return JSON: {"plants":[{"id":"...","group":"succulent","method":"pour","strict":false,"drought_tolerant":true,"rest_season":"winter","grow_days":7,"rest_days":21,"why":"..."}]}
+Return JSON: {"plants":[{"id":"...","group":"succulent","method":"pour","strict":false,"drought_tolerant":true,"dry_rule":"dry","rest_season":"winter","indoor":{"grow_days":14,"rest_days":30},"outdoor":{"grow_days":7,"rest_days":30},"why":"..."}]}
 Fields:
 - group: one of ${PROFILE_GROUPS.join(', ')}.
 - method: how the plant gets its water.
@@ -725,12 +725,13 @@ Fields:
   "in_water" = the plant lives in water: lucky bamboo in water, cuttings in water, aquatic plants.
   Never answer "reservoir" (the app sets that from the pot type).
 - strict: true if the plant is finicky about watering timing, so moving its watering day by one or two days could hurt it: tropical and humidity-loving plants, ferns, orchids, carnivorous plants, air plants, rare or collector plants (when unsure about a collector plant, say true), plants with unusual growth cycles (living stones, winter-growing bulbs), seedlings and cuttings, and anything that needs water every 3 days or less. false for tough, forgiving plants (most succulents and cacti, snake plants, ZZ, pothos, dracaenas).
-- drought_tolerant: true for succulents, cacti, caudiciforms and other plants that should dry out fully between waterings.
-- rest_season, grow_days, rest_days: ONLY for drought_tolerant plants whose needs follow a simple growing season and rest season; otherwise null.
-  rest_season: "winter" for most (they grow in the warm months), "summer" for winter growers (Aeonium, many mesembs).
-  grow_days: days between waterings in its growing season, for THIS plant's spot (indoor/outdoor, pot, sun) in the owner's climate. Guide: outdoor potted succulents in warm, dry weather about every 5-7 days; indoors about every 10-21 days. Small pots and terracotta dry faster.
-  rest_days: days between waterings in its rest season. Guide: every 21-30 days or less often.
-  If the plant's watering depends on its own cycle in a way two seasons can't capture (Lithops and other living stones, Conophytum, winter bulbs), use null for all three.
+- drought_tolerant: true only for plants whose soil should dry out completely between waterings.
+- dry_rule: "dry" (cacti, most succulents, snake plants), "top_half" (Dorstenia, Albuca, hoya, peperomia, epiphytic cacti such as fishbone and Christmas cactus), "top_inch" (most houseplants and garden plants), "moist" (ferns, carnivorous plants), "in_water".
+- rest_season: "winter" if it grows in the warm months; "summer" if it grows in the cool months and rests in summer (Aeonium, Aloinopsis, Conophytum, winter-rainfall bulbs such as Albuca spiralis; note Albuca bracteata grows in summer). null only for plants living in water, or in the tropics.
+- indoor and outdoor: { grow_days, rest_days } for the plant kept indoors, and kept outdoors in a pot, in the owner's climate.
+  grow_days guide: outdoor potted succulents in warm, dry weather 5-7; indoor succulents and cacti 10-21; tropical houseplants indoors 7-10; orchids in bark 4-7; ferns and carnivorous plants 2-4.
+  rest_days: never less than grow_days. Houseplants indoors in winter about 1.5-2x longer; most cacti and succulents 30; rot-prone and leaf-dropping caudiciforms (Adenium, Adenia, Cyphostemma, Pachypodium, deciduous euphorbias) 45-60; orchids that need a dry rest to flower 3-5x grow_days. null when rest_season is null.
+- group: "caudiciform" only for plants with a swollen trunk or caudex; Aloe vera is "succulent".
 - why: one short sentence.
 Keep the same ids. Be realistic, not cautious-to-a-fault: overwatering kills more succulents than underwatering.`,
             },
