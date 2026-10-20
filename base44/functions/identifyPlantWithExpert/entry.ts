@@ -357,6 +357,8 @@ Every text:
 - Uses plain everyday words and short sentences. No filler. "watering" up to 4 sentences, every other text up to 3.
 - Follows the units and spelling rule in the context.
 - Has no links or citations in it. List the pages you relied on only in "sources".
+- Holds all year: never refer to today's date or the current season ("this fall", "right now").
+- Doesn't tie the watering numbers to indoors or outdoors: the app fills in the numbers for wherever the plant is kept, and the owner may move it.
 
 The texts:
 - watering: how to water and when (until it drains, then let the soil dry out completely / the top half / the top inch...). Write the placeholders {grow} and {rest} where the numbers of days go, for example "about every {grow} days while it grows" and "about every {rest} days in winter". The app fills in the numbers for the plant's spot. Never write a number of days or weeks yourself. If it drops its leaves to rest, say to stop or nearly stop watering once the leaves fall. If rest_season is null, use only {grow}.
@@ -367,12 +369,13 @@ The texts:
 - fertilizing: only in its growing season, and say when to stop. Winter growers are fed from fall to spring, never in summer. Carnivorous plants are never fed through the soil.
 - tips: two or three practical tips, then whether it is toxic to pets and people (say "not known to be toxic" when that is the case; never invent toxicity).
 
-name: the common name US nurseries and extension services use for THIS species. Some popular names belong to a different species ("Congo fig" is Dorstenia elata, not Dorstenia foetida). Never borrow one. If it has no real common name, use the genus name.
+name: the common name US nurseries and extension services use for THIS species, in sentence case (only the first word and proper nouns capitalized: "Eve's needle cactus", "Shield flower"). Some popular names belong to a different species ("Congo fig" is Dorstenia elata, not Dorstenia foetida). Never borrow one. If it has no real common name, use the genus name.
 
 watering_profile (the app reminds the owner on these numbers):
 - rest_season: "winter" if it grows in the warm months. "summer" if it grows in the cool months and rests in summer (Aeonium, Aloinopsis, Conophytum, Lithops-type mesembs, winter-rainfall bulbs such as Albuca spiralis and Oxalis versicolor). Check this one: plants are often wrongly called winter growers (Albuca bracteata grows in summer). null only for plants that live in water, or that grow the same all year because the owner is in the tropics.
 - indoor and outdoor: grow_days and rest_days for the plant kept indoors in a home, and kept outdoors in a pot, in the owner's climate. If it can't stay outdoors in the owner's winter, outdoor.rest_days is for it brought in or sheltered.
   grow_days: days between waterings while it grows. Guide: outdoor potted succulents in warm, dry weather 5-7; indoor succulents and cacti 10-21; tropical houseplants indoors 7-10; orchids in bark 4-7 (outdoors in heat 2-4); ferns and carnivorous plants 2-4.
+  When the plant only goes dormant in some winters or some spots (it may stay leafy), give rest_days for a leafy plant, and say in the watering text to stop watering if the leaves die back.
   rest_days: days between waterings in its rest season, never less than grow_days. Almost every plant needs less water then, houseplants too (about 1.5 to 2 times longer indoors in winter). Most cacti and succulents: 30. Plants that rot easily when cold and wet, and plants that drop their leaves to rest (Adenium, Adenia, Cyphostemma, Pachypodium, Euphorbia bupleurifolia and other deciduous euphorbias): 45-60, and the watering text says to keep it nearly dry. Orchids that need a dry rest to flower (Dendrobium kingianum, nobile dendrobiums): 3 to 5 times grow_days. null when rest_season is null.
 - dry_rule: "dry" (let the soil dry out completely: cacti, most succulents, snake plants), "top_half" (let the top half dry: Dorstenia, Albuca, hoya, peperomia, epiphytic cacti such as fishbone and Christmas cactus), "top_inch" (most houseplants and garden plants), "moist" (never let it dry out: ferns, carnivorous plants), "in_water" (lives in water).
 - drought_tolerant: true only for plants whose soil should dry out completely between waterings.
