@@ -124,8 +124,8 @@ const CONTAINERS = [
   { oz: 0.5, one: 'tablespoon', many: 'tablespoons', max: 6 },
   { oz: 1.5, one: 'shot glass', many: 'shot glasses', max: 3 },
   { oz: 8, one: 'measuring cup', many: 'measuring cups', max: 4 },
-  { oz: 12, one: 'soda can', many: 'soda cans', max: 4 },
-  { oz: 16.9, one: 'regular 16.9 oz water bottle', many: 'regular 16.9 oz water bottles', max: 4 },
+  { oz: 12, one: 'soda can', many: 'soda cans', max: 4, bonus: 0.02 },
+  { oz: 16.9, one: 'regular 16.9 oz water bottle', many: 'regular 16.9 oz water bottles', max: 4, bonus: 0.07 }, // the one everyone has
   { oz: 20, one: '20 oz soda bottle', many: '20 oz soda bottles', max: 3 },
   { oz: 32, one: 'quart jug (32 oz)', many: 'quart jugs (32 oz)', max: 3 },
   { oz: 64, one: 'half-gallon jug', many: 'half-gallon jugs', max: 2 },
@@ -148,7 +148,7 @@ export function compareOz(oz) {
     }
     if (!best || best.err > 0.3) continue;
     // Whole containers are easier to picture than fractions
-    const score = best.err + (best.k < 1 ? 0.08 : 0) + (best.k > 3 ? 0.05 : 0);
+    const score = best.err + (best.k < 1 ? 0.08 : 0) + (best.k > 3 ? 0.05 : 0) - (c.bonus || 0);
     const how = n > best.k * 1.07 ? 'a little more than' : n < best.k * 0.93 ? 'a little less than' : 'about';
     const noun = best.k <= 1 ? c.one : c.many;
     const count = COUNT_WORDS[best.k];
