@@ -373,7 +373,6 @@ async function evaluateUser(db: any, user: any, now: number, memo: Map<string, a
     return { status: 'ok', weather_today, changed: patches.length };
 }
 
-// ---------------------------------------------------------------- care pushes
 // ---------------------------------------------------------------- daily weather note (everyone)
 // The morning weather push (sendDailyWeather) and the weather card in the app. Both used
 // Base44's built-in AI with internet search (InvokeLLM), which spends Base44 integration
@@ -438,6 +437,7 @@ async function weatherNote(db: any, user: any, now: number, memo: Map<string, an
     return { message, location: f.place, facts: f };
 }
 
+// ---------------------------------------------------------------- care pushes
 const CARE_TYPES = ['fertilize', 'repot', 'mist', 'rotate'];
 function careLine(type: string, name: string): string {
     if (type === 'fertilize') return `Fertilize ${name}`;
