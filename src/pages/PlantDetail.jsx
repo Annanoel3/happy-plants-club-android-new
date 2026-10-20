@@ -7,7 +7,7 @@ import { handleAiLimit } from "@/lib/premium";
 import { refreshPlantData } from "@/lib/query-client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Droplets, Calendar, MapPin, Edit, Trash2, Heart, Plus, Check, MessageCircle, Send, Loader2, Camera, X, Lock, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Droplets, Calendar, MapPin, Edit, Trash2, Heart, Plus, Check, MessageCircle, Send, Loader2, Camera, X, Lock, Image as ImageIcon, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,7 @@ import HealthHistoryCard from "@/components/plus/HealthHistoryCard";
 import GrowthTimeline from "@/components/plus/GrowthTimeline";
 import NewPlantReview from "@/components/NewPlantReview";
 import LightMeter from "@/components/LightMeter";
+import PhotoViewer from "@/components/PhotoViewer";
 import { lightMeterAvailable } from "@/lib/lightMeter";
 
 export default function PlantDetail() {
@@ -86,6 +87,7 @@ export default function PlantDetail() {
   const [selectedTab, setSelectedTab] = useState('care'); // Care / History / Photos
   const [guideOpen, setGuideOpen] = useState(false); // care guide: first 3 rows, or all
   const [lightOk, setLightOk] = useState(false); // phone has a light sensor + app version has the meter
+  const [photoOpen, setPhotoOpen] = useState(false);
   const [lightOpen, setLightOpen] = useState(false);
   useEffect(() => { lightMeterAvailable().then(setLightOk).catch(() => {}); }, []);
   const [progressPhotoNotes, setProgressPhotoNotes] = useState("");
@@ -696,6 +698,7 @@ export default function PlantDetail() {
   return (
     <div className="min-h-screen theme-bg pb-28">
       {lightOpen && <LightMeter plant={plant} ui={ui} onClose={() => setLightOpen(false)} />}
+      {photoOpen && plant.image_url && <PhotoViewer src={plant.image_url} alt={title} onClose={() => setPhotoOpen(false)} />}
       <div className="max-w-2xl mx-auto px-4 pt-4">
         {/* Top bar */}
         <div className="flex items-center justify-between mb-3">
@@ -711,7 +714,14 @@ export default function PlantDetail() {
         <div className={`relative rounded-3xl overflow-hidden shadow-lg bg-green-50 ${plant.image_url ? 'aspect-[4/3]' : 'h-36'}`}>
           {plant.image_url ? (
             <>
-              <img src={plant.image_url} alt={title} className={`w-full h-full object-cover ${plant.status === 'wilted' ? 'grayscale' : ''}`} />
+              {/* Tap to see the whole photo (the card crops it) */}
+              <button onClick={() => setPhotoOpen(true)} aria-label="See the full photo" className="block w-full h-full">
+                <img src={plant.image_url} alt={title} className={`w-full h-full object-cover ${plant.status === 'wilted' ? 'grayscale' : ''}`} />
+              </button>
+              <button onClick={() => setPhotoOpen(true)} aria-label="See the full photo"
+                className="absolute bottom-3 left-3 bg-black/55 backdrop-blur text-white p-2.5 rounded-full active:scale-95">
+                <Maximize2 className="w-5 h-5" />
+              </button>
               <button onClick={mainPhoto.openPicker} disabled={isUploadingImage} aria-label="Change photo"
                 className="absolute bottom-3 right-3 bg-black/55 backdrop-blur text-white p-2.5 rounded-full active:scale-95">
                 {isUploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
