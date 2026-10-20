@@ -718,7 +718,7 @@ Keep the same ids. Be realistic, not cautious-to-a-fault: overwatering kills mor
 // and the schedule can never disagree.
 function seasonalWateringText(grow: number, rest: number, restSeason: string): string {
     const resting = restSeason === 'summer' ? 'in summer, when it rests' : 'in winter, when it rests';
-    return `Water until it drains out the bottom, then let the soil dry out completely. While it's growing, that's about every ${grow} days; ${resting}, about every ${rest} days or less. Always check that the soil is dry first, and skip a watering if it isn't.`;
+    return `Water until it drains out the bottom, then let the soil dry out completely. While it's growing, that's about every ${grow} days; ${resting}, about every ${rest} days, or even less often. Always check that the soil is dry first, and skip a watering if it isn't.`;
 }
 
 // What to save for one plant, given the AI's answer. Never undoes a person's own choices.
