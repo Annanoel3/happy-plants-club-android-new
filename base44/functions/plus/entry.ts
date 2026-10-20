@@ -374,6 +374,70 @@ async function evaluateUser(db: any, user: any, now: number, memo: Map<string, a
 }
 
 // ---------------------------------------------------------------- care pushes
+// ---------------------------------------------------------------- daily weather note (everyone)
+// The morning weather push (sendDailyWeather) and the weather card in the app. Both used
+// Base44's built-in AI with internet search (InvokeLLM), which spends Base44 integration
+// credits for every person, every day. Now: real numbers from MET Norway (free, cached above)
+// and two sentences from the cheap model on our own OpenAI key (well under a cent), or a
+// plain template if that call fails. The model only gets the numbers, so it can't make up
+// weather that isn't coming.
+const OUTSIDE_ENVS = ['Outdoor', 'Balcony', 'Patio', 'Greenhouse'];
+function weatherTemplate(f: any): string {
+    const deg = (x: number) => (f.us ? `${x}°F` : `${Math.round((x - 32) * 5 / 9)}°C`);
+    const rain = f.rain_today_in >= 0.1 ? (f.us ? ` with about ${f.rain_today_in} inches of rain` : ` with about ${Math.round(f.rain_today_in * 25.4)} mm of rain`) : '';
+    const icon = f.rain_today_in >= 0.1 ? '🌧️' : f.high_f >= 90 ? '☀️' : f.low_f !== null && f.low_f <= 35 ? '❄️' : '🌤️';
+    const first = `${icon} High of ${deg(f.high_f)} today${rain}.`;
+    let tip = 'A calm day for your plants.';
+    if (f.outdoor) {
+        if (f.low_f !== null && f.low_f <= 35) tip = `Tonight drops to ${deg(f.low_f)}, so bring tender plants inside or cover them.`;
+        else if (f.rain_today_in >= 0.5) tip = 'Plants out in the rain can skip watering today.';
+        else if (f.high_f >= 90) tip = 'Outdoor pots dry out fast in this heat, so check them this evening.';
+    } else {
+        if (f.high_f >= 90) tip = 'Keep plants out of hot, sunny windows this afternoon.';
+        else if (f.low_f !== null && f.low_f <= 40) tip = 'Keep plants away from cold windows tonight.';
+    }
+    return `${first} ${tip}`;
+}
+async function weatherNote(db: any, user: any, now: number, memo: Map<string, any>) {
+    if (needsGeocode(user)) {
+        const g = await geocode(String(user.location));
+        await saveGeo(db, user, String(user.location).trim(), g);
+    }
+    if (typeof user.location_lat !== 'number' || typeof user.location_lon !== 'number') return null;
+    const wx = await loadWeather(db, user.location_lat, user.location_lon, memo);
+    const s = summarize(wx.hours, now, validTz(user.timezone));
+    if (s.high_f === null) return null;
+    const plants = (await db.Plant.filter({ created_by: user.email })) || [];
+    const outdoor = plants.some((p: any) => OUTSIDE_ENVS.includes(p.environment));
+    const indoor = plants.some((p: any) => !OUTSIDE_ENVS.includes(p.environment));
+    const label = String(user.location_label || '');
+    const f = {
+        us: !label || /,\s*(US|USA|United States)\s*$/i.test(label),
+        place: label || user.location || null, high_f: s.high_f, low_f: s.low_f,
+        rain_today_in: s.rain_today_in, rain_last_24h_in: s.rain_past_in, outdoor, indoor,
+    };
+    let message = weatherTemplate(f);
+    const key = Deno.env.get('OPENAI_API_KEY');
+    if (key) {
+        try {
+            const openai = new OpenAI({ apiKey: key });
+            const r = await openai.chat.completions.create({
+                model: 'gpt-6-luna',
+                max_completion_tokens: 400,
+                messages: [
+                    { role: 'system', content: `Write a morning note for a plant owner: 2 short sentences, warm and practical, one emoji. Use ONLY the weather facts given: never mention sun, clouds, wind, humidity or storms (you don't know them). ${f.us ? 'Use °F and inches.' : 'Use °C and mm.'} ${f.outdoor ? 'They have outdoor plants: say what the heat, cold or rain means for them.' : 'Their plants are all indoors: talk about windows, indoor warmth and dryness, never moving plants outside.'} Mention tonight only if the low is 35°F or colder, with one clear action. Plain text only.` },
+                    { role: 'user', content: JSON.stringify({ high_today_f: f.high_f, low_tonight_f: f.low_f, rain_rest_of_today_inches: f.rain_today_in, rain_last_24h_inches: f.rain_last_24h_in, has_outdoor_plants: outdoor, has_indoor_plants: indoor }) },
+                ],
+            });
+            const t = String(r.choices?.[0]?.message?.content || '').replace(/\s+/g, ' ').trim();
+            if (t && t.length < 400) message = t;
+        } catch (e) {
+            console.warn('weather note model failed, using template', (e as Error).message);
+        }
+    }
+    return { message, location: f.place, facts: f };
+}
+
 const CARE_TYPES = ['fertilize', 'repot', 'mist', 'rotate'];
 function careLine(type: string, name: string): string {
     if (type === 'fertilize') return `Fertilize ${name}`;
@@ -948,6 +1012,16 @@ Deno.serve(async (req) => {
         const now = Date.now();
         const memo = new Map<string, any>();
 
+        // The morning weather push for one person (sendDailyWeather calls this with the key)
+        if (action === 'weather_note_for') {
+            const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
+            if (!sweepKey || body.key !== sweepKey) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+            const owner = (await db.User.filter({ email: String(body.email || '') }))?.[0];
+            if (!owner) return Response.json({ error: 'Not found' }, { status: 404 });
+            const note = await weatherNote(db, owner, now, memo);
+            return Response.json({ success: !!note, ...(note || {}) });
+        }
+
         // Admin check: what "Even out my schedule" would move for one account (no writes).
         if (action === 'even_out_preview') {
             const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
@@ -1207,6 +1281,13 @@ Deno.serve(async (req) => {
             const todo = (ids ? mine.filter((p: any) => ids.has(p.id)) : mine).slice(0, 50);
             const n = await profilePlants(db, todo, user, now);
             return Response.json({ success: true, profiled: n, remaining: Math.max(0, mine.length - n) });
+        }
+
+        // The weather card in the app (everyone)
+        if (action === 'weather_note') {
+            if (!user.location) return Response.json({ success: false, error: 'No location provided' });
+            const note = await weatherNote(db, user, now, memo);
+            return Response.json({ success: !!note, ...(note || {}) });
         }
 
         // The owner said where a plant lives (new-plant check, plant edit): use its indoor or
