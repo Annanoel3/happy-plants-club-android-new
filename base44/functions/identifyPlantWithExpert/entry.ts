@@ -539,9 +539,11 @@ function parseJsonLoose(s: string): any {
     if (a < 0 || b <= a) throw new Error('no JSON in reply');
     return JSON.parse(s.slice(a, b + 1));
 }
-async function askCare(system: string, userText: string, effortIn?: string, meter?: Meter | null, step = 'care sheet', modelIn?: string) {
+async function askCare(system: string, userText: string, effortIn?: string, meter?: Meter | null, step = 'care sheet', modelIn?: string, searchSizeIn?: string) {
     const key = Deno.env.get('OPENAI_API_KEY') || '';
     const model = modelIn || CARE_MODEL;
+    // How much of each web page the model reads. Most of a care sheet's cost is reading pages.
+    const searchSize = (searchSizeIn || Deno.env.get('CARE_SEARCH_SIZE') || '').trim().toLowerCase();
     const t0 = Date.now();
     // Low reasoning effort: same numbers and facts in a 4-plant side-by-side test, in half the time (it still
     // searches). Set CARE_EFFORT=medium/high to change it, or pass "default" to leave it unset.
@@ -554,7 +556,7 @@ async function askCare(system: string, userText: string, effortIn?: string, mete
                 const res = await fetch('https://api.openai.com/v1/responses', {
                     method: 'POST', signal: ctl.signal,
                     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model, instructions: system, input: userText, tools: [{ type: tool }], max_output_tokens: 12000, ...(['low', 'medium', 'high'].includes(effort) ? { reasoning: { effort } } : {}) }),
+                    body: JSON.stringify({ model, instructions: system, input: userText, tools: [{ type: tool, ...(['low', 'medium', 'high'].includes(searchSize) ? { search_context_size: searchSize } : {}) }], max_output_tokens: 12000, ...(['low', 'medium', 'high'].includes(effort) ? { reasoning: { effort } } : {}) }),
                 });
                 const j = await res.json().catch(() => null);
                 if (!res.ok) throw new Error(`HTTP ${res.status} ${JSON.stringify(j?.error?.message || j).slice(0, 200)}`);
@@ -602,7 +604,7 @@ function cleanNumbers(x: any, hasRest: boolean) {
 // Write the care sheet for a plant whose name is settled.
 //   ident.scientific_name / ident.name: what the photo ID settled on, or what the owner typed
 //   ident.typed: true when the name came from the owner (fix the spelling, keep the plant)
-async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null; effort?: string; meter?: Meter | null; step?: string; model?: string }) {
+async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null; effort?: string; meter?: Meter | null; step?: string; model?: string; search_size?: string }) {
     const us = isUsOwner(user);
     const spotBits = [plant?.location, plant?.environment, plant?.pot_type, Number(plant?.pot_diameter_in) > 0 ? `${plant.pot_diameter_in}-inch pot` : null, plant?.sun_exposure].filter(Boolean);
     const who = ident.typed
@@ -615,7 +617,7 @@ async function writeCare(user: any, plant: any, today: string, ident: { name?: s
         spotBits.length ? `What the owner has said about its spot so far: ${spotBits.join(', ')}.` : 'The owner has not said yet where it is kept; give both indoor and outdoor numbers.',
         'Write the care sheet. Return the JSON.',
     ].filter(Boolean).join('\n');
-    const r = await askCare(`${CARE_RULES}\n\n${CARE_JSON}`, userText, ident.effort, ident.meter, ident.step, ident.model);
+    const r = await askCare(`${CARE_RULES}\n\n${CARE_JSON}`, userText, ident.effort, ident.meter, ident.step, ident.model, ident.search_size);
     const d = r.data || {};
     const ci = d.care_instructions && typeof d.care_instructions === 'object' ? d.care_instructions : {};
     const wp = d.watering_profile && typeof d.watering_profile === 'object' ? d.watering_profile : {};
@@ -695,7 +697,7 @@ Deno.serve(async (req) => {
             const fake = { environment: tc.environment || null, location: tc.location || null };
             const today = aiLocalDay(owner.timezone);
             const meter = newMeter();
-            const c = await writeCare(owner, fake, today, { name: tc.name, scientific_name: tc.scientific_name, typed: !!tc.typed, effort: tc.effort, meter, model: tc.model });
+            const c = await writeCare(owner, fake, today, { name: tc.name, scientific_name: tc.scientific_name, typed: !!tc.typed, effort: tc.effort, meter, model: tc.model, search_size: tc.search_size });
             return Response.json({ success: true, today, ...c, cost: { usd: meterUsd(meter), calls: meter.calls } });
         }
         // Admin test: the whole photo flow (name + care sheet) for a photo, without saving anything,
@@ -709,12 +711,12 @@ Deno.serve(async (req) => {
             const t0 = Date.now();
             let spec: any = null;
             const r = await identify(rid, String(tp.image_url), contextFor(owner, fake, today), (b) => {
-                if (b?.scientific_name && tp.speculate !== false) spec = { sci: b.scientific_name, p: writeCare(owner, fake, today, { name: b.name, scientific_name: b.scientific_name, meter, step: 'care sheet (started early)' }).catch(() => null) };
+                if (b?.scientific_name && tp.speculate !== false) spec = { sci: b.scientific_name, p: writeCare(owner, fake, today, { name: b.name, scientific_name: b.scientific_name, meter, step: 'care sheet (started early)', model: tp.model, search_size: tp.search_size }).catch(() => null) };
             }, meter);
             const namedMs = Date.now() - t0;
             const same = !!spec && sameSpecies(spec.sci, r.plantData.scientific_name);
             let c: any = same ? await spec.p : null;
-            if (!c) c = await writeCare(owner, fake, today, { name: r.plantData.name, scientific_name: r.plantData.scientific_name, meter });
+            if (!c) c = await writeCare(owner, fake, today, { name: r.plantData.name, scientific_name: r.plantData.scientific_name, meter, model: tp.model, search_size: tp.search_size });
             const careMs = Date.now() - t0;
             if (spec && !same) await spec.p; // wasted, but paid for: count it
             return Response.json({
