@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
-import { Camera, Image as ImageIcon, Loader2, Play, Pause, X, Trash2 } from 'lucide-react';
+import { Camera, Image as ImageIcon, Loader2, Play, Pause, X, Trash2, Clapperboard, Share2, Download } from 'lucide-react';
+import { canMakeVideo, makeTimelapseVideo, shareVideo, saveVideo } from '@/lib/timelapseVideo';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
@@ -108,7 +109,7 @@ export default function GrowthTimeline({ plant, photos, ui }) {
             </div>
             {view === 'timeline' && <TimelineGrid photos={asc} ui={ui} onOpen={setViewer} />}
             {view === 'compare' && <Compare photos={asc} ui={ui} />}
-            {view === 'play' && <TimeLapse photos={asc} ui={ui} />}
+            {view === 'play' && <TimeLapse photos={asc} ui={ui} plantName={plant.nickname || plant.name || 'My plant'} />}
           </>
         )}
       </CardContent>
@@ -204,9 +205,10 @@ function Compare({ photos, ui }) {
 }
 
 const SPEEDS = [{ ms: 1500, label: 'Slow' }, { ms: 800, label: 'Normal' }, { ms: 400, label: 'Fast' }];
-function TimeLapse({ photos, ui }) {
+function TimeLapse({ photos, ui, plantName }) {
   const [i, setI] = useState(0);
   const [playing, setPlaying] = useState(true);
+  const [making, setMaking] = useState(false);
   const [speed, setSpeed] = useState(1);
   const timer = useRef(null);
   useEffect(() => {
@@ -250,7 +252,82 @@ function TimeLapse({ photos, ui }) {
           ))}
         </div>
       </div>
+      {canMakeVideo() && (
+        <button onClick={() => { setPlaying(false); setMaking(true); }}
+          className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-green-600 text-white font-bold active:scale-95">
+          <Clapperboard className="w-5 h-5" /> Make a video to share
+        </button>
+      )}
+      {making && <VideoSheet photos={photos} plantName={plantName} onClose={() => setMaking(false)} />}
     </div>
+  );
+}
+
+// Makes the video, then shows it with Share and Save buttons. One sheet at a time.
+function VideoSheet({ photos, plantName, onClose }) {
+  const [progress, setProgress] = useState(0);
+  const [video, setVideo] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(null);
+  const url = useMemo(() => (video ? URL.createObjectURL(video.blob) : null), [video]);
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
+  useEffect(() => {
+    let alive = true;
+    makeTimelapseVideo(photos, { plantName, onProgress: (p) => alive && setProgress(p) })
+      .then((v) => alive && setVideo(v))
+      .catch((e) => { console.error('time-lapse video failed', e); if (alive) setError("Couldn't make the video. Check your connection and try again."); });
+    return () => { alive = false; };
+  }, []);
+
+  const act = async (kind) => {
+    setBusy(kind);
+    try {
+      const r = kind === 'share' ? await shareVideo(video, plantName) : await saveVideo(video, plantName);
+      if (r === 'saved') toast.success('Saved to your phone in Movies › Happy Plants 🎬');
+      else if (r === 'downloaded') toast.success('Video downloaded');
+      else if (r === 'update_needed') toast("Update Happy Plants from the Play Store to share and save videos.", { duration: 6000 });
+      else if (r === 'unsupported') toast('Your phone can’t save it directly. Tap Share and pick a place to save it instead.', { duration: 6000 });
+    } catch (e) {
+      console.error('video share/save failed', e);
+      toast.error("That didn't work. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[350] bg-black/90 flex flex-col items-center justify-center p-5" role="dialog" aria-modal="true"
+      style={{ paddingTop: 'max(1.25rem, env(safe-area-inset-top, 0px))', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))' }}>
+      <button onClick={onClose} disabled={!!busy} aria-label="Close" className="absolute top-3 right-3 p-2 text-white"
+        style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}><X className="w-6 h-6" /></button>
+      {!video && !error && (
+        <div className="w-full max-w-xs text-center text-white">
+          <Clapperboard className="w-10 h-10 mx-auto mb-3" />
+          <p className="font-bold text-lg">Making your video…</p>
+          <p className="text-sm text-white/70 mt-1">Keep this screen open. It takes about as long as the video.</p>
+          <div className="h-2 rounded-full bg-white/20 mt-4 overflow-hidden">
+            <div className="h-full bg-green-500 transition-all" style={{ width: `${Math.round(progress * 100)}%` }} />
+          </div>
+        </div>
+      )}
+      {error && <p className="text-white text-center max-w-xs">{error}</p>}
+      {video && (
+        <div className="w-full max-w-sm flex flex-col items-center">
+          <video src={url} className="w-full max-h-[60vh] rounded-xl bg-black" style={{ aspectRatio: '4 / 5' }} controls autoPlay loop muted playsInline />
+          <div className="flex gap-2 w-full mt-4">
+            <button onClick={() => act('share')} disabled={!!busy}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-green-600 text-white font-bold active:scale-95">
+              {busy === 'share' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Share2 className="w-5 h-5" />} Share
+            </button>
+            <button onClick={() => act('save')} disabled={!!busy}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-white text-gray-900 font-bold active:scale-95">
+              {busy === 'save' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />} Save
+            </button>
+          </div>
+        </div>
+      )}
+    </div>,
+    document.body
   );
 }
 
