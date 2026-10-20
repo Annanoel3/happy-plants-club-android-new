@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { usePhotoSource } from "@/components/PhotoSourceSheet";
 import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { base44 } from "@/api/base44Client";
-import { handleAiLimit } from "@/lib/premium";
+import { aiLimitInfo, handleAiLimit } from "@/lib/premium";
 import { queryClientInstance } from "@/lib/query-client";
 import { usePlusReady } from "@/lib/plus";
 import { useNavigate } from "react-router-dom";
@@ -103,7 +103,13 @@ export default function PlantHealthCheck({ plant, openKey = 0 }) {
       }
     } catch (error) {
       console.error('Error analyzing plant:', error);
-      if (!(await handleAiLimit(error))) toast.error(error.message || "Failed to analyze plant health");
+      if (aiLimitInfo(error)) {
+        // Out of health checks: close this so the "get Plus" popup isn't stuck behind it
+        setIsOpen(false);
+        await handleAiLimit(error);
+      } else {
+        toast.error(error.message || "Failed to analyze plant health");
+      }
     } finally {
       setIsAnalyzing(false);
     }

@@ -20,9 +20,10 @@ export default function UpgradeNudge() {
       if (pending.current) return;
       pending.current = true;
       const detail = e.detail || {};
-      // A tapped Plus feature answers right away; limit and ad nudges let the moment settle first
-      const tapped = ['water', 'care', 'followup', 'timelapse', 'more'].includes(detail.reason);
-      cancelWait.current = whenPopupFree('upgrade', () => setNudge(detail), { firstDelay: tapped ? 0 : 400, interval: 1200, maxWaitMs: 90000 });
+      // The "tired of ads?" one is the app's own idea, so it waits its turn behind any
+      // other popup. The rest answer something the person just tapped, so they show now.
+      if (detail.reason !== 'ads') { setNudge(detail); return; }
+      cancelWait.current = whenPopupFree('upgrade', () => setNudge(detail), { firstDelay: 600, interval: 1200, maxWaitMs: 90000 });
       // If it never got a turn, let the next one try
       setTimeout(() => { if (!document.getElementById('hp-upgrade-nudge')) pending.current = false; }, 92000);
     };
@@ -60,7 +61,7 @@ export default function UpgradeNudge() {
   };
 
   return createPortal(
-    <div id="hp-upgrade-nudge" className="fixed inset-0 z-[300] flex items-end justify-center" role="dialog" aria-modal="true">
+    <div id="hp-upgrade-nudge" className="fixed inset-0 z-[310] flex items-end justify-center" style={{ pointerEvents: 'auto' }} role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/50" onClick={close} />
       <div
         className="relative w-full max-w-md bg-white text-gray-900 rounded-t-3xl px-6 pt-5 shadow-2xl text-center"
