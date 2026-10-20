@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
 import './App.css'
 import { Toaster } from "@/components/ui/toaster"
+// Most of the app calls toast() from "sonner" (44 files), but sonner's own Toaster was never
+// mounted, so none of those messages ever showed. This mounts it.
+import { Toaster as SonnerToaster } from "sonner"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import VisualEditAgent from '@/lib/VisualEditAgent'
@@ -89,6 +92,15 @@ function App() {
           </Routes>
         </Router>
         <Toaster />
+        <SonnerToaster
+          position="top-center"
+          richColors
+          closeButton
+          duration={4000}
+          offset={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+          mobileOffset={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: 12, right: 12 }}
+          toastOptions={{ style: { zIndex: 400 } }}
+        />
         <VisualEditAgent />
       </QueryClientProvider>
     </AuthProvider>
