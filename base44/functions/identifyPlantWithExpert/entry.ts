@@ -488,7 +488,9 @@ function parseJsonLoose(s: string): any {
 async function askCare(system: string, userText: string, effortIn?: string) {
     const key = Deno.env.get('OPENAI_API_KEY') || '';
     const t0 = Date.now();
-    const effort = (effortIn || Deno.env.get('CARE_EFFORT') || '').trim().toLowerCase();
+    // Low reasoning effort: same numbers and facts on a 16-plant test, in half the time (it still
+    // searches). Set CARE_EFFORT=medium/high to change it, or pass "default" to leave it unset.
+    const effort = (effortIn || Deno.env.get('CARE_EFFORT') || 'low').trim().toLowerCase();
     if ((Deno.env.get('CARE_WEB_SEARCH') || 'on').trim().toLowerCase() !== 'off') {
         for (const tool of ['web_search', 'web_search_preview']) {
             const ctl = new AbortController();
