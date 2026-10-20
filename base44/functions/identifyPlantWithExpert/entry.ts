@@ -80,7 +80,9 @@ const JSON_ID_ONLY = `Return ONLY JSON:
   "alternatives": [ { "name": "common name", "scientific_name": "scientific name" } ]
 }`;
 
-const JSON_FULL = `Return ONLY JSON:
+// The judge only names the plant (and sizes it). The care sheet is written afterwards from
+// the settled name WITHOUT the photo: see writeCare below.
+const JSON_JUDGE = `Return ONLY JSON:
 {
   "name": "common name - no parentheses, no hedging words",
   "scientific_name": "genus and species, or the hybrid/cultivar name if that is the real identity",
@@ -88,18 +90,7 @@ const JSON_FULL = `Return ONLY JSON:
   "identification_notes": "one or two sentences: the features that settle it, and anything the owner should know (mixed planting, cutting, lookalike ruled out)",
   "plantnet_agreement": true | false | null,
   "alternatives": [ { "name": "common name", "scientific_name": "scientific name" } ],
-  "care_instructions": {
-    "watering": "detailed watering instructions",
-    "sunlight": "sunlight requirements",
-    "soil": "soil preferences",
-    "humidity": "humidity needs",
-    "temperature": "temperature range",
-    "fertilizing": "fertilizing schedule",
-    "tips": "care tips and warnings, including toxicity to pets and people"
-  },
-  "plant_size": "Seedling" | "Small" | "Medium" | "Large" | "Mature",
-  "plant_type": "Houseplants" | "Succulents & Cacti" | "Flowers" | "Herbs" | "Vegetables" | "Trees & Shrubs" | "Perennials" | "Annuals" | "Seedlings",
-  "water_frequency_days": number (days between waterings RIGHT NOW: this time of year, in the owner's location, in the spot it's kept)
+  "plant_size": "Seedling" | "Small" | "Medium" | "Large" | "Mature"
 }`;
 
 function imageMessage(imageUrl, text) {
@@ -328,12 +319,12 @@ c) If they disagree, the photo decides. Pl@ntNet wins on wild/garden plants it s
 d) You may override both if the photo clearly shows something else - say why in identification_notes.
 e) Set plantnet_agreement true if your final answer is one of Pl@ntNet's candidates, false if Pl@ntNet gave candidates and you chose otherwise, null if Pl@ntNet was unavailable.
 f) Confidence: high only when the visible features clearly match one species; medium when genus is certain but species is a best guess, or the photo is a mixed planting; low for cuttings, seedlings and leafless plants.
-Then assess its size and write the care instructions for the plant you settled on.
+Then assess its size.
 
 ${context}
 
-${JSON_FULL}`;
-    const parsed = await askJson(judgePrompt, imageUrl, "Judge the identification and write the care information. Return the JSON.", 4000);
+${JSON_JUDGE}`;
+    const parsed = await askJson(judgePrompt, imageUrl, "Judge the identification. Return the JSON.", 2500);
     const { confidence, identification_notes, alternatives, plantnet_agreement, ...plantData } = parsed;
     console.log(`[${rid}] 🌿 Final:`, plantData.name, '|', plantData.scientific_name, '| confidence:', confidence);
     return {
