@@ -604,20 +604,57 @@ function cleanNumbers(x: any, hasRest: boolean) {
 // Write the care sheet for a plant whose name is settled.
 //   ident.scientific_name / ident.name: what the photo ID settled on, or what the owner typed
 //   ident.typed: true when the name came from the owner (fix the spelling, keep the plant)
-async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null; effort?: string; meter?: Meter | null; step?: string; model?: string; search_size?: string }) {
+// ---- Care sheet cache -------------------------------------------------------------------
+// Researching a species costs about 20 cents (Astra reading ~20,000 tokens of web pages), so
+// each species is researched once per region and reused for everyone there, free. The sheet
+// is written to be shareable: general advice for the climate, numbers for indoors and
+// outdoors, no city names, nothing about one person's spot. Bump CARE_V when the care
+// prompt changes so old sheets aren't reused. Rows can be deleted to force a re-check.
+const CARE_V = 1;
+function speciesKey(s: any): string | null {
+    const words = String(s || '').toLowerCase().replace(/['"‘’“”].*$/, '').replace(/×/g, 'x').replace(/\s+x\s+/g, ' x')
+        .replace(/[^a-z\s.-]/g, ' ').trim().split(/\s+/).filter(Boolean);
+    if (words.length < 2) return null; // a genus alone or a common name: research it
+    const sp = /^spp?\.?$/.test(words[1]) ? 'sp' : words[1];
+    return `${words[0]} ${sp}`;
+}
+// "Austin, Texas, US" → "us-texas"; no location → "unknown". Region + units decide the climate
+// and the units the sheet is written in.
+function regionKey(user: any): string {
+    const parts = String(user?.location_label || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+    if (parts.length >= 3) return `${parts[parts.length - 1]}-${parts[parts.length - 2]}`;
+    if (parts.length === 2) {
+        const lat = typeof user?.location_lat === 'number' ? Math.round(user.location_lat / 5) * 5 : 'x';
+        return `${parts[1]}-lat${lat}`;
+    }
+    return 'unknown';
+}
+const cacheKeyFor = (sp: string, user: any) => `${CARE_V}|${sp}|${regionKey(user)}|${isUsOwner(user) ? 'us' : 'metric'}`;
+
+async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null; effort?: string; meter?: Meter | null; step?: string; model?: string; search_size?: string; cache?: any }) {
     const us = isUsOwner(user);
-    const spotBits = [plant?.location, plant?.environment, plant?.pot_type, Number(plant?.pot_diameter_in) > 0 ? `${plant.pot_diameter_in}-inch pot` : null, plant?.sun_exposure].filter(Boolean);
     const who = ident.typed
         ? `The owner says the plant is "${ident.scientific_name || ident.name}". Trust the owner (they may know a cultivar or hybrid). If it is clearly misspelled or a common name, use the correct scientific name of the same plant.`
         : `The plant is ${ident.scientific_name || ident.name}${ident.name && ident.scientific_name ? ` (identified from a photo; the identifier called it "${ident.name}")` : ''}. Keep this scientific name.`;
     const userText = [
         who,
-        ident.plant_size ? `Its size: ${ident.plant_size}.` : null,
-        contextFor(user, plant, today),
-        spotBits.length ? `What the owner has said about its spot so far: ${spotBits.join(', ')}.` : 'The owner has not said yet where it is kept; give both indoor and outdoor numbers.',
+        contextFor(user, null, today),
+        'This care sheet is shared by everyone in the owner\'s region who has this plant: never name the owner\'s city, and give both indoor and outdoor numbers.',
         'Write the care sheet. Return the JSON.',
     ].filter(Boolean).join('\n');
-    const r = await askCare(`${CARE_RULES}\n\n${CARE_JSON}`, userText, ident.effort, ident.meter, ident.step, ident.model, ident.search_size);
+    // Already researched for this region?
+    const lookupKey = ident.cache ? (() => { const sp = speciesKey(ident.scientific_name); return sp ? cacheKeyFor(sp, user) : null; })() : null;
+    let r: any = null;
+    let cachedRow: any = null;
+    if (lookupKey) {
+        try { cachedRow = (await ident.cache.CareSheet.filter({ key: lookupKey }))?.[0] || null; } catch { cachedRow = null; }
+        if (cachedRow?.data) {
+            r = { data: cachedRow.data, searched: 'cache', searches: 0, cited: cachedRow.cited || [], ms: 0 };
+            meterAdd(ident.meter, `${ident.step || 'care sheet'} (reused, free)`, {});
+            ident.cache.CareSheet.update(cachedRow.id, { hits: (Number(cachedRow.hits) || 0) + 1, last_hit_at: new Date().toISOString() }).catch(() => {});
+        }
+    }
+    if (!r) r = await askCare(`${CARE_RULES}\n\n${CARE_JSON}`, userText, ident.effort, ident.meter, ident.step, ident.model, ident.search_size);
     const d = r.data || {};
     const ci = d.care_instructions && typeof d.care_instructions === 'object' ? d.care_instructions : {};
     const wp = d.watering_profile && typeof d.watering_profile === 'object' ? d.watering_profile : {};
@@ -646,6 +683,18 @@ async function writeCare(user: any, plant: any, today: string, ident: { name?: s
     };
     const name = String(d.name || ident.name || 'Plant').replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 80);
     const sci = ident.typed ? String(d.scientific_name || ident.scientific_name || ident.name || '').slice(0, 120) : String(ident.scientific_name || d.scientific_name || '').slice(0, 120);
+    // Keep a good fresh answer for the next person in this region with this species
+    if (ident.cache && !cachedRow && numbers && waterTplOk(rawTpl, !!restSeason) && d.name) {
+        const sp = speciesKey(sci) || speciesKey(d.scientific_name);
+        if (sp) {
+            const key = cacheKeyFor(sp, user);
+            const last = ident.meter?.calls?.[ident.meter.calls.length - 1];
+            ident.cache.CareSheet.filter({ key }).then((rows: any[]) => rows?.length ? null : ident.cache.CareSheet.create({
+                key, species: sp, region: regionKey(user), units: us ? 'us' : 'metric', version: CARE_V,
+                model: last?.model || CARE_MODEL, data: d, cited: r.cited || [], cost_usd: last?.usd ?? null, hits: 0,
+            })).catch((e: any) => console.warn('care cache save failed', e?.message));
+        }
+    }
     console.log(`care for ${sci}: search=${r.searched || 'none'} (${r.searches}) ${r.ms}ms, ${numbers ? `in ${numbers.indoor.grow}/${numbers.indoor.rest} out ${numbers.outdoor.grow}/${numbers.outdoor.rest}` : 'no numbers'} ${restSeason || ''} ${dry}`);
     return {
         fields: {

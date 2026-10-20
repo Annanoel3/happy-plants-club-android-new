@@ -1,0 +1,72 @@
+{
+  "description": "Researched care sheets, one per species + region + units, reused for every new plant of that species so each species is only researched (and paid for) once. Written and read only by the identifyPlantWithExpert function (service role).",
+  "name": "CareSheet",
+  "properties": {
+    "cited": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "cost_usd": {
+      "type": "number"
+    },
+    "data": {
+      "description": "The model's care sheet answer (before per-plant clean-up)",
+      "type": "object"
+    },
+    "hits": {
+      "default": 0,
+      "type": "number"
+    },
+    "key": {
+      "description": "version|species|region|units",
+      "type": "string"
+    },
+    "last_hit_at": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "species": {
+      "type": "string"
+    },
+    "units": {
+      "type": "string"
+    },
+    "version": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "key",
+    "data"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "type": "object"
+}
