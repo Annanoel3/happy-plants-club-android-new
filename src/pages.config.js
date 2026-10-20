@@ -18,6 +18,9 @@ import TermsAndConditions from './pages/TermsAndConditions';
 import VacationReview from './pages/VacationReview';
 import Premium from './pages/Premium';
 import Plantdoku from './pages/Plantdoku';
+import Games from './pages/Games';
+import SproutWord from './pages/SproutWord';
+import MiniGarden from './pages/MiniGarden';
 import __Layout from './Layout.jsx';
 
 
@@ -42,6 +45,9 @@ export const PAGES = {
     "TermsAndConditions": TermsAndConditions,
     "VacationReview": VacationReview,
     "Plantdoku": Plantdoku,
+    "Games": Games,
+    "SproutWord": SproutWord,
+    "MiniGarden": MiniGarden,
 }
 
 export const pagesConfig = {
