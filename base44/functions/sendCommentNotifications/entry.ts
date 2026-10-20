@@ -14,6 +14,7 @@ Deno.serve(async (req) => {
         const base44 = createClientFromRequest(req, { serviceRole: true });
         
         const body = await req.json();
+        console.log('[comment-notify payload]', JSON.stringify(body).slice(0, 800));
         const { event, data } = body;
         
         if (!event || event.type !== 'create' || !data) {
