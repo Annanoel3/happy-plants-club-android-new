@@ -337,11 +337,17 @@ export default function PlantDetail() {
         }
       } else {
         delete clean.water_days_rest;
+        // Their own number: moving the plant indoors/outdoors won't change it
+        if ('water_frequency_days' in clean && every !== Number(plant?.water_frequency_days)) prof.user_interval = true;
       }
       if (prof.user_method || prof.user_strict || prof.user_interval) clean.care_profile = prof;
       // A new plant leaves "Newly added" once the owner says where it lives
       if (['review', 'failed'].includes(plant?.add_status) && String(clean.location || '').trim()) clean.add_status = 'done';
       await base44.entities.Plant.update(plantId, clean);
+      // Moved indoors/outdoors: use that spot's watering numbers (skipped if they set their own)
+      if ('environment' in clean && clean.environment !== plant?.environment && !prof.user_interval) {
+        try { await base44.functions.invoke('plus', { action: 'retune', plant_ids: [plantId] }); } catch { /* the hourly sweep does it */ }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['plant'] });
