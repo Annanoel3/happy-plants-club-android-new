@@ -850,6 +850,9 @@ function pendingProfile(plant: any, ai: any, every: number) {
     const prof = { ...(plant?.care_profile || {}) };
     delete prof.v;
     delete prof.ai;
+    // A review of the old care sheet doesn't apply to the new one
+    delete prof.audit_note;
+    delete prof.audited_at;
     prof.prev_every = every;
     prof.ai = ai;
     return prof;
