@@ -896,9 +896,9 @@ export default function Dashboard() {
                         )}
                       </div>
                       <div className="px-2 py-1.5">
-                        <p className={`text-xs font-semibold truncate ${getTextColor()}`}>{naming ? 'Naming…' : (p.nickname || p.name)}</p>
+                        <p className={`text-xs font-semibold truncate ${getTextColor()}`}>{naming && !p.add_info?.typed ? 'Naming…' : (p.nickname || p.name)}</p>
                         <p className={`text-[10px] truncate ${getSecondaryTextColor()}`}>
-                          {naming ? 'Almost ready' : isWaitingForId(p) ? 'Waiting for a photo ID' : p.add_status === 'failed' ? "Couldn't name it" : (p.scientific_name ? <i>{p.scientific_name}</i> : 'Set it up')}
+                          {naming ? (p.add_info?.typed ? 'Looking up its care…' : 'Almost ready') : isWaitingForId(p) ? 'Waiting for a photo ID' : p.add_status === 'failed' ? "Couldn't name it" : (p.scientific_name ? <i>{p.scientific_name}</i> : 'Set it up')}
                         </p>
                       </div>
                     </button>
