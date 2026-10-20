@@ -19,7 +19,16 @@
       "data.blocker_email": "{{user.email}}"
     },
     "delete": {
-      "data.blocker_email": "{{user.email}}"
+      "$or": [
+        {
+          "data.blocker_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
     },
     "read": {
       "$or": [
@@ -28,6 +37,11 @@
         },
         {
           "data.blocked_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
         }
       ]
     },
