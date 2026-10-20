@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { getIdStatus, nameNewPlants, writeTypedCare } from "@/lib/plantIds";
 import PhotoIdsBar from "@/components/PhotoIdsBar";
 import { setMicActive, showAdForEvent } from "@/lib/admob";
-import { transcribeVoice } from "@/functions/transcribeVoice";
+import { transcribe } from "@/lib/transcribe";
 import { processBulkPlants } from "@/functions/processBulkPlants";
 import { prepareImageForUpload } from "@/lib/imageResize";
 import { AREA_OPTIONS } from "@/lib/areas";
@@ -201,13 +201,8 @@ export default function AddPlant() {
   const processVoiceRecording = async (audioBlob) => {
     setIsProcessing(true);
     try {
-      // Upload audio file first, then send URL to transcribeVoice
-      const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: audioFile });
-
-      const transcriptRes = await transcribeVoice({ file_url });
-      // functions.invoke returns { data }, so unwrap it (the photo path already does this)
-      const transcriptData = transcriptRes?.data ?? transcriptRes;
+      // Sent inline to our own transcription (no upload: saves a Base44 credit)
+      const transcriptData = { transcript: await transcribe(audioBlob, audioBlob.type || 'audio/webm') };
 
       if (!transcriptData?.transcript) {
         toast.error('Could not transcribe audio');
