@@ -22,15 +22,29 @@ const CARE_MODEL = (Deno.env.get('CARE_MODEL') || 'gpt-6-luna').trim();
 // Without PLANTNET_API_KEY, steps 2 and 3 still run.
 // ---------------------------------------------------------------------------
 
-async function identifyWithPlantNet(imageUrl) {
+// extra: a second photo of the same plant (close-up, flower, the nursery tag), sent as a file.
+// Pl@ntNet scores all the photos of one plant together, which is more accurate than one.
+// include-related-images: reference photos for each candidate, for "Is it one of these?".
+async function identifyWithPlantNet(imageUrl, extra?: { bytes: Uint8Array; mime: string } | null) {
     const key = Deno.env.get("PLANTNET_API_KEY");
     if (!key) return null;
     try {
-        const url = `https://my-api.plantnet.org/v2/identify/all?images=${encodeURIComponent(imageUrl)}&organs=auto&lang=en&no-reject=true&api-key=${encodeURIComponent(key)}`;
-        let res = await fetch(url);
+        const q = `include-related-images=true&lang=en&no-reject=true&api-key=${encodeURIComponent(key)}`;
+        const url = `https://my-api.plantnet.org/v2/identify/all?images=${encodeURIComponent(imageUrl)}&organs=auto&${q}`;
+        const send = async () => {
+            if (!extra) return fetch(url);
+            const main = await fetch(imageUrl).then((r) => r.blob());
+            const form = new FormData();
+            form.append('images', new File([main], 'plant.jpg', { type: main.type || 'image/jpeg' }));
+            form.append('organs', 'auto');
+            form.append('images', new File([extra.bytes], 'closeup.jpg', { type: extra.mime }));
+            form.append('organs', 'auto');
+            return fetch(`https://my-api.plantnet.org/v2/identify/all?${q}`, { method: 'POST', body: form });
+        };
+        let res = await send();
         if (res.status >= 500) {
             await new Promise(r => setTimeout(r, 1500));
-            res = await fetch(url);
+            res = await send();
         }
         if (!res.ok) {
             console.warn('[PlantNet] HTTP', res.status, await res.text().catch(() => ''));
@@ -44,6 +58,10 @@ async function identifyWithPlantNet(imageUrl) {
             family: r?.species?.family?.scientificNameWithoutAuthor || '',
             common_names: Array.isArray(r?.species?.commonNames) ? r.species.commonNames : [],
             score: typeof r?.score === 'number' ? r.score : 0,
+            photos: (Array.isArray(r?.images) ? r.images : []).slice(0, 3).map((i: any) => ({
+                url: i?.url?.m || i?.url?.s || i?.url?.o || null, author: i?.author || null,
+                license: i?.license || null, citation: i?.citation || null, organ: i?.organ || null,
+            })).filter((i: any) => i.url),
         });
         const list = results.slice(0, 4).map(toMatch).filter(c => c.scientific_name);
         return list.length ? list : null;
