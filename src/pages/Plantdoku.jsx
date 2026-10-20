@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Undo2, Eraser, Lightbulb, Loader2, Share2, RefreshCw, Flame, Timer, PlayCircle, HelpCircle, Trophy } from 'lucide-react';
+import { ArrowLeft, Undo2, Eraser, Lightbulb, Loader2, Share2, RefreshCw, Flame, Timer, PlayCircle, HelpCircle, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { base44 } from '@/api/base44Client';
@@ -8,17 +8,20 @@ import { appParams } from '@/lib/app-params';
 import { localToday } from '@/lib/dates';
 import { usePlus } from '@/lib/plus';
 import { showAdForEvent, rewardedAvailable, showRewardedAd } from '@/lib/admob';
-import { makePuzzle, dailySeed, dailySize, findConflicts, isSolved, hintFor, REGION_COLORS, REGION_COLORS_DARK } from '@/lib/plantdoku/engine';
+import { makePuzzle, dailySeed, dailySize, isSolved, hintFor, REGION_COLORS, REGION_COLORS_DARK } from '@/lib/plantdoku/engine';
 import { markPlantdokuFound } from '@/lib/plantdoku/egg';
 
-// Plantdoku: one plant in every row, every column and every color; plants never touch.
-// Daily puzzle (same for everyone, timed on the server, leaderboard) + practice puzzles.
-// Ads: one full-screen ad per two finished puzzles, shown when you start the next one
-// (never on top of a result). Hints: 1 free per puzzle, more with a reward video. Plus: no
-// ads, unlimited hints.
+// Plantdoku: every color is a garden bed. One plant in every bed, every row and every
+// column; plants never touch, not even at corners. Each bed has its own plant, so a
+// finished board shows one of each.
+// Daily puzzle (same for everyone, timed on the server from the Start tap, leaderboard)
+// + practice puzzles from a 5x5 starter up. Ads: one full-screen ad per two finished
+// puzzles, when the next one starts. Hints: 1 free per puzzle, more with a reward video.
+// Plus: no ads, unlimited hints.
 
 const DARK_THEMES = new Set(['dark', 'botanical', 'halloween', 'christmas', 'newyears', 'fourthofjuly', 'valentines', 'stpatricks', 'fall']);
 const LEVELS = [
+  { key: 'starter', label: 'Starter', size: 5 },
   { key: 'easy', label: 'Easy', size: 6 },
   { key: 'medium', label: 'Medium', size: 7 },
   { key: 'hard', label: 'Hard', size: 8 },
@@ -26,6 +29,21 @@ const LEVELS = [
 ];
 const HINT_SECONDS = 30;
 const MEDALS = ['🥇', '🥈', '🥉'];
+const TUTORIAL_KEY = 'hp_pd_tutorial_v2';
+// Bed names, same order as REGION_COLORS (rose, yellow, blue, green, lavender, apricot, aqua, grey, pink)
+const BED_NAMES = ['red', 'yellow', 'blue', 'green', 'purple', 'orange', 'teal', 'gray', 'pink'];
+// Each bed's own plant, colored to match its bed
+const PLANTS = [
+  { kind: 'blossom', color: '#e11d48' },
+  { kind: 'daisy', color: '#facc15', center: '#92400e' },
+  { kind: 'tulip', color: '#2563eb' },
+  { kind: 'cactus', color: '#16a34a' },
+  { kind: 'blossom', color: '#8b5cf6' },
+  { kind: 'tulip', color: '#f97316' },
+  { kind: 'rosette', color: '#0d9488' },
+  { kind: 'daisy', color: '#ffffff', center: '#facc15' },
+  { kind: 'tulip', color: '#db2777' },
+];
 
 const fmt = (sec) => {
   const s = Math.max(0, Math.round(Number(sec) || 0));
@@ -68,23 +86,97 @@ function untilMidnight() {
   return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
 }
 
-function Sprout({ bad }) {
-  return (
-    <svg viewBox="0 0 40 40" className="w-[80%] h-[80%] pointer-events-none" aria-hidden>
-      <path d="M20 27 L20 15" stroke="#4a3728" strokeWidth="5" strokeLinecap="round" />
-      <path d="M20 27 L20 15" stroke="#5aa84b" strokeWidth="2.4" strokeLinecap="round" />
-      <path d="M20 19 C14 10 5 12 7.5 17.5 C10 22.5 17 22 20 19 Z" fill="#8fd17a" stroke="#4a3728" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M20 16 C25 6.5 34.5 9 32.5 14.5 C30.5 19.5 23 19 20 16 Z" fill="#8fd17a" stroke="#4a3728" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M12.5 29.5 H27.5 L25.5 37 H14.5 Z" fill={bad ? '#f87171' : '#ee9a7e'} stroke="#4a3728" strokeWidth="2" strokeLinejoin="round" />
-      <rect x="10.5" y="25.5" width="19" height="5" rx="2" fill={bad ? '#dc2626' : '#e07a5f'} stroke="#4a3728" strokeWidth="2" />
-    </svg>
-  );
+// What's wrong right now, in words, plus which squares to show in red
+function checkBoard(N, regions, plants) {
+  const badPlants = new Set();
+  const badZones = new Set();
+  const problems = [];
+  const byRow = {}, byCol = {}, byBed = {};
+  for (const [r, c] of plants) {
+    (byRow[r] = byRow[r] || []).push(r * N + c);
+    (byCol[c] = byCol[c] || []).push(r * N + c);
+    const g = regions[r * N + c];
+    (byBed[g] = byBed[g] || []).push(r * N + c);
+  }
+  for (const g of Object.keys(byBed)) {
+    if (byBed[g].length < 2) continue;
+    byBed[g].forEach((i) => badPlants.add(i));
+    regions.forEach((x, i) => { if (String(x) === g) badZones.add(i); });
+    problems.push(`The ${BED_NAMES[g] || ''} bed has ${byBed[g].length} plants. Only 1 per color.`);
+  }
+  for (const r of Object.keys(byRow)) {
+    if (byRow[r].length < 2) continue;
+    byRow[r].forEach((i) => badPlants.add(i));
+    for (let c = 0; c < N; c++) badZones.add(Number(r) * N + c);
+    problems.push(`Row ${Number(r) + 1} has ${byRow[r].length} plants. Only 1 per row.`);
+  }
+  for (const c of Object.keys(byCol)) {
+    if (byCol[c].length < 2) continue;
+    byCol[c].forEach((i) => badPlants.add(i));
+    for (let r = 0; r < N; r++) badZones.add(r * N + Number(c));
+    problems.push(`Column ${Number(c) + 1} has ${byCol[c].length} plants. Only 1 per column.`);
+  }
+  let touching = false;
+  for (let a = 0; a < plants.length; a++) {
+    for (let b = a + 1; b < plants.length; b++) {
+      const [r1, c1] = plants[a], [r2, c2] = plants[b];
+      if (Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1) {
+        badPlants.add(r1 * N + c1); badPlants.add(r2 * N + c2); touching = true;
+      }
+    }
+  }
+  if (touching) problems.push('Two plants are touching. They need a gap, even at the corners.');
+  return { badPlants, badZones, problems };
 }
 
-function Board({ puzzle, marks, conflicts, hint, dark, locked, onTap, onStroke, onDragX }) {
+// ---- Plant art (original): each bed gets its own plant ----
+const O = '#4a3728';
+function Stem() {
+  return (
+    <>
+      <path d="M20 38 V21" stroke={O} strokeWidth="4.5" strokeLinecap="round" />
+      <path d="M20 38 V21" stroke="#5aa84b" strokeWidth="2" strokeLinecap="round" />
+      <path d="M20 32 C14 26 8 29 10 33 C12 37 18 35 20 32 Z" fill="#8fd17a" stroke={O} strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M20 29 C26 23 32 26 30 30 C28 34 22 32 20 29 Z" fill="#8fd17a" stroke={O} strokeWidth="1.6" strokeLinejoin="round" />
+    </>
+  );
+}
+function PlantIcon({ region, className = 'w-[82%] h-[82%]' }) {
+  const p = PLANTS[region % PLANTS.length];
+  let art;
+  if (p.kind === 'blossom') {
+    const pts = [[20, 7.6], [25.9, 11.9], [23.7, 18.9], [16.3, 18.9], [14.1, 11.9]];
+    art = (<><Stem />{pts.map(([x, y], k) => <circle key={k} cx={x} cy={y} r="5.2" fill={p.color} stroke={O} strokeWidth="1.5" />)}<circle cx="20" cy="14" r="3.4" fill="#fde047" stroke={O} strokeWidth="1.3" /></>);
+  } else if (p.kind === 'tulip') {
+    art = (<><Stem /><path d="M12.5 7.5 L16 11.5 L20 6.5 L24 11.5 L27.5 7.5 C28.5 16 26 21.5 20 21.5 C14 21.5 11.5 16 12.5 7.5 Z" fill={p.color} stroke={O} strokeWidth="1.6" strokeLinejoin="round" /></>);
+  } else if (p.kind === 'daisy') {
+    art = (<><Stem />{[0, 45, 90, 135, 180, 225, 270, 315].map((a) => <ellipse key={a} cx="20" cy="7.6" rx="2.7" ry="5" transform={`rotate(${a} 20 14)`} fill={p.color} stroke={O} strokeWidth="1.2" />)}<circle cx="20" cy="14" r="4" fill={p.center} stroke={O} strokeWidth="1.3" /></>);
+  } else if (p.kind === 'cactus') {
+    art = (
+      <>
+        <path d="M15 27 H12 C10 27 9 26 9 24 V19 C9 17.3 11.8 17.3 11.8 19 V23.5 H15" fill={p.color} stroke={O} strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M25 23 H28 V17 C28 15.3 30.8 15.3 30.8 17 V22 C30.8 24 29.8 25 28 25 H25" fill={p.color} stroke={O} strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M15 37 V14 C15 8 25 8 25 14 V37 Z" fill={p.color} stroke={O} strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M20 13 V35" stroke="#0f5132" strokeWidth="1" opacity="0.5" />
+        <circle cx="20" cy="9.2" r="2.6" fill="#f9a8d4" stroke={O} strokeWidth="1.2" />
+      </>
+    );
+  } else {
+    // rosette (succulent)
+    const leaf = 'M20 23 C16.5 18 17.5 9 20 6 C22.5 9 23.5 18 20 23 Z';
+    art = (
+      <>
+        {[0, 60, 120, 180, 240, 300].map((a) => <path key={a} d={leaf} transform={`rotate(${a} 20 23)`} fill={p.color} stroke={O} strokeWidth="1.3" strokeLinejoin="round" />)}
+        {[30, 150, 270].map((a) => <path key={a} d={leaf} transform={`rotate(${a} 20 23) translate(20 23) scale(0.6) translate(-20 -23)`} fill="#5eead4" stroke={O} strokeWidth="1.6" strokeLinejoin="round" />)}
+      </>
+    );
+  }
+  return <svg viewBox="0 0 40 40" className={`${className} pointer-events-none`} aria-hidden>{art}</svg>;
+}
+
+function Board({ puzzle, marks, check, hint, highlight, dark, locked, mini, onTap, onStroke, onDragX }) {
   const N = puzzle.size;
   const colors = dark ? REGION_COLORS_DARK : REGION_COLORS;
-  const bad = useMemo(() => new Set(conflicts), [conflicts]);
   const drag = useRef(null);
   const cellAt = (x, y) => {
     const el = document.elementFromPoint(x, y)?.closest?.('[data-cell]');
@@ -117,34 +209,130 @@ function Board({ puzzle, marks, conflicts, hint, dark, locked, onTap, onStroke, 
     drag.current = null;
     if (d && !d.moved) onTap(d.start);
   };
-  const thick = `2.5px solid ${dark ? '#000' : '#3f3f46'}`;
+  const thick = `${mini ? 2 : 2.5}px solid ${dark ? '#000' : '#3f3f46'}`;
   const thin = `1px solid ${dark ? 'rgba(0,0,0,.45)' : 'rgba(0,0,0,.12)'}`;
   return (
     <div
-      className="grid w-full max-w-[440px] mx-auto aspect-square rounded-xl overflow-hidden select-none"
-      style={{ gridTemplateColumns: `repeat(${N}, 1fr)`, border: thick, touchAction: 'none' }}
-      onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { drag.current = null; }}
+      className={`grid w-full mx-auto aspect-square rounded-xl overflow-hidden select-none ${mini ? 'max-w-[180px]' : 'max-w-[440px]'}`}
+      style={{ gridTemplateColumns: `repeat(${N}, 1fr)`, border: thick, touchAction: locked ? 'auto' : 'none' }}
+      onPointerDown={locked ? undefined : down} onPointerMove={locked ? undefined : move} onPointerUp={locked ? undefined : up}
+      onPointerCancel={() => { drag.current = null; }}
       role="grid" aria-label={`${N} by ${N} Plantdoku board`}
     >
       {puzzle.regions.map((reg, i) => {
         const r = Math.floor(i / N), c = i % N;
         const v = marks[i] || 0;
-        const isBad = v === 2 && bad.has(i);
+        const isBad = v === 2 && check?.badPlants.has(i);
+        const inBadZone = check?.badZones.has(i);
         const hinted = hint && hint.cell === i;
+        const lit = highlight && highlight.has(i);
         return (
           <div key={i} data-cell={i} role="gridcell"
-            aria-label={`Row ${r + 1}, column ${c + 1}${v === 2 ? ', plant' : v === 1 ? ', marked empty' : ''}`}
-            className={`relative flex items-center justify-center ${hinted ? (hint.type === 'wrong' ? 'ring-4 ring-inset ring-red-500 animate-pulse' : 'ring-4 ring-inset ring-green-600 animate-pulse') : ''}`}
+            aria-label={`Row ${r + 1}, column ${c + 1}, ${BED_NAMES[reg]} bed${v === 2 ? ', plant' : v === 1 ? ', marked empty' : ''}${isBad ? ', breaks a rule' : ''}`}
+            className={`relative flex items-center justify-center ${hinted ? (hint.type === 'wrong' ? 'ring-4 ring-inset ring-red-600 animate-pulse' : 'ring-4 ring-inset ring-green-600 animate-pulse') : lit ? 'ring-[3px] ring-inset ring-green-700' : isBad ? 'ring-[3px] ring-inset ring-red-600' : ''}`}
             style={{
               background: colors[reg],
               borderTop: r > 0 ? (puzzle.regions[i - N] !== reg ? thick : thin) : 'none',
               borderLeft: c > 0 ? (puzzle.regions[i - 1] !== reg ? thick : thin) : 'none',
             }}>
-            {v === 2 && <Sprout bad={isBad} />}
-            {v === 1 && <span className={`text-sm font-bold pointer-events-none ${dark ? 'text-white/45' : 'text-black/35'}`}>✕</span>}
+            {inBadZone && <span className="absolute inset-0 bg-red-500/25 pointer-events-none" aria-hidden />}
+            {v === 2 && <PlantIcon region={reg} />}
+            {v === 1 && <span className={`${mini ? 'text-[10px]' : 'text-sm'} font-bold pointer-events-none ${dark ? 'text-white/45' : 'text-black/35'}`}>✕</span>}
+            {isBad && (
+              <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center pointer-events-none" aria-hidden>!</span>
+            )}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ---- How to play: four short picture steps ----
+const EX4 = { size: 4, regions: [0, 0, 2, 2, 0, 0, 2, 2, 1, 1, 3, 3, 1, 1, 3, 3] };
+const EX4_DONE = (() => { const m = new Array(16).fill(0); [1, 3, 0, 2].forEach((c, r) => { m[r * 4 + c] = 2; }); return m; })();
+const EX4_BAD = (() => { const m = new Array(16).fill(0); m[0 * 4 + 1] = 2; m[0 * 4 + 3] = 2; return m; })();
+const EX3 = { size: 3, regions: new Array(9).fill(4) };
+const EX3_MARKS = [1, 1, 1, 1, 2, 1, 1, 1, 1];
+
+function Tutorial({ dark, ui, onClose, onStarter }) {
+  const [step, setStep] = useState(0);
+  const steps = [
+    {
+      title: 'Every color is a garden bed',
+      text: 'Put exactly 1 plant in each bed. Each bed has its own plant, so a finished garden has one of each.',
+      pic: <Board mini locked dark={dark} puzzle={EX4} marks={EX4_DONE} />,
+    },
+    {
+      title: '1 plant in every row and column',
+      text: 'Each row across and each column down also gets exactly 1 plant.',
+      pic: (
+        <div className="grid grid-cols-2 gap-3 items-start">
+          <div>
+            <Board mini locked dark={dark} puzzle={EX4} marks={EX4_DONE} highlight={new Set([4, 5, 6, 7])} />
+            <p className="text-center text-xs font-bold text-green-700 mt-1">✓ One in this row</p>
+          </div>
+          <div>
+            <Board mini locked dark={dark} puzzle={EX4} marks={EX4_BAD} check={checkBoard(4, EX4.regions, [[0, 1], [0, 3]])} />
+            <p className="text-center text-xs font-bold text-red-600 mt-1">✗ Two in one row</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "Plants can't touch",
+      text: 'Not side by side, not even corner to corner. Every square around a plant stays empty.',
+      pic: <Board mini locked dark={dark} puzzle={EX3} marks={EX3_MARKS} />,
+    },
+    {
+      title: 'How to tap',
+      text: '',
+      pic: (
+        <div className="space-y-2">
+          {[
+            ['Tap once', '✕ means "no plant here." Use it to rule squares out.', 1],
+            ['Tap twice', 'Plant it!', 2],
+            ['Tap again', 'Clears the square.', 0],
+          ].map(([a, b, v]) => (
+            <div key={a} className="flex items-center gap-3">
+              <span className="w-12 h-12 shrink-0 rounded-lg border-2 border-gray-700 flex items-center justify-center" style={{ background: REGION_COLORS[2] }}>
+                {v === 1 && <span className="text-sm font-bold text-black/40">✕</span>}
+                {v === 2 && <PlantIcon region={2} className="w-[85%] h-[85%]" />}
+              </span>
+              <p className={`text-sm ${ui.sub}`}><b className={ui.text}>{a}:</b> {b}</p>
+            </div>
+          ))}
+          <p className={`text-sm ${ui.sub}`}>Drag your finger across squares to ✕ lots at once. <b className={ui.text}>Tip:</b> start with the smallest bed. It has the fewest places its plant can go.</p>
+        </div>
+      ),
+    },
+  ];
+  const s = steps[step];
+  const last = step === steps.length - 1;
+  return (
+    <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" role="dialog" aria-modal="true" aria-label="How to play Plantdoku">
+      <div className={`w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] shadow-2xl ${dark ? 'bg-neutral-900' : 'bg-white'}`}>
+        <div className="flex items-center justify-between mb-3">
+          <p className={`text-xs font-semibold ${ui.sub}`}>How to play · {step + 1} of {steps.length}</p>
+          <button onClick={onClose} aria-label="Close" className={`p-1 ${ui.text}`}><X className="w-5 h-5" /></button>
+        </div>
+        <h2 className={`text-xl font-bold ${ui.text}`}>{s.title}</h2>
+        {s.text && <p className={`mt-1 text-sm ${ui.sub}`}>{s.text}</p>}
+        <div className="mt-4">{s.pic}</div>
+        <div className="flex gap-2 mt-5">
+          {step > 0 && (
+            <button onClick={() => setStep(step - 1)} className={`flex-1 rounded-2xl py-3 font-semibold border ${dark ? 'border-white/20 text-white' : 'border-gray-300 text-gray-800'}`}>Back</button>
+          )}
+          {!last ? (
+            <button onClick={() => setStep(step + 1)} className="flex-1 rounded-2xl py-3 font-bold bg-green-600 text-white active:scale-95">Next</button>
+          ) : (
+            <button onClick={onClose} className="flex-1 rounded-2xl py-3 font-bold bg-green-600 text-white active:scale-95">Got it</button>
+          )}
+        </div>
+        {last && (
+          <button onClick={onStarter} className="w-full mt-2 text-sm font-semibold text-green-600 underline">Try an easy 5×5 first</button>
+        )}
+      </div>
     </div>
   );
 }
@@ -163,7 +351,7 @@ export default function Plantdoku() {
   const today = localToday();
 
   const [mode, setMode] = useState('daily');
-  const [level, setLevel] = useState('medium');
+  const [level, setLevel] = useState('starter');
   const [seed, setSeed] = useState(() => `practice-${Date.now()}`);
   const puzzle = useMemo(() => (mode === 'daily'
     ? makePuzzle(dailySeed(today), dailySize(today))
@@ -176,13 +364,14 @@ export default function Plantdoku() {
   const [hint, setHint] = useState(null);
   const [localHints, setLocalHints] = useState(0);
   const [hintBusy, setHintBusy] = useState(false);
-  const [showRules, setShowRules] = useState(() => { try { return !localStorage.getItem('hp_pd_rules_seen'); } catch { return true; } });
+  const [tutorial, setTutorial] = useState(() => { try { return !localStorage.getItem(TUTORIAL_KEY); } catch { return true; } });
 
-  const [daily, setDaily] = useState(null); // server: { hints, finished, name, ... }
+  const [daily, setDaily] = useState(null); // server: { started, finished, hints, name, ... }
   const [dailyError, setDailyError] = useState(null);
+  const [starting, setStarting] = useState(false);
   const [result, setResult] = useState(null); // finished puzzle (daily: server answer; practice: local)
   const [finishing, setFinishing] = useState(false);
-  const [finishError, setFinishError] = useState(false);
+  const [finishError, setFinishError] = useState(null);
   const clock = useRef({ ms: 0, at: Date.now(), running: false });
   const [, setTick] = useState(0);
 
@@ -201,10 +390,10 @@ export default function Plantdoku() {
     setHistory([]);
     setHint(null);
     setLocalHints(0);
-    setFinishError(false);
+    setFinishError(null);
     if (mode === 'practice') {
       setResult(null);
-      clock.current = { ms: 0, at: Date.now(), running: true };
+      clock.current = { ms: 0, at: Date.now(), running: !tutorial, paused: tutorial };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puzzle]);
@@ -212,61 +401,90 @@ export default function Plantdoku() {
     if (storeKey && marks.length === N * N) { try { localStorage.setItem(storeKey, JSON.stringify(marks)); } catch { /* ignore */ } }
   }, [marks, storeKey, N]);
 
-  // Daily: the server's clock (starts or resumes it)
+  // Daily: what the server knows (doesn't start the clock)
+  const applyDaily = (d) => {
+    setDaily(d);
+    clock.current = { ms: d.elapsed_ms || 0, at: Date.now(), running: !!d.started && !d.finished };
+    if (d.finished) {
+      setResult({ daily: true, seconds: d.seconds, raw: Math.round((d.elapsed_ms || 0) / 1000), hints: d.hints, board: d.board, stats: d.stats, name: d.name });
+      // Solved on another phone (or this one was cleared): show the finished board
+      const sol = makePuzzle(dailySeed(today), dailySize(today));
+      const done = new Array(sol.size * sol.size).fill(0);
+      sol.solution.forEach((c, r) => { done[r * sol.size + c] = 2; });
+      setMarks((m) => (isSolved(sol.size, sol.regions, m.flatMap((v, i) => (v === 2 ? [[Math.floor(i / sol.size), i % sol.size]] : []))) ? m : done));
+    }
+  };
+  // Starts (or resumes) the server clock
   const startDaily = async () => {
     setDailyError(null);
+    setStarting(true);
     try {
       const d = await call('start', { date: today });
       if (!d?.success) throw new Error(d?.error || 'failed');
-      setDaily(d);
-      clock.current = { ms: d.elapsed_ms || 0, at: Date.now(), running: !d.finished };
-      if (d.finished) {
-        setResult({ daily: true, seconds: d.seconds, raw: Math.round((d.elapsed_ms || 0) / 1000), hints: d.hints, board: d.board, stats: d.stats, name: d.name });
-        // Solved on another phone (or this one was cleared): show the finished board
-        const sol = makePuzzle(dailySeed(today), dailySize(today));
-        const done = new Array(sol.size * sol.size).fill(0);
-        sol.solution.forEach((c, r) => { done[r * sol.size + c] = 2; });
-        setMarks((m) => (isSolved(sol.size, sol.regions, m.flatMap((v, i) => (v === 2 ? [[Math.floor(i / sol.size), i % sol.size]] : []))) ? m : done));
-      }
+      applyDaily({ ...d, started: true });
+    } catch {
+      setDailyError("Couldn't reach Happy Plants. Check your signal.");
+    } finally {
+      setStarting(false);
+    }
+  };
+  const loadDaily = async () => {
+    setDailyError(null);
+    try {
+      const d = await call('peek', { date: today });
+      if (!d?.success) throw new Error(d?.error || 'failed');
+      // Already playing today (left and came back): pick the clock back up, unless the how-to is open
+      if (d.started && !d.finished && !tutorial) { await startDaily(); return; }
+      applyDaily(d);
+      if (d.started && !d.finished) clock.current = { ...clock.current, running: false, paused: true };
     } catch {
       setDailyError("Couldn't reach Happy Plants. Check your signal.");
     }
   };
   useEffect(() => {
     if (mode !== 'daily') return;
-    startDaily();
+    loadDaily();
     return () => { if (clock.current.running) pauseKeepalive(today); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  // Pause the clock while the app is in the background
+  // The clock stops while the app is in the background or the how-to is open
+  const pauseClock = () => {
+    const c = clock.current;
+    if (!c.running) return;
+    clock.current = { ms: c.ms + (Date.now() - c.at), at: Date.now(), running: false, paused: true };
+    if (mode === 'daily') pauseKeepalive(today);
+  };
+  const resumeClock = () => {
+    const c = clock.current;
+    if (!c.paused || result) return;
+    if (mode === 'daily') { if (daily?.started && !daily?.finished) startDaily(); }
+    else clock.current = { ms: c.ms, at: Date.now(), running: true };
+  };
   useEffect(() => {
-    const onVis = () => {
-      const c = clock.current;
-      if (document.hidden) {
-        if (c.running) {
-          clock.current = { ms: c.ms + (Date.now() - c.at), at: Date.now(), running: false, paused: true };
-          if (mode === 'daily') pauseKeepalive(today);
-        }
-      } else if (c.paused) {
-        if (mode === 'daily') startDaily();
-        else clock.current = { ms: c.ms, at: Date.now(), running: true };
-      }
-    };
+    const onVis = () => { if (document.hidden) pauseClock(); else if (!tutorial) resumeClock(); };
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, today]);
+  }, [mode, today, tutorial, daily, result]);
   useEffect(() => {
     const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
   }, []);
   const elapsedSec = (clock.current.running ? clock.current.ms + (Date.now() - clock.current.at) : clock.current.ms) / 1000;
 
+  const openTutorial = () => { pauseClock(); setTutorial(true); };
+  const closeTutorial = () => {
+    try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch { /* ignore */ }
+    setTutorial(false);
+    resumeClock();
+  };
+
   const plants = useMemo(() => marks.flatMap((v, i) => (v === 2 ? [[Math.floor(i / N), i % N]] : [])), [marks, N]);
-  const conflicts = useMemo(() => findConflicts(N, puzzle.regions, plants), [N, puzzle, plants]);
+  const check = useMemo(() => checkBoard(N, puzzle.regions, plants), [N, puzzle, plants]);
   const solved = marks.length === N * N && isSolved(N, puzzle.regions, plants);
-  const locked = !!result || (mode === 'daily' && (!daily || daily.finished));
+  const needsStart = mode === 'daily' && daily && !daily.started && !daily.finished;
+  const locked = !!result || (mode === 'daily' && (!daily || !daily.started || daily.finished));
 
   // Solved!
   const finishedRef = useRef(null);
@@ -278,7 +496,7 @@ export default function Plantdoku() {
       return;
     }
     setFinishing(true);
-    setFinishError(false);
+    setFinishError(null);
     try {
       const d = await call('finish', { date: today, plants });
       if (!d?.success) throw new Error(d?.error || 'failed');
@@ -289,7 +507,7 @@ export default function Plantdoku() {
     } catch (e) {
       const code = e?.response?.data?.error;
       setFinishError(code === 'too_fast' ? "Solved! The clock hadn't started yet, so give it a second and tap Try again."
-        : code === 'not_solved' ? "Hmm, the server doesn't see a finished board. Check for a red pot."
+        : code === 'not_solved' ? "Hmm, the server doesn't see a finished board. Check for a red square."
           : "Solved! But your time didn't save. Check your signal.");
     } finally {
       setFinishing(false);
@@ -298,11 +516,11 @@ export default function Plantdoku() {
   useEffect(() => {
     const key = mode === 'daily' ? `daily:${today}` : `practice:${seed}`;
     if (!solved || result || finishedRef.current === key) return;
-    if (mode === 'daily' && !daily) return; // wait for the server clock to load
+    if (mode === 'daily' && !daily?.started) return; // wait for the server clock
     finishedRef.current = key;
     finish();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [solved, !!daily, mode]);
+  }, [solved, !!daily?.started, mode]);
 
   // Editing the board
   const push = () => setHistory((h) => [...h.slice(-199), marks]);
@@ -310,7 +528,6 @@ export default function Plantdoku() {
     push();
     setHint(null);
     setMarks((m) => { const n = m.slice(); n[i] = ((n[i] || 0) + 1) % 3; return n; });
-    if (showRules) { setShowRules(false); try { localStorage.setItem('hp_pd_rules_seen', '1'); } catch { /* ignore */ } }
   };
   const dragX = (i) => setMarks((m) => { if (m[i]) return m; const n = m.slice(); n[i] = 1; return n; });
   const undo = () => setHistory((h) => { if (!h.length) return h; setMarks(h[h.length - 1]); return h.slice(0, -1); });
@@ -320,7 +537,7 @@ export default function Plantdoku() {
   const usedHints = mode === 'daily' ? (daily?.hints || 0) : localHints;
   const needVideo = !plus && usedHints >= 1;
   const showHint = (h) => {
-    if (!h) { toast('No hint needed. Check the red plants!'); return; }
+    if (!h) { toast('No hint needed. Fix the squares marked in red.'); return; }
     setHint(h);
     toast(h.type === 'wrong' ? "That plant isn't in the right spot." : 'A plant goes in the glowing square.');
     setTimeout(() => setHint((cur) => (cur === h ? null : cur)), 4000);
@@ -353,6 +570,7 @@ export default function Plantdoku() {
 
   const newPractice = (lv = level) => {
     adBeforeNext();
+    if (mode === 'daily') pauseClock();
     setLevel(lv);
     setMode('practice');
     setSeed(`practice-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
@@ -362,6 +580,7 @@ export default function Plantdoku() {
     adBeforeNext();
     setResult(null);
     clock.current = { ms: 0, at: Date.now(), running: false };
+    setDaily(null);
     setMode('daily');
   };
   const newName = async () => {
@@ -390,12 +609,16 @@ export default function Plantdoku() {
 
   return (
     <div className="min-h-screen theme-bg pb-28">
+      {tutorial && (
+        <Tutorial dark={dark} ui={ui} onClose={closeTutorial}
+          onStarter={() => { try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch { /* ignore */ } setTutorial(false); newPractice('starter'); }} />
+      )}
       <div className="max-w-xl mx-auto px-4 pt-4">
         <div className="flex items-center justify-between mb-2">
           <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/Dashboard'))} className={`flex items-center gap-1.5 py-2 -ml-1 text-sm font-semibold ${ui.text}`}>
             <ArrowLeft className="w-5 h-5" /> Back
           </button>
-          <button onClick={() => setShowRules((s) => !s)} className={`flex items-center gap-1 text-sm font-semibold ${ui.text}`}>
+          <button onClick={openTutorial} className={`flex items-center gap-1 text-sm font-semibold ${ui.text}`}>
             <HelpCircle className="w-4 h-4" /> How to play
           </button>
         </div>
@@ -424,32 +647,42 @@ export default function Plantdoku() {
           ))}
         </div>
 
-        {showRules && (
-          <div className={`rounded-2xl border p-4 mb-3 text-sm ${ui.card} ${ui.sub}`}>
-            <p className={`font-bold mb-1 ${ui.text}`}>How to play</p>
-            <p>Put <b className={ui.text}>one plant</b> in every <b className={ui.text}>row</b>, every <b className={ui.text}>column</b> and every <b className={ui.text}>color</b>.</p>
-            <p className="mt-1">Plants can't touch each other, not even at the corners.</p>
-            <p className="mt-1">Tap a square once to mark it ✕ (no plant), twice for a plant 🌱, three times to clear it. Drag across squares to mark lots of ✕ at once.</p>
-            {mode === 'daily' && <p className="mt-1">Everyone gets the same daily puzzle. The clock only runs while it's on screen, and each hint adds {HINT_SECONDS} seconds.</p>}
-          </div>
+        {/* The goal, always in view */}
+        {!result && (
+          <p className={`text-sm mb-2 ${ui.sub}`}>
+            <b className={ui.text}>1 plant</b> in every <b className={ui.text}>color</b>, <b className={ui.text}>row</b> and <b className={ui.text}>column</b>. No touching. <span className="whitespace-nowrap">· {plants.length} of {N} planted</span>
+          </p>
         )}
 
         {mode === 'daily' && dailyError && !result && (
           <div className={`rounded-2xl border p-4 mb-3 ${ui.card}`}>
             <p className={`font-semibold ${ui.text}`}>{dailyError}</p>
-            <button onClick={startDaily} className="mt-2 text-sm font-bold text-green-600 flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Try again</button>
+            <button onClick={daily ? startDaily : loadDaily} className="mt-2 text-sm font-bold text-green-600 flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Try again</button>
           </div>
         )}
 
-        <div className={`relative ${locked && !result ? 'opacity-60' : ''}`}>
-          <Board puzzle={puzzle} marks={marks} conflicts={conflicts} hint={hint} dark={dark} locked={locked}
-            onTap={tap} onStroke={push} onDragX={dragX} />
+        <div className="relative">
+          <div className={needsStart ? 'blur-md pointer-events-none' : locked && !result ? 'opacity-60' : ''}>
+            <Board puzzle={puzzle} marks={marks} check={check} hint={hint} dark={dark} locked={locked}
+              onTap={tap} onStroke={push} onDragX={dragX} />
+          </div>
           {mode === 'daily' && !daily && !dailyError && (
             <div className="absolute inset-0 flex items-center justify-center"><Loader2 className={`w-8 h-8 animate-spin ${ui.text}`} /></div>
           )}
+          {needsStart && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+              <p className={`text-lg font-bold ${ui.text}`}>Today's puzzle is ready</p>
+              <p className={`text-sm ${ui.sub}`}>The clock starts when you tap Start, and pauses if you leave.</p>
+              <button onClick={startDaily} disabled={starting}
+                className="flex items-center gap-2 rounded-2xl px-8 py-3.5 font-bold bg-green-600 text-white text-lg active:scale-95 disabled:opacity-60">
+                {starting ? <Loader2 className="w-5 h-5 animate-spin" /> : <PlayCircle className="w-5 h-5" />} Start
+              </button>
+              <button onClick={openTutorial} className={`text-sm font-semibold underline ${ui.text}`}>How to play</button>
+            </div>
+          )}
         </div>
 
-        {!result && (
+        {!result && !needsStart && (
           <div className="grid grid-cols-3 gap-2 mt-3">
             <button onClick={undo} disabled={!history.length || locked} className={btn}><Undo2 className="w-4 h-4" /> Undo</button>
             <button onClick={clearAll} disabled={locked} className={btn}><Eraser className="w-4 h-4" /> Clear</button>
@@ -459,8 +692,12 @@ export default function Plantdoku() {
             </button>
           </div>
         )}
-        {!result && conflicts.length > 0 && (
-          <p className="text-xs text-red-500 font-semibold mt-2 text-center">Red pots break a rule: same row, column or color, or touching.</p>
+        {!result && check.problems.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-red-500/40 bg-red-500/10 p-3" role="status">
+            {check.problems.slice(0, 3).map((p) => (
+              <p key={p} className="text-sm font-semibold text-red-600">⚠️ {p}</p>
+            ))}
+          </div>
         )}
         {finishing && <p className={`text-sm mt-3 text-center ${ui.sub}`}><Loader2 className="w-4 h-4 inline animate-spin" /> Checking your time…</p>}
         {finishError && (
@@ -543,7 +780,7 @@ export default function Plantdoku() {
                   <Share2 className="w-4 h-4" /> Share
                 </button>
               )}
-              <button onClick={() => newPractice(level)} className={btn}>
+              <button onClick={() => newPractice(result.practice ? level : 'easy')} className={btn}>
                 <PlayCircle className="w-4 h-4" /> {result.practice ? 'Next puzzle' : 'Play a practice puzzle'}
               </button>
               {result.practice && <button onClick={backToDaily} className={btn}>Daily puzzle</button>}
