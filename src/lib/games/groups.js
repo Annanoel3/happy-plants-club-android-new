@@ -1,0 +1,445 @@
+// Garden Groups: 16 plant words hide 4 groups of 4. This file holds the category bank and
+// builds a fair puzzle from a seed (same date → same puzzle on every phone).
+//
+// The bank is word-first: every word lists the categories it truly belongs to ("in") and the
+// ones it could LOOK like it belongs to ("maybe", e.g. MINT looks like a color too). A puzzle
+// picks 4 categories (one per difficulty level), then only uses words that belong to their
+// own group and don't belong to, or look like they belong to, any of the other 3. So a
+// player can never be marked wrong for an answer that also makes sense.
+import { seededRng, shuffleWith } from './common.js';
+
+export const CATEGORIES = {
+  // level 1 (easiest)
+  herb: { name: 'Kitchen herbs', level: 1 },
+  succ: { name: 'Succulents', level: 1 },
+  tree: { name: 'Trees', level: 1 },
+  rootveg: { name: 'Root vegetables', level: 1 },
+  citrus: { name: 'Citrus fruits', level: 1 },
+  greens: { name: 'Leafy greens', level: 1 },
+  grain: { name: 'Grains', level: 1 },
+  nut: { name: 'Nuts', level: 1 },
+  part: { name: 'Parts of a plant', level: 1 },
+  tool: { name: 'Garden tools', level: 1 },
+  need: { name: 'Things a plant needs', level: 1 },
+  house: { name: 'Popular houseplants', level: 1 },
+  // level 2
+  cactus: { name: 'Kinds of cactus', level: 2 },
+  onion: { name: 'The onion family', level: 2 },
+  spice: { name: 'Spices', level: 2 },
+  potting: { name: 'Goes in potting mix', level: 2 },
+  pest: { name: 'Plant pests', level: 2 },
+  bulb: { name: 'Spring bulbs', level: 2 },
+  vine: { name: 'Climbing vines', level: 2 },
+  xmas: { name: 'Christmas plants', level: 2 },
+  girl: { name: "Plants that are also girls' names", level: 2 },
+  // level 3
+  boy: { name: "Plants that are also boys' names", level: 3 },
+  color: { name: 'Plants that are also colors', level: 3 },
+  animal: { name: 'Plants with an animal in the name', level: 3 },
+  lawn: { name: 'Lawn grasses', level: 3 },
+  fruitveg: { name: 'Fruits we call vegetables', level: 3 },
+  night: { name: 'The nightshade family', level: 3 },
+  // level 4 (trickiest)
+  berry: { name: 'Botanically, these are berries', level: 4 },
+  berryP: { name: '___BERRY', level: 4 },
+  flowerS: { name: '___FLOWER', level: 4 },
+  fernP: { name: '___ FERN', level: 4 },
+  palmP: { name: '___ PALM', level: 4 },
+  treeS: { name: '___ TREE', level: 4 },
+  rootS: { name: '___ROOT', level: 4 },
+  mint: { name: 'All in the mint family', level: 4 },
+  carrot: { name: 'All in the carrot family', level: 4 },
+};
+
+// W(word, 'categories it is in', 'categories it could look like it is in')
+const WORDS = [];
+const W = (w, inc, maybe = '') => WORDS.push({ w, in: inc.split(' ').filter(Boolean), maybe: maybe.split(' ').filter(Boolean) });
+
+// Herbs, mint family, carrot family
+W('BASIL', 'herb mint boy', 'greens');
+W('THYME', 'herb mint');
+W('OREGANO', 'herb mint');
+W('ROSEMARY', 'herb mint girl');
+W('SAGE', 'herb mint color', 'girl boy');
+W('MINT', 'herb mint color');
+W('PARSLEY', 'herb carrot', 'greens');
+W('CILANTRO', 'herb carrot', 'greens');
+W('DILL', 'herb carrot', 'spice greens');
+W('CHIVES', 'herb onion');
+W('TARRAGON', 'herb');
+W('LAVENDER', 'mint color', 'girl herb');
+W('CATNIP', 'mint animal', 'herb');
+W('COLEUS', 'mint', 'house');
+W('LEMON BALM', 'mint', 'herb citrus');
+W('BEE BALM', 'mint animal', 'herb');
+W('CARROT', 'rootveg carrot', 'color');
+W('PARSNIP', 'rootveg carrot');
+W('CELERIAC', 'rootveg carrot');
+W('CELERY', 'carrot', 'rootS greens');
+W('FENNEL', 'carrot', 'spice herb');
+W('CUMIN', 'carrot spice');
+W('ANISE', 'carrot spice');
+W('CARAWAY', 'carrot spice');
+
+// Succulents and cactus
+W('ALOE', 'succ', 'house');
+W('AGAVE', 'succ');
+W('JADE', 'succ color', 'house');
+W('ECHEVERIA', 'succ', 'house');
+W('SEDUM', 'succ', 'house');
+W('HAWORTHIA', 'succ', 'house');
+W('KALANCHOE', 'succ', 'house');
+W('SAGUARO', 'succ cactus');
+W('CHOLLA', 'succ cactus');
+W('OPUNTIA', 'succ cactus');
+W('PRICKLY PEAR', 'succ cactus');
+W('ORGAN PIPE', 'succ cactus');
+W('BUNNY EARS', 'succ cactus animal', 'house');
+
+// Trees (every tree also looks like it fits "___ TREE")
+W('OAK', 'tree', 'treeS');
+W('MAPLE', 'tree', 'treeS girl');
+W('BIRCH', 'tree', 'treeS');
+W('PINE', 'tree', 'treeS xmas color');
+W('CEDAR', 'tree', 'treeS xmas boy color');
+W('ELM', 'tree', 'treeS');
+W('SPRUCE', 'tree', 'treeS xmas');
+W('BEECH', 'tree', 'treeS');
+W('SEQUOIA', 'tree', 'treeS');
+W('REDWOOD', 'tree', 'treeS color');
+W('CYPRESS', 'tree', 'treeS');
+W('SYCAMORE', 'tree', 'treeS');
+W('WILLOW', 'tree girl', 'treeS color');
+W('ASPEN', 'tree', 'treeS girl boy');
+W('OLIVE', 'tree girl color', 'treeS');
+W('MAGNOLIA', 'tree girl', 'treeS color');
+W('ASH', 'tree boy', 'treeS color');
+W('ROWAN', 'tree boy', 'treeS girl');
+W('ALDER', 'tree boy', 'treeS');
+W('LINDEN', 'tree boy', 'treeS');
+W('FIR', 'tree xmas', 'treeS');
+W('DOGWOOD', 'tree animal', 'treeS');
+W('HOLLY', 'tree girl xmas fernP', 'treeS');
+W('LAUREL', 'tree girl', 'treeS');
+W('HAZEL', 'girl', 'tree treeS color');
+W('JUNIPER', 'girl', 'tree treeS');
+W('MYRTLE', 'girl', 'tree treeS');
+W('REED', 'boy');
+
+// Root vegetables, onion family, nightshades
+W('BEET', 'rootveg rootS', 'color');
+W('RADISH', 'rootveg');
+W('TURNIP', 'rootveg');
+W('RUTABAGA', 'rootveg');
+W('DAIKON', 'rootveg');
+W('GARLIC', 'onion', 'spice rootveg bulb');
+W('ONION', 'onion', 'rootveg bulb');
+W('SHALLOT', 'onion', 'rootveg bulb');
+W('LEEK', 'onion');
+W('SCALLION', 'onion');
+W('RAMPS', 'onion');
+W('ALLIUM', 'onion bulb');
+W('POTATO', 'night', 'rootveg');
+W('PETUNIA', 'night', 'girl');
+W('TOBACCO', 'night');
+W('TOMATILLO', 'night');
+
+// Citrus (all citrus trees look like trees; citrus fruits are a kind of berry)
+W('LEMON', 'citrus color', 'tree treeS berry');
+W('LIME', 'citrus color', 'tree treeS berry');
+W('ORANGE', 'citrus color', 'tree treeS berry');
+W('TANGERINE', 'citrus color', 'tree treeS berry');
+W('GRAPEFRUIT', 'citrus', 'tree treeS berry');
+W('CLEMENTINE', 'citrus girl', 'tree treeS berry');
+W('MANDARIN', 'citrus', 'tree treeS berry color');
+W('KUMQUAT', 'citrus', 'tree treeS berry');
+W('POMELO', 'citrus', 'tree treeS berry');
+W('YUZU', 'citrus', 'tree treeS berry');
+
+// Leafy greens, grains, nuts
+W('KALE', 'greens');
+W('SPINACH', 'greens');
+W('LETTUCE', 'greens');
+W('ARUGULA', 'greens');
+W('CHARD', 'greens');
+W('COLLARDS', 'greens');
+W('BOK CHOY', 'greens');
+W('CABBAGE', 'greens');
+W('ROMAINE', 'greens');
+W('WATERCRESS', 'greens');
+W('WHEAT', 'grain color');
+W('RICE', 'grain');
+W('OATS', 'grain');
+W('BARLEY', 'grain');
+W('RYE', 'grain');
+W('CORN', 'grain flowerS', 'color fruitveg');
+W('MILLET', 'grain');
+W('SORGHUM', 'grain');
+W('QUINOA', 'grain');
+W('SPELT', 'grain');
+W('ALMOND', 'nut', 'tree treeS color');
+W('WALNUT', 'nut tree', 'treeS color');
+W('PECAN', 'nut tree', 'treeS color');
+W('CHESTNUT', 'nut tree color', 'treeS');
+W('CASHEW', 'nut', 'tree treeS');
+W('HAZELNUT', 'nut', 'tree color');
+W('PISTACHIO', 'nut color', 'tree treeS');
+W('MACADAMIA', 'nut', 'tree treeS');
+W('PEANUT', 'nut');
+W('ACORN', 'nut', 'tree part');
+
+// Spices
+W('CINNAMON', 'spice color', 'tree');
+W('NUTMEG', 'spice', 'nut tree');
+W('CLOVE', 'spice', 'tree onion');
+W('PAPRIKA', 'spice', 'night color');
+W('TURMERIC', 'spice', 'rootveg color');
+W('SAFFRON', 'spice color', 'bulb');
+W('GINGER', 'spice girl', 'rootveg color rootS');
+W('VANILLA', 'spice', 'color vine');
+W('CARDAMOM', 'spice');
+
+// Plant parts, tools, potting mix, needs, pests
+W('ROOT', 'part');
+W('STEM', 'part');
+W('LEAF', 'part');
+W('PETAL', 'part');
+W('SEED', 'part');
+W('BUD', 'part');
+W('THORN', 'part');
+W('NODE', 'part');
+W('SEPAL', 'part');
+W('STAMEN', 'part');
+W('PISTIL', 'part');
+W('BRANCH', 'part');
+W('BARK', 'part potting');
+W('TROWEL', 'tool');
+W('RAKE', 'tool');
+W('HOE', 'tool');
+W('SPADE', 'tool');
+W('SHEARS', 'tool');
+W('PRUNERS', 'tool');
+W('SHOVEL', 'tool');
+W('DIBBER', 'tool');
+W('WHEELBARROW', 'tool');
+W('PITCHFORK', 'tool');
+W('WATERING CAN', 'tool');
+W('HOSE', 'tool');
+W('PERLITE', 'potting');
+W('PEAT', 'potting');
+W('COMPOST', 'potting');
+W('SAND', 'potting', 'color');
+W('VERMICULITE', 'potting');
+W('COCO COIR', 'potting');
+W('PUMICE', 'potting');
+W('CHARCOAL', 'potting', 'color');
+W('LAVA ROCK', 'potting');
+W('WATER', 'need');
+W('LIGHT', 'need');
+W('SOIL', 'need', 'potting');
+W('AIR', 'need');
+W('SUNLIGHT', 'need');
+W('WARMTH', 'need');
+W('NUTRIENTS', 'need');
+W('APHID', 'pest', 'animal');
+W('MEALYBUG', 'pest', 'animal');
+W('SPIDER MITE', 'pest', 'animal');
+W('THRIPS', 'pest', 'animal');
+W('SCALE', 'pest', 'animal');
+W('WHITEFLY', 'pest', 'animal');
+W('FUNGUS GNAT', 'pest', 'animal');
+
+// Houseplants
+W('POTHOS', 'house', 'vine');
+W('MONSTERA', 'house', 'vine');
+W('PHILODENDRON', 'house', 'vine');
+W('PEACE LILY', 'house', 'girl');
+W('ZZ PLANT', 'house');
+W('CALATHEA', 'house');
+W('DRACAENA', 'house');
+W('PILEA', 'house');
+W('HOYA', 'house', 'vine');
+W('ANTHURIUM', 'house');
+W('ALOCASIA', 'house');
+W('RUBBER PLANT', 'house');
+W('SNAKE PLANT', 'house animal');
+W('SPIDER PLANT', 'house animal');
+W('ZEBRA PLANT', 'animal', 'house');
+W('ELEPHANT EAR', 'animal', 'house');
+W('MOTH ORCHID', 'animal', 'house');
+
+// Bulbs, vines, Christmas, names, colors, animals
+W('TULIP', 'bulb');
+W('DAFFODIL', 'bulb');
+W('HYACINTH', 'bulb', 'girl');
+W('CROCUS', 'bulb');
+W('SNOWDROP', 'bulb');
+W('MUSCARI', 'bulb');
+W('IRIS', 'bulb girl', 'color');
+W('IVY', 'vine girl', 'color xmas');
+W('WISTERIA', 'vine');
+W('CLEMATIS', 'vine');
+W('JASMINE', 'vine girl');
+W('HONEYSUCKLE', 'vine');
+W('GRAPE', 'vine berry', 'color');
+W('HOPS', 'vine');
+W('KUDZU', 'vine');
+W('POINSETTIA', 'xmas', 'house');
+W('MISTLETOE', 'xmas');
+W('AMARYLLIS', 'xmas', 'house bulb');
+W('ROSE', 'girl color');
+W('LILY', 'girl', 'bulb');
+W('DAISY', 'girl');
+W('VIOLET', 'girl color');
+W('POPPY', 'girl', 'color');
+W('DAHLIA', 'girl', 'bulb');
+W('CAMELLIA', 'girl');
+W('AZALEA', 'girl', 'color');
+W('LILAC', 'color', 'girl');
+W('FUCHSIA', 'color');
+W('PERIWINKLE', 'color', 'vine');
+W('FOXGLOVE', 'animal');
+W('COWSLIP', 'animal');
+W('HORSETAIL', 'animal');
+W('CATTAIL', 'animal');
+W('TIGER LILY', 'animal', 'girl');
+W("LAMB'S EAR", 'animal');
+
+// Lawn grasses
+W('FESCUE', 'lawn');
+W('BERMUDA', 'lawn');
+W('ZOYSIA', 'lawn');
+W('BUFFALO', 'lawn', 'animal');
+W('CENTIPEDE', 'lawn', 'animal');
+W('ST AUGUSTINE', 'lawn');
+W('RYEGRASS', 'lawn', 'grain');
+
+// Fruits we call vegetables, true berries
+W('TOMATO', 'fruitveg berry night color');
+W('EGGPLANT', 'fruitveg berry night color');
+W('BELL PEPPER', 'fruitveg berry night');
+W('CUCUMBER', 'fruitveg', 'berry vine');
+W('ZUCCHINI', 'fruitveg', 'berry');
+W('PUMPKIN', 'fruitveg color', 'berry vine');
+W('OKRA', 'fruitveg');
+W('SQUASH', 'fruitveg', 'berry vine');
+W('GREEN BEAN', 'fruitveg', 'vine');
+W('AVOCADO', 'berry color', 'fruitveg tree treeS');
+W('BANANA', 'berry', 'tree treeS color');
+W('KIWI', 'berry', 'vine color animal');
+W('BLUEBERRY', 'berry', 'color');
+W('CRANBERRY', 'berry color');
+W('GOOSEBERRY', 'berry', 'animal');
+
+// Word play: ___BERRY, ___FLOWER, ___ FERN, ___ PALM, ___ TREE, ___ROOT
+W('STRAW', 'berryP flowerS');
+W('BLUE', 'berryP', 'color');
+W('RASP', 'berryP');
+W('BLACK', 'berryP', 'color');
+W('GOOSE', 'berryP', 'animal');
+W('CRAN', 'berryP');
+W('ELDER', 'berryP flowerS', 'tree');
+W('MUL', 'berryP');
+W('BOYSEN', 'berryP');
+W('HUCKLE', 'berryP');
+W('LOGAN', 'berryP');
+W('LINGON', 'berryP');
+W('CLOUD', 'berryP');
+W('SNOW', 'berryP');
+W('BAR', 'berryP');
+W('SUN', 'flowerS', 'need');
+W('CAULI', 'flowerS');
+W('WALL', 'flowerS');
+W('MAY', 'flowerS');
+W('PASSION', 'flowerS', 'vine');
+W('MOON', 'flowerS');
+W('CONE', 'flowerS', 'part');
+W('WILD', 'flowerS');
+W('BELL', 'flowerS');
+W('STAR', 'flowerS');
+W('BOSTON', 'fernP', 'house');
+W('STAGHORN', 'fernP animal');
+W('MAIDENHAIR', 'fernP', 'tree');
+W('SWORD', 'fernP');
+W('ASPARAGUS', 'fernP', 'house');
+W('CHRISTMAS', 'fernP treeS', 'xmas');
+W('TREE', 'fernP');
+W('LADY', 'fernP');
+W('DATE', 'palmP', 'tree treeS berry');
+W('COCONUT', 'palmP', 'nut tree treeS');
+W('FAN', 'palmP');
+W('PARLOR', 'palmP', 'house');
+W('SAGO', 'palmP', 'house');
+W('ARECA', 'palmP', 'house');
+W('PONYTAIL', 'palmP', 'house animal');
+W('QUEEN', 'palmP');
+W('ROYAL', 'palmP');
+W('OIL', 'palmP');
+W('BOTTLE', 'palmP');
+W('MAJESTY', 'palmP');
+W('FAMILY', 'treeS');
+W('SHOE', 'treeS');
+W('MONEY', 'treeS', 'house');
+W('GUM', 'treeS');
+W('JOSHUA', 'treeS', 'boy');
+W('DECISION', 'treeS');
+W('ARROW', 'rootS');
+W('TAP', 'rootS');
+W('BLOOD', 'rootS');
+W('BITTER', 'rootS');
+W('SNAKE', 'rootS', 'animal');
+W('UP', 'rootS');
+
+export const WORD_LIST = WORDS;
+
+const MEMBERS = {};
+const TAGS = {};
+for (const k of Object.keys(CATEGORIES)) MEMBERS[k] = [];
+for (const { w, in: inc, maybe } of WORDS) {
+  TAGS[w] = new Set([...inc, ...maybe]);
+  for (const c of inc) MEMBERS[c].push(w);
+}
+const BY_LEVEL = { 1: [], 2: [], 3: [], 4: [] };
+for (const [k, c] of Object.entries(CATEGORIES)) BY_LEVEL[c.level].push(k);
+
+export const dailyGroupsSeed = (date) => `garden-groups-${String(date).slice(0, 10)}`;
+
+/** Words that can be the answer for category c when the other chosen categories are `others` */
+function poolFor(c, others) {
+  return MEMBERS[c].filter((w) => !others.some((o) => TAGS[w].has(o)));
+}
+
+/**
+ * makeGroupsPuzzle(seed) → { seed, groups: [{ key, name, level, words: [4] }] (level 1→4), tiles: [16 words, shuffled] }
+ * Deterministic for a given seed.
+ */
+export function makeGroupsPuzzle(seed) {
+  const rng = seededRng(`gg|${seed}`);
+  const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const chosen = [1, 2, 3, 4].map((l) => pick(BY_LEVEL[l]));
+    const pools = chosen.map((c) => poolFor(c, chosen.filter((o) => o !== c)));
+    if (pools.some((p) => p.length < 4)) continue;
+    const groups = chosen.map((c, i) => ({ key: c, name: CATEGORIES[c].name, level: CATEGORIES[c].level, words: shuffleWith(rng, pools[i]).slice(0, 4) }));
+    return { seed, groups, tiles: shuffleWith(rng, groups.flatMap((g) => g.words)) };
+  }
+  // Never expected; a known-fair fallback
+  const chosen = ['tool', 'onion', 'lawn', 'palmP'];
+  const groups = chosen.map((c) => ({ key: c, name: CATEGORIES[c].name, level: CATEGORIES[c].level, words: poolFor(c, chosen.filter((o) => o !== c)).slice(0, 4) }));
+  return { seed, groups, tiles: shuffleWith(rng, groups.flatMap((g) => g.words)) };
+}
+
+/** For tests: 16 distinct words, 4 per group, and no word belongs (or looks like it belongs) to another group */
+export function checkPuzzle(p) {
+  const all = p.groups.flatMap((g) => g.words);
+  if (all.length !== 16 || new Set(all).size !== 16) return 'not 16 distinct words';
+  for (const g of p.groups) {
+    if (g.words.length !== 4) return `${g.key} has ${g.words.length} words`;
+    for (const w of g.words) {
+      if (!MEMBERS[g.key].includes(w)) return `${w} is not in ${g.key}`;
+      for (const o of p.groups) if (o !== g && TAGS[w].has(o.key)) return `${w} also fits ${o.key}`;
+    }
+  }
+  if (p.tiles.length !== 16 || new Set(p.tiles).size !== 16) return 'tiles wrong';
+  return null;
+}
