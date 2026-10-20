@@ -883,7 +883,9 @@ async function profilePlants(db: any, plants: any[], owner: any, now: number) {
 
 // A plant still being named is skipped: its care sheet (with its watering numbers) is on the
 // way. Profiling it early used to give it numbers for its placeholder name.
-const needsProfile = (p: any) => p?.add_status !== 'identifying' && (!p?.care_profile || (Number(p.care_profile.v) || 0) < PROFILE_V);
+// Same for a named plant whose care sheet is still being written (it carries its own numbers).
+const carePending = (p: any) => !!p?.add_info?.care_pending && !p?.add_info?.care_done;
+const needsProfile = (p: any) => p?.add_status !== 'identifying' && !carePending(p) && (!p?.care_profile || (Number(p.care_profile.v) || 0) < PROFILE_V);
 
 // Spread out a pile-up of watering days. Moves only forgiving plants (not strict, not on
 // vacation, watered every 5+ days), by at most 1-3 days depending on how long they go
