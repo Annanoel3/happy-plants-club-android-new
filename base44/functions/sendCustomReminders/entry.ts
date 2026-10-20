@@ -17,7 +17,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 //  - the app, with { action, reminder_id } right after a reminder is created/changed.
 
 const HORIZON_MS = 26 * 60 * 60 * 1000;   // queue pushes up to 26h ahead
-const GRACE_MS = 30 * 60 * 1000;          // a never-queued reminder up to 30 min late still sends
+const GRACE_MS = 75 * 60 * 1000;          // a never-queued reminder up to 75 min late still sends (the sweep is hourly)
 const DEFAULT_TZ = 'America/Chicago';
 const DEFAULT_HOUR = 9;                   // date-only reminders fire at 9 AM local
 
