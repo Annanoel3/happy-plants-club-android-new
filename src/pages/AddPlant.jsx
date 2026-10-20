@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { getIdStatus, nameNewPlants } from "@/lib/plantIds";
+import { getIdStatus, nameNewPlants, writeTypedCare } from "@/lib/plantIds";
 import PhotoIdsBar from "@/components/PhotoIdsBar";
 import { setMicActive, showAdForEvent } from "@/lib/admob";
 import { transcribeVoice } from "@/functions/transcribeVoice";
@@ -224,6 +224,7 @@ export default function AddPlant() {
       refreshPlantData(); // plants were created server-side
 
       if (result?.success) {
+        writeTypedCare(result.plants);
         toast.success(`Added ${result.count} plant${result.count > 1 ? 's' : ''}! 🌿`);
         // Bulk add = one ad, shown after the new plants are checked in the garden
         try { sessionStorage.setItem('hp_add_ad_pending', '1'); } catch { /* ignore */ }
@@ -257,6 +258,7 @@ export default function AddPlant() {
       refreshPlantData(); // plants were created server-side
 
       if (result?.success) {
+        writeTypedCare(result.plants);
         toast.success(`Added ${result.count} plant${result.count > 1 ? 's' : ''}! 🌿`);
         // Bulk add = one ad, shown after the new plants are checked in the garden
         try { sessionStorage.setItem('hp_add_ad_pending', '1'); } catch { /* ignore */ }
