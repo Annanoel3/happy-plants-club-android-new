@@ -490,7 +490,9 @@ export default function Dashboard() {
   };
 
   // ---- New plants: being named on the server, then "Check your new plant" ----
-  const identifyingPlants = plantsList.filter((p) => p.add_status === 'identifying' || carePending(p));
+  const identifyingPlants = plantsList.filter((p) => p.add_status === 'identifying');
+  // Retried below if stuck: still being named, or named but its care sheet never landed
+  const retryPlants = plantsList.filter((p) => p.add_status === 'identifying' || carePending(p));
   // One plant added: the check opens right away. Several at once (add_info.bulk) or put off
   // with "Later": no popup per plant; they wait under "Newly added" until the owner opens
   // each one and says where it lives.
@@ -627,9 +629,9 @@ export default function Dashboard() {
 
   // A plant stuck "naming" for 3+ minutes (app was closed, signal dropped): ask the
   // server to try again. The server also retries on its own every hour.
-  const identifyingKey = identifyingPlants.map((p) => p.id).join(',');
+  const identifyingKey = retryPlants.map((p) => p.id).join(',');
   useEffect(() => {
-    for (const p of identifyingPlants) {
+    for (const p of retryPlants) {
       if (retriedRef.current.has(p.id)) continue;
       const started = Date.parse(p.add_info?.care_started_at || p.add_info?.named_at || p.add_info?.started_at || p.created_date) || 0;
       if (Date.now() - started < 3 * 60 * 1000 || (Number(p.add_info?.tries) || 0) >= 3) continue;
