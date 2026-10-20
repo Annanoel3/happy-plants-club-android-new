@@ -8,7 +8,9 @@ import { useGameTheme } from "@/lib/games/common";
 
 // Community is built (restored Oct 19, 2026) but hidden: everyone sees "Coming soon".
 // Set to true to open it. People agree to the community rules the first time they open
-// it. Still needed before opening (Google Play): in-app Report and Block.
+// it. Report and Block are in (posts, comments, profiles, messages), and every post,
+// comment and message is checked by moderateContent on the server (functions/community).
+// When opening it, also turn the like/comment badge back on in Layout.jsx (feedNotifications).
 const COMMUNITY_OPEN = false;
 
 export default function Feed() {
