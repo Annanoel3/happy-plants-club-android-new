@@ -23,6 +23,12 @@ export async function getIdStatus() {
 }
 
 export const isWaitingForId = (p) => p?.add_status === 'failed' && p?.add_info?.error === 'limit_reached';
+
+// Named, but its care sheet is still being written (it lands a few seconds after the name)
+export const carePending = (p) => !!p?.add_info?.care_pending && !p?.add_info?.care_done;
+// ...and recently enough that it's worth checking back every few seconds
+export const carePendingNow = (p) => carePending(p) && !p?.add_info?.care_error
+  && Date.now() - (Date.parse(p?.add_info?.care_started_at || p?.add_info?.named_at || p?.add_info?.started_at || p?.created_date) || 0) < 3 * 60 * 1000;
 export const canWatchForIds = (ids) => !!ids?.can_reward && rewardedAvailable();
 
 /** Reserve photo IDs for these new plants, then name the ones that got one. */
