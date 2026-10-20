@@ -743,6 +743,72 @@ async function writeCare(user: any, plant: any, today: string, ident: { name?: s
     };
 }
 
+// ---- "Is it one of these?": a reference photo for each guess ------------------------------
+// When the name isn't certain, the new-plant check shows the top guesses with a photo each,
+// so the owner can pick the one that looks like their plant (no plant knowledge needed).
+// Photos: Pl@ntNet's own reference photos for its candidates, else one freely licensed
+// iNaturalist photo of the species (free API, no key), looked up once per species and kept
+// in PlantPhotoRef. Only licenses that allow use in an app with ads: CC0, CC BY, CC BY-SA
+// (never "all rights reserved" or non-commercial ones). Each photo shows its credit line.
+const OK_LICENSE = /^(cc0|cc[-_ ]?by|cc[-_ ]?by[-_ ]?sa)([-_ ]?[\d.]+)?$/i;
+async function getJson(url: string, ms = 6000) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), ms);
+    try {
+        const r = await fetch(url, { signal: ctl.signal, headers: { 'User-Agent': 'HappyPlants/1.0 (+https://happyplants.club)', Accept: 'application/json' } });
+        return r.ok ? await r.json() : null;
+    } catch { return null; } finally { clearTimeout(t); }
+}
+async function inatPhoto(sci: string) {
+    const sp = speciesKey(sci);
+    if (!sp || sp.endsWith(' sp')) return null;
+    const found = await getJson(`https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(sp)}&per_page=3`);
+    const taxon = (found?.results || []).find((t: any) => speciesKey(t?.name) === sp);
+    if (!taxon?.id) return null;
+    const full = await getJson(`https://api.inaturalist.org/v1/taxa/${taxon.id}`);
+    for (const tp of full?.results?.[0]?.taxon_photos || []) {
+        const p = tp?.photo;
+        if (p?.medium_url && OK_LICENSE.test(String(p.license_code || ''))) {
+            return { url: p.medium_url, credit: String(p.attribution || '').slice(0, 160), license: p.license_code, source: 'iNaturalist', page: `https://www.inaturalist.org/taxa/${taxon.id}` };
+        }
+    }
+    return null;
+}
+async function photoFor(sci: string, pn: any[] | null, cache: any) {
+    const sp = speciesKey(sci);
+    if (!sp) return null;
+    const hit = (pn || []).find((c: any) => speciesKey(c.scientific_name) === sp);
+    const p = hit?.photos?.find((x: any) => OK_LICENSE.test(String(x.license || '').replace(/\s+/g, '-')));
+    if (p) return { url: p.url, credit: String(p.citation || p.author || 'Pl@ntNet').slice(0, 160), license: p.license, source: 'Pl@ntNet' };
+    if (!cache) return null;
+    const row = (await cache.PlantPhotoRef.filter({ species: sp }).catch(() => []))?.[0];
+    // A species with no free photo is checked again after 30 days
+    if (row && (row.url || Date.now() - Date.parse(row.checked_at || 0) < 30 * 86400e3)) {
+        return row.url ? { url: row.url, credit: row.credit, license: row.license, source: row.source, page: row.page } : null;
+    }
+    const got = await inatPhoto(sci);
+    const data = { species: sp, url: got?.url || null, credit: got?.credit || null, license: got?.license || null, source: got?.source || null, page: got?.page || null, checked_at: new Date().toISOString() };
+    await (row ? cache.PlantPhotoRef.update(row.id, data) : cache.PlantPhotoRef.create(data)).catch(() => {});
+    return got;
+}
+// The best guess first, then up to 3 others, each with a photo when one is free to use
+async function buildChoices(best: any, alternatives: any[], pn: any[] | null, cache: any, capMs = 5000) {
+    const seen = new Set<string>();
+    const list: any[] = [];
+    for (const c of [best, ...(alternatives || [])]) {
+        const k = speciesKey(c?.scientific_name);
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        list.push({ name: String(c.name || '').slice(0, 80) || null, scientific_name: String(c.scientific_name).slice(0, 120) });
+        if (list.length >= 4) break;
+    }
+    const photos = await Promise.race([
+        Promise.all(list.map((c) => photoFor(c.scientific_name, pn, cache).catch(() => null))),
+        new Promise<any[]>((r) => setTimeout(() => r(list.map(() => null)), capMs)),
+    ]);
+    return list.map((c, i) => ({ ...c, photo: photos[i] || null }));
+}
+
 // "Echeveria colorata 'Lindsayana'" and "echeveria colorata" are the same species; "Echeveria sp." is not.
 function sameSpecies(a: any, b: any): boolean {
     const key = (s: any) => String(s || '').toLowerCase().replace(/['"‘’“”].*$/, '').replace(/×/g, 'x').replace(/\s+x\s+/g, ' x').trim().split(/\s+/).slice(0, 2).join(' ');

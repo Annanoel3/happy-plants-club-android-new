@@ -1,0 +1,54 @@
+{
+  "description": "One freely licensed reference photo per species (iNaturalist, CC0/CC BY/CC BY-SA only), for the 'Is it one of these?' picker on the new-plant check. Looked up once per species and reused. Written and read only by identifyPlantWithExpert (service role).",
+  "name": "PlantPhotoRef",
+  "properties": {
+    "checked_at": {
+      "type": "string"
+    },
+    "credit": {
+      "type": "string"
+    },
+    "license": {
+      "type": "string"
+    },
+    "page": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "species": {
+      "description": "genus species, lowercase",
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "species"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "type": "object"
+}
