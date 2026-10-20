@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
 
     const out: Record<string, unknown> = {};
     for (const k of PUBLIC) if (target[k] !== undefined) out[k] = target[k];
-    if (target.location_public !== false && target.location) out.location = target.location;
+    if (target.location_public === true && target.location) out.location = target.location; // location is private unless they turned it on
     return Response.json({ user: out });
   } catch (error) {
     console.error('Error getting user by email:', (error as Error)?.message);
