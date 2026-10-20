@@ -54,11 +54,17 @@ Deno.serve(async (req) => {
 
                 const plants = await base44.asServiceRole.entities.Plant.filter({ created_by: user.email });
                 if (!plants.length) { skipped++; continue; }
-                const outdoorEnvs = ['Outdoor', 'Balcony', 'Patio', 'Greenhouse'];
-                const hasOutdoor = plants.some(p => outdoorEnvs.includes(p.environment));
-                const hasIndoor = plants.some(p => !outdoorEnvs.includes(p.environment));
 
-                const message = await base44.asServiceRole.integrations.Core.InvokeLLM({
+                // The note is written by functions/plus from real forecast numbers (MET Norway) on
+                // our own OpenAI key. This used Base44's InvokeLLM with internet search, which spent
+                // Base44 integration credits for every person every day.
+                const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
+                const noteRes = await fetch('https://happyplants.club/api/apps/68e7e07bd0e33d2da3f22dbf/functions/plus', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'weather_note_for', key: sweepKey, email: user.email }),
+                }).then((r) => r.json()).catch(() => null);
+                const message = noteRes?.success ? noteRes.message : '';
+                /* old: base44.asServiceRole.integrations.Core.InvokeLLM({
                     prompt: `You are a friendly plant care assistant. Look up today's weather forecast for ${user.location} (today is ${localDate}) and write a short morning note about how the user's plants will experience it.
 
 The user has ${hasOutdoor && hasIndoor ? 'both indoor and outdoor plants' : hasOutdoor ? 'outdoor plants' : 'only indoor plants'}.
@@ -67,7 +73,7 @@ Only mention tonight if there is a real hazard (frost below 35°F, freeze, storm
 
 2–3 sentences, warm and practical, one or two emoji. Return only the message text — no links, no headings.`,
                     add_context_from_internet: true,
-                });
+                }) */
 
                 const text = String(typeof message === 'string' ? message : (message as any)?.response ?? '')
                     .replace(/\[?\(?https?:\/\/[^\s)]+\)?[\])]?/gi, '')
