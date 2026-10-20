@@ -5,11 +5,10 @@
 // top (pot_diameter_in), treating it as a standard tapered pot about as tall as it is
 // wide: volume ≈ 0.545 × width³ cubic inches. 1 cubic inch = 0.554 US fl oz.
 //
-// Missing pot width → a rough guess from the plant's size, clearly marked as a guess.
+// Missing pot width → no amount at all (we don't guess); the plant page asks for the pot size.
 // Same formula lives in functions/wateringReminder (for the phone pop-up) — keep in sync.
 
 export const POT_SIZES = [2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24];
-const GUESS_BY_PLANT_SIZE = { Seedling: 3, Small: 4, Medium: 6, Large: 10, Mature: 12 };
 
 export function ozForDiameter(d) {
   const volIn3 = 0.545 * d * d * d;
@@ -100,22 +99,62 @@ export function waterAmount(plant) {
   if (d === 0) {
     return { kind: 'ground', short: 'Deep soak', text: 'In the ground: water slowly at the base until the soil is soaked several inches down.' };
   }
-  let width = Number(d) > 0 ? Number(d) : null;
-  let guessed = false;
-  if (!width) {
-    width = GUESS_BY_PLANT_SIZE[plant.plant_size] || null;
-    guessed = true;
-  }
-  if (!width) return { kind: 'unknown', short: null, text: null };
+  const width = Number(d) > 0 ? Number(d) : null;
+  // No pot size, no number: a guess from the plant's size was often way off (52 oz for a small pot)
+  if (!width) return { kind: 'unknown', needsPot: true, short: null, text: null };
   const oz = roundOz(ozForDiameter(width));
   const cups = cupsText(oz);
   return {
     kind: 'oz',
     oz,
-    guessed,
+    guessed: false,
     width,
-    short: `${guessed ? '~' : ''}${oz} oz`,
+    short: `${oz} oz`,
     headline: `About ${oz} oz${cups ? ` (${cups})` : ''}`,
     text: `About ${oz} oz${cups ? ` (${cups})` : ''}. Pour slowly; stop when a little drains out the bottom.`,
   };
+}
+
+
+// ---- "What does that look like?" ------------------------------------------------------
+// Everyday US containers to picture an amount. Standard US sizes: tablespoon 0.5 fl oz,
+// shot glass 1.5, measuring cup 8, soda can 12, bottled water 16.9 (500 mL), soda bottle 20,
+// quart 32, half gallon 64, gallon 128.
+const CONTAINERS = [
+  { oz: 0.5, one: 'tablespoon', many: 'tablespoons', max: 6 },
+  { oz: 1.5, one: 'shot glass', many: 'shot glasses', max: 3 },
+  { oz: 8, one: 'measuring cup', many: 'measuring cups', max: 4 },
+  { oz: 12, one: 'soda can', many: 'soda cans', max: 4 },
+  { oz: 16.9, one: 'regular 16.9 oz water bottle', many: 'regular 16.9 oz water bottles', max: 4 },
+  { oz: 20, one: '20 oz soda bottle', many: '20 oz soda bottles', max: 3 },
+  { oz: 32, one: 'quart jug (32 oz)', many: 'quart jugs (32 oz)', max: 3 },
+  { oz: 64, one: 'half-gallon jug', many: 'half-gallon jugs', max: 2 },
+  { oz: 128, one: 'gallon jug', many: 'gallon jugs', max: 4 },
+];
+const NICE = [0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5, 6];
+const COUNT_WORDS = { 0.25: 'a quarter of a', 0.5: 'half a', 0.75: 'three-quarters of a', 1: 'one', 1.5: 'one and a half', 2: 'two', 2.5: 'two and a half', 3: 'three', 4: 'four', 5: 'five', 6: 'six' };
+
+/** Up to 3 comparisons, best first: [{ text: "A little less than one regular 16.9 oz water bottle" }] */
+export function compareOz(oz) {
+  if (!(oz > 0)) return [];
+  const options = [];
+  for (const c of CONTAINERS) {
+    const n = oz / c.oz;
+    let best = null;
+    for (const k of NICE) {
+      if (k > c.max) continue;
+      const err = Math.abs(n - k) / k;
+      if (!best || err < best.err) best = { k, err };
+    }
+    if (!best || best.err > 0.3) continue;
+    // Whole containers are easier to picture than fractions
+    const score = best.err + (best.k < 1 ? 0.08 : 0) + (best.k > 3 ? 0.05 : 0);
+    const how = n > best.k * 1.07 ? 'a little more than' : n < best.k * 0.93 ? 'a little less than' : 'about';
+    const noun = best.k <= 1 ? c.one : c.many;
+    const count = COUNT_WORDS[best.k];
+    const text = `${how[0].toUpperCase()}${how.slice(1)} ${count} ${noun}`;
+    options.push({ text, score, container: c.one });
+  }
+  options.sort((a, b) => a.score - b.score);
+  return options.slice(0, 3);
 }
