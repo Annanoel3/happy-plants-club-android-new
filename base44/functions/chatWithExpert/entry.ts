@@ -69,10 +69,10 @@ Deno.serve(async (req) => {
         // Moderate user message
         console.log('🔍 Moderating message...');
         const moderated = await base44.functions.invoke('moderateContent', { content: message });
-        if (!moderated.data.appropriate) {
+        if (!moderated?.data?.appropriate) {
             console.log('❌ Message flagged as inappropriate');
             return Response.json({ 
-                error: 'Your message contains inappropriate content. Please keep the conversation respectful.',
+                error: moderated?.data?.reason || 'Your message contains inappropriate content. Please keep the conversation respectful.',
                 conversation_id: conversation_id
             }, { status: 400 });
         }
