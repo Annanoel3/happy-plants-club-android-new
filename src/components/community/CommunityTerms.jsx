@@ -15,6 +15,7 @@ const RULES = [
   ['🚫', 'No spam.', 'No selling, ads or sketchy links.'],
   ['📸', 'Only post your own photos', "or ones you have permission to share."],
   ['🔒', 'Keep private info private.', "Don't share addresses, phone numbers or anyone's personal details."],
+  ['🚩', 'See something wrong?', 'Tap ⋯ on any post or comment, or the flag on a profile, to report it or block someone. Blocked people can’t see your posts or message you.'],
   ['🧹', 'We can remove posts and comments', 'that break these rules, and suspend accounts that keep breaking them.'],
 ];
 
