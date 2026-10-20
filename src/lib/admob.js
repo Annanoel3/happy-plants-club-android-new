@@ -4,7 +4,7 @@ import { isPlusCached } from '@/lib/premium';
 const AD_UNIT_ID = 'ca-app-pub-7979856440890193/9127484934';
 // Reward video ("watch a short video for 5 more photo IDs"). Empty = the option stays hidden.
 // Create it in AdMob: Apps > Happy Plants > Ad units > Add ad unit > Rewarded.
-export const REWARDED_AD_UNIT_ID = '';
+export const REWARDED_AD_UNIT_ID = 'ca-app-pub-7979856440890193/4931700307'; // "Photo ID reward" (Happy Plants Club app in AdMob)
 
 // Ads are event-based: one interstitial after a watering (single, bulk or voice)
 // and one after adding plants (a bulk add counts as one). No more "every 3rd open".
