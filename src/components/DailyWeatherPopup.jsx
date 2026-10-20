@@ -156,7 +156,9 @@ export default function DailyWeatherPopup() {
         
         const lowerCleanMessage = cleanMessage.toLowerCase();
 
-        const isWeatherWarning = 
+        // The server says when it's a real warning (frost for outdoor plants, extreme heat);
+        // guessing from words flagged "keep plants away from cold windows" as urgent
+        const isWeatherWarning = typeof data.warning === 'boolean' ? data.warning :
           lowerCleanMessage.includes('frost') || 
           lowerCleanMessage.includes('freeze') || 
           lowerCleanMessage.includes('cold') || 
