@@ -774,6 +774,27 @@ async function inatPhoto(sci: string) {
     }
     return null;
 }
+// Wikipedia's lead photo of the species, if Wikimedia Commons says it's CC0 / CC BY / CC BY-SA
+// / public domain (most iNaturalist photos are "all rights reserved" or non-commercial)
+const stripHtml = (s: any) => String(s || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+async function commonsPhoto(sci: string) {
+    const sp = speciesKey(sci);
+    if (!sp || sp.endsWith(' sp')) return null;
+    const title = sp.charAt(0).toUpperCase() + sp.slice(1).replace(/ /g, '_');
+    const sum = await getJson(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+    const src = String(sum?.originalimage?.source || sum?.thumbnail?.source || '');
+    const file = decodeURIComponent((src.split('?')[0].split('/').pop() || '').replace(/^\d+px-/, ''));
+    if (!file || !/^upload\.wikimedia\.org$/.test(new URL(src || 'https://x').hostname)) return null;
+    const info = await getJson(`https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=500&titles=${encodeURIComponent('File:' + file)}`);
+    const page: any = Object.values(info?.query?.pages || {})[0];
+    const ii = page?.imageinfo?.[0];
+    const meta = ii?.extmetadata || {};
+    const lic = stripHtml(meta.LicenseShortName?.value);
+    const okLic = /^(cc0|public domain|cc by( |-)?[\d.]*|cc by-sa( |-)?[\d.]*)$/i.test(lic) || /^cc[- ]by(-sa)?[- ][\d.]+$/i.test(lic);
+    if (!ii?.thumburl || !okLic) return null;
+    const artist = stripHtml(meta.Artist?.value).slice(0, 100) || 'Wikimedia Commons';
+    return { url: ii.thumburl, credit: `${artist} / Wikimedia Commons, ${lic}`.slice(0, 160), license: lic, source: 'Wikimedia Commons', page: ii.descriptionurl || null };
+}
 async function photoFor(sci: string, pn: any[] | null, cache: any) {
     const sp = speciesKey(sci);
     if (!sp) return null;
@@ -786,7 +807,7 @@ async function photoFor(sci: string, pn: any[] | null, cache: any) {
     if (row && (row.url || Date.now() - Date.parse(row.checked_at || 0) < 30 * 86400e3)) {
         return row.url ? { url: row.url, credit: row.credit, license: row.license, source: row.source, page: row.page } : null;
     }
-    const got = await inatPhoto(sci);
+    const got = (await inatPhoto(sci)) || (await commonsPhoto(sci).catch(() => null));
     const data = { species: sp, url: got?.url || null, credit: got?.credit || null, license: got?.license || null, source: got?.source || null, page: got?.page || null, checked_at: new Date().toISOString() };
     await (row ? cache.PlantPhotoRef.update(row.id, data) : cache.PlantPhotoRef.create(data)).catch(() => {});
     return got;
