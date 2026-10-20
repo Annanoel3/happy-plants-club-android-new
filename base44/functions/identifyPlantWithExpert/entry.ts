@@ -119,15 +119,18 @@ const JSON_JUDGE = `Return ONLY JSON:
   "plant_size": "Seedling" | "Small" | "Medium" | "Large" | "Mature"
 }`;
 
-function imageMessage(imageUrl, text) {
+// One photo, or several photos of the same plant (the main photo + a close-up or its tag)
+function imageMessage(imageUrl: string | string[], text: string) {
+    const urls = Array.isArray(imageUrl) ? imageUrl : [imageUrl];
     return {
         role: "user",
         content: [
-            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+            ...urls.map((u) => ({ type: "image_url", image_url: { url: u, detail: "high" } })),
             { type: "text", text }
         ]
     };
 }
+const MULTI_PHOTO_NOTE = `There are 2 photos of the SAME plant: the first is the whole plant, the second a close-up or its plant tag. Use both. If a photo shows a plant label or nursery tag, read the plant name printed on it and use that name unless the plant clearly doesn't match it.`;
 
 // ---- What each plant costs on the OpenAI bill -------------------------------------------
 // Prices: developers.openai.com/docs/models/gpt-6-astra (Oct 2026): $10 input, $1 cached
@@ -338,13 +341,15 @@ async function profileNow(base44: any, plantId: string) {
 
 // onBlind: called with the blind opinion as soon as it's in, so the care sheet can start
 // while the judge works (most of the time the judge keeps the same species).
-async function identify(rid: string, imageUrl: string, context: string, onBlind?: (b: any) => void, meter?: Meter | null, models: { blind?: string; judge?: string; effort?: string } = {}) {
+async function identify(rid: string, imageUrl: string, context: string, onBlind?: (b: any) => void, meter?: Meter | null, models: { blind?: string; judge?: string; effort?: string } = {}, extra?: { bytes: Uint8Array; mime: string; dataUrl: string } | null) {
     const blindModel = models.blind || MODEL, judgeModel = models.judge || MODEL, idEffort = models.effort;
     const t0 = Date.now();
     const timing: Record<string, number | null> = { plantnet_ms: null, blind_ms: null, judge_ms: null };
+    const photos = extra ? [imageUrl, extra.dataUrl] : imageUrl;
+    const note = extra ? `\n${MULTI_PHOTO_NOTE}` : '';
     const [pn, blind] = await Promise.all([
-        identifyWithPlantNet(imageUrl).finally(() => { timing.plantnet_ms = Date.now() - t0; }),
-        askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, imageUrl, "Identify this plant following the method. Return the JSON.", 1200, meter, 'id: botanist', blindModel, idEffort)
+        identifyWithPlantNet(imageUrl, extra).finally(() => { timing.plantnet_ms = Date.now() - t0; }),
+        askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, photos, `Identify this plant following the method.${note} Return the JSON.`, 1200, meter, 'id: botanist', blindModel, idEffort)
             .then((b) => { timing.blind_ms = Date.now() - t0; try { onBlind?.(b); } catch { /* ignore */ } return b; })
             .catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; })
     ]);
@@ -356,6 +361,7 @@ async function identify(rid: string, imageUrl: string, context: string, onBlind?
     if (pn && blind?.scientific_name && pn[0].score >= 0.5 && blind.confidence !== 'low' && sameSpecies(pn[0].scientific_name, blind.scientific_name)) {
         console.log(`[${rid}] 🌿 Both agree: ${blind.scientific_name}; judge skipped`);
         return {
+            pn,
             plantData: { name: blind.name, scientific_name: blind.scientific_name, plant_size: blind.plant_size },
             identification: {
                 source: 'plantnet+llm',
@@ -392,11 +398,12 @@ ${context}
 
 ${JSON_JUDGE}`;
     const tj = Date.now();
-    const parsed = await askJson(judgePrompt, imageUrl, "Judge the identification. Return the JSON.", 2500, meter, 'id: judge', judgeModel, idEffort);
+    const parsed = await askJson(judgePrompt, photos, `Judge the identification.${note} Return the JSON.`, 2500, meter, 'id: judge', judgeModel, idEffort);
     timing.judge_ms = Date.now() - tj;
     const { confidence, identification_notes, alternatives, plantnet_agreement, ...plantData } = parsed;
     console.log(`[${rid}] 🌿 Final:`, plantData.name, '|', plantData.scientific_name, '| confidence:', confidence);
     return {
+        pn,
         plantData,
         identification: {
             source: pn ? 'plantnet+llm' : 'llm',
