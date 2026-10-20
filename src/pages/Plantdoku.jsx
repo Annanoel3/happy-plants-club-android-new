@@ -175,7 +175,8 @@ function PlantIcon({ region, className = 'w-[82%] h-[82%]' }) {
   return <svg viewBox="0 0 40 40" className={`${className} pointer-events-none`} aria-hidden>{art}</svg>;
 }
 
-function Board({ puzzle, marks, check, hint, highlight, dark, locked, mini, onTap, onStroke, onDragX }) {
+// hideX: a finished board shows just the plants. The ✕ marks are only notes for solving.
+function Board({ puzzle, marks, check, hint, highlight, dark, locked, mini, hideX, onTap, onStroke, onDragX }) {
   const N = puzzle.size;
   const colors = dark ? REGION_COLORS_DARK : REGION_COLORS;
   const drag = useRef(null);
@@ -238,7 +239,7 @@ function Board({ puzzle, marks, check, hint, highlight, dark, locked, mini, onTa
             }}>
             {inBadZone && <span className="absolute inset-0 bg-red-500/25 pointer-events-none" aria-hidden />}
             {v === 2 && <PlantIcon region={reg} />}
-            {v === 1 && <span className={`${mini ? 'text-[10px]' : 'text-sm'} font-bold pointer-events-none ${dark ? 'text-white/45' : 'text-black/35'}`}>✕</span>}
+            {v === 1 && !hideX && <span className={`${mini ? 'text-[10px]' : 'text-sm'} font-bold pointer-events-none ${dark ? 'text-white/45' : 'text-black/35'}`}>✕</span>}
             {isBad && (
               <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center pointer-events-none" aria-hidden>!</span>
             )}
@@ -667,7 +668,7 @@ export default function Plantdoku() {
         <div className="relative">
           <div className={needsStart ? 'blur-md pointer-events-none' : locked && !result ? 'opacity-60' : ''}>
             <Board puzzle={puzzle} marks={marks} check={check} hint={hint} dark={dark} locked={locked}
-              onTap={tap} onStroke={push} onDragX={dragX} />
+              hideX={solved || !!result} onTap={tap} onStroke={push} onDragX={dragX} />
           </div>
           {mode === 'daily' && !daily && !dailyError && (
             <div className="absolute inset-0 flex items-center justify-center"><Loader2 className={`w-8 h-8 animate-spin ${ui.text}`} /></div>
