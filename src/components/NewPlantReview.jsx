@@ -134,6 +134,11 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
       }
       if (chosen === 'pour' && pot !== null && pot !== 'unsure') patch.pot_diameter_in = Number(pot);
       await base44.entities.Plant.update(plant.id, patch);
+      // Now we know if it lives indoors or outdoors: use that spot's watering numbers
+      if (env && env !== local?.environment) {
+        base44.functions.invoke('plus', { action: 'retune', plant_ids: [plant.id] })
+          .then(() => refreshPlantData()).catch(() => { /* the hourly sweep does it */ });
+      }
       refreshPlantData();
       onDone({ ...local, ...patch });
     } catch {
