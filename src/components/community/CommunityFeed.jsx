@@ -4,7 +4,15 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Heart, MessageCircle, Send, Image, Filter, Loader2, Camera, Leaf, Trash2, User } from "lucide-react";
+import { Heart, MessageCircle, Send, Image, Filter, Loader2, Camera, Leaf, Trash2, User, MoreHorizontal, Flag, ShieldX, EyeOff } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { community } from "@/lib/community";
+import ReportSheet from "@/components/community/ReportSheet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,6 +49,7 @@ export default function CommunityFeed() {
   const [followingOnly, setFollowingOnly] = useState(false);
   const [sortMode, setSortMode] = useState('friends_first'); // 'friends_first' | 'newest'
 
+  const [reportTarget, setReportTarget] = useState(null);
   const [showEasterEgg, setShowEasterEgg] = useState(false);
   const [currentGif, setCurrentGif] = useState(0);
   
@@ -185,41 +194,28 @@ export default function CommunityFeed() {
     initialData: [],
   });
 
-  const { data: posts = [], refetch } = useQuery({
-    queryKey: ['posts', user?.email],
-    queryFn: async () => {
-      if (!user) return [];
-      return await base44.entities.Post.list('-created_date', 100);
-    },
+  // Posts, comments, like counts and my likes all come from the community function, which
+  // leaves out anything hidden and anyone blocked (either direction).
+  const { data: feed } = useQuery({
+    queryKey: ['communityFeed', user?.email],
+    queryFn: () => community('feed'),
     enabled: !!user,
-    initialData: [],
   });
+  const posts = feed?.posts || [];
+  const allComments = feed?.comments || {};
+  const userLikes = feed?.liked || [];
+  const isBanned = !!feed?.me?.banned;
+  const refreshFeed = () => queryClient.invalidateQueries({ queryKey: ['communityFeed'] });
 
-  const { data: allComments = {} } = useQuery({
-    queryKey: ['comments'],
-    queryFn: async () => {
-      const comments = await base44.entities.Comment.list('-created_date');
-      const grouped = {};
-      comments.forEach(comment => {
-        if (!grouped[comment.post_id]) grouped[comment.post_id] = [];
-        grouped[comment.post_id].push(comment);
-      });
-      return grouped;
-    },
-    initialData: {},
-    enabled: !!user,
-  });
-
-  // Changed 'likes' to 'userLikes' and modified queryFn to return array of post_ids
-  const { data: userLikes = [] } = useQuery({
-    queryKey: ['userLikes', user?.email],
-    queryFn: async () => {
-      const userLikedPosts = await base44.entities.Like.filter({ user_email: user.email });
-      return userLikedPosts.map(l => l.post_id);
-    },
-    enabled: !!user,
-    initialData: [],
-  });
+  const blockPerson = async (email, name) => {
+    try {
+      await community('block', { email });
+      toast.success(`${name || 'They'} won't see your posts and you won't see theirs. Unblock from their profile.`);
+      refreshFeed();
+    } catch (e) {
+      toast.error(e.message);
+    }
+  };
 
   const { data: userPlants = [] } = useQuery({
     queryKey: ['userPlants', user?.email],
@@ -229,15 +225,14 @@ export default function CommunityFeed() {
   });
 
   const createPostMutation = useMutation({
-    mutationFn: async (postData) => {
-      const moderated = await base44.functions.invoke('moderateContent', { content: postData.content });
-      if (!moderated.data.appropriate) {
-        throw new Error('Post contains inappropriate content');
-      }
-      return base44.entities.Post.create(postData);
-    },
+    // Checked by moderateContent on the server before it's saved (text and photo)
+    mutationFn: (postData) => community('post', {
+      content: postData.content,
+      image_url: postData.image_url,
+      plant_id: postData.plant_id,
+    }),
     onSuccess: () => {
-      queryClient.invalidateQueries(['posts']);
+      refreshFeed();
       setNewPost(""); // Updated state name
       setUploadedImage(null); // Updated state name
       setSelectedPlant(null); // Clear selected plant
@@ -249,82 +244,29 @@ export default function CommunityFeed() {
   });
 
   const likeMutation = useMutation({
-    mutationFn: async ({ postId, isLiked }) => {
-      if (isLiked) {
-        // Find the specific like object to delete
-        const likeToDelete = (await base44.entities.Like.filter({ post_id: postId, user_email: user.email }))[0];
-        if (likeToDelete) {
-          await base44.entities.Like.delete(likeToDelete.id);
-        }
-      } else {
-        const post = posts.find(p => p.id === postId);
-        await base44.entities.Like.create({ post_id: postId, user_email: user.email });
-
-        if (post && post.created_by !== user.email) {
-            const postAuthor = await base44.functions.invoke('getUserByEmail', { email: post.created_by });
-            if (postAuthor?.data?.notifications_enabled !== false) {
-              await base44.entities.Notification.create({
-                user_email: post.created_by,
-                type: 'like',
-                message: `${user.full_name} liked your post`,
-                from_user_email: user.email,
-                from_user_name: user.full_name,
-                from_user_handle: user.handle,
-              });
-              // The push itself is sent by the "Notify on Post Like" automation
-            }
-          }
-      }
+    // Toggles the like on the server, which also sends the in-app notification and keeps the count right
+    mutationFn: ({ postId }) => community('like', { post_id: postId }),
+    onMutate: ({ postId, isLiked }) => {
+      // Show the heart and count change right away
+      queryClient.setQueryData(['communityFeed', user?.email], (old) => old && ({
+        ...old,
+        liked: isLiked ? old.liked.filter((id) => id !== postId) : [...old.liked, postId],
+        posts: old.posts.map((p) => p.id === postId ? { ...p, likes_count: Math.max(0, (p.likes_count || 0) + (isLiked ? -1 : 1)) } : p),
+      }));
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['userLikes']);
-      queryClient.invalidateQueries(['posts']);
+    onError: (error) => {
+      toast.error(error.message);
+      refreshFeed();
     },
+    onSettled: () => refreshFeed(),
   });
 
   const commentMutation = useMutation({
-    mutationFn: async ({ postId, content }) => {
-      console.log('Moderating comment...');
-      const moderated = await base44.functions.invoke('moderateContent', { content });
-      console.log('Moderation result:', moderated);
-      if (!moderated.data.appropriate) {
-        throw new Error('Comment contains inappropriate content');
-      }
-      
-      console.log('Creating comment in DB...');
-      const post = posts.find(p => p.id === postId);
-      if (!post) {
-        console.error('Post not found:', postId);
-        throw new Error('Post not found');
-      }
-      
-      await base44.entities.Comment.create({
-        post_id: postId,
-        content,
-        author_email: user.email,
-        author_name: user.full_name,
-      });
-      console.log('Comment created successfully');
-
-      if (post.created_by !== user.email) {
-         console.log('Creating notification...');
-         const postAuthor = await base44.functions.invoke('getUserByEmail', { email: post.created_by });
-         if (postAuthor?.data?.notifications_enabled !== false) {
-           await base44.entities.Notification.create({
-             user_email: post.created_by,
-             type: 'comment',
-             message: `${user.full_name} commented on your post`,
-             from_user_email: user.email,
-             from_user_name: user.full_name,
-             from_user_handle: user.handle,
-           });
-           // The push itself is sent by the "Notify on Comment" automation
-         }
-       }
-    },
+    // Checked by moderateContent on the server before it's saved; the server also sends the
+    // in-app notification (the push comes from the "Notify on Comment" automation)
+    mutationFn: ({ postId, content }) => community('comment', { post_id: postId, content }),
     onSuccess: (data, variables) => {
-      console.log('Comment mutation succeeded');
-      queryClient.invalidateQueries(['comments']);
+      refreshFeed();
       setCommentInputs(prev => ({ ...prev, [variables.postId]: "" }));
       toast.success('Comment added!');
     },
@@ -337,7 +279,7 @@ export default function CommunityFeed() {
   const deletePostMutation = useMutation({
     mutationFn: (postId) => base44.entities.Post.delete(postId),
     onSuccess: () => {
-      queryClient.invalidateQueries(['posts']);
+      refreshFeed();
       toast.success('Post deleted successfully!');
     },
     onError: (error) => {
@@ -348,7 +290,7 @@ export default function CommunityFeed() {
   const deleteCommentMutation = useMutation({
     mutationFn: (commentId) => base44.entities.Comment.delete(commentId),
     onSuccess: () => {
-      queryClient.invalidateQueries(['comments']);
+      refreshFeed();
       toast.success('Comment deleted successfully!');
     },
     onError: (error) => {
@@ -417,15 +359,15 @@ export default function CommunityFeed() {
   const displayedPosts = useMemo(() => { // eslint-disable-line
     let filtered = posts;
     if (followingOnly) {
-      filtered = posts.filter(p => following.includes(p.created_by) || p.created_by === user?.email);
+      filtered = posts.filter(p => following.includes(p.author_email) || p.author_email === user?.email);
     }
     if (sortMode === 'newest') {
       return [...filtered].sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
     }
     // friends_first: followed users' posts first, then by date
     return [...filtered].sort((a, b) => {
-      const aIsFollowed = following.includes(a.created_by) || a.created_by === user?.email;
-      const bIsFollowed = following.includes(b.created_by) || b.created_by === user?.email;
+      const aIsFollowed = following.includes(a.author_email) || a.author_email === user?.email;
+      const bIsFollowed = following.includes(b.author_email) || b.author_email === user?.email;
       if (aIsFollowed && !bIsFollowed) return -1;
       if (!aIsFollowed && bIsFollowed) return 1;
       return new Date(b.created_date) - new Date(a.created_date);
