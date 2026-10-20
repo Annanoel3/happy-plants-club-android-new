@@ -129,15 +129,15 @@ function meterAdd(m: Meter | null | undefined, step: string, u: { input?: number
 }
 const meterUsd = (m: Meter | null | undefined) => Math.round((m?.calls || []).reduce((s, c) => s + c.usd, 0) * 10000) / 10000;
 
-async function askJson(systemPrompt, imageUrl, userText, maxTokens, meter?: Meter | null, step = 'id') {
+async function askJson(systemPrompt, imageUrl, userText, maxTokens, meter?: Meter | null, step = 'id', model = MODEL) {
     const response = await openai.chat.completions.create({
-        model: MODEL,
+        model,
         messages: [{ role: "system", content: systemPrompt }, imageMessage(imageUrl, userText)],
         response_format: { type: "json_object" },
         max_completion_tokens: maxTokens
     });
     const u: any = response.usage || {};
-    meterAdd(meter, step, { input: u.prompt_tokens, cached: u.prompt_tokens_details?.cached_tokens, output: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens });
+    meterAdd(meter, step, { model, input: u.prompt_tokens, cached: u.prompt_tokens_details?.cached_tokens, output: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens });
     return JSON.parse(response.choices[0].message.content);
 }
 
@@ -316,12 +316,13 @@ async function profileNow(base44: any, plantId: string) {
 
 // onBlind: called with the blind opinion as soon as it's in, so the care sheet can start
 // while the judge works (most of the time the judge keeps the same species).
-async function identify(rid: string, imageUrl: string, context: string, onBlind?: (b: any) => void, meter?: Meter | null) {
+async function identify(rid: string, imageUrl: string, context: string, onBlind?: (b: any) => void, meter?: Meter | null, models: { blind?: string; judge?: string } = {}) {
+    const blindModel = models.blind || MODEL, judgeModel = models.judge || MODEL;
     const t0 = Date.now();
     const timing: Record<string, number | null> = { plantnet_ms: null, blind_ms: null, judge_ms: null };
     const [pn, blind] = await Promise.all([
         identifyWithPlantNet(imageUrl).finally(() => { timing.plantnet_ms = Date.now() - t0; }),
-        askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, imageUrl, "Identify this plant following the method. Return the JSON.", 1200, meter, 'id: botanist')
+        askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, imageUrl, "Identify this plant following the method. Return the JSON.", 1200, meter, 'id: botanist', blindModel)
             .then((b) => { timing.blind_ms = Date.now() - t0; try { onBlind?.(b); } catch { /* ignore */ } return b; })
             .catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; })
     ]);
@@ -369,7 +370,7 @@ ${context}
 
 ${JSON_JUDGE}`;
     const tj = Date.now();
-    const parsed = await askJson(judgePrompt, imageUrl, "Judge the identification. Return the JSON.", 2500, meter, 'id: judge');
+    const parsed = await askJson(judgePrompt, imageUrl, "Judge the identification. Return the JSON.", 2500, meter, 'id: judge', judgeModel);
     timing.judge_ms = Date.now() - tj;
     const { confidence, identification_notes, alternatives, plantnet_agreement, ...plantData } = parsed;
     console.log(`[${rid}] 🌿 Final:`, plantData.name, '|', plantData.scientific_name, '| confidence:', confidence);
@@ -762,8 +763,13 @@ Deno.serve(async (req) => {
             const t0 = Date.now();
             let spec: any = null;
             const r = await identify(rid, String(tp.image_url), contextFor(owner, fake, today), (b) => {
-                if (b?.scientific_name && tp.speculate !== false) spec = { sci: b.scientific_name, p: writeCare(owner, fake, today, { name: b.name, scientific_name: b.scientific_name, meter, step: 'care sheet (started early)', model: tp.model, search_size: tp.search_size, cache: tp.cache === true ? base44.asServiceRole.entities : null }).catch(() => null) };
-            }, meter);
+                if (b?.scientific_name && tp.speculate !== false && tp.care !== false) spec = { sci: b.scientific_name, p: writeCare(owner, fake, today, { name: b.name, scientific_name: b.scientific_name, meter, step: 'care sheet (started early)', model: tp.model, search_size: tp.search_size, cache: tp.cache === true ? base44.asServiceRole.entities : null }).catch(() => null) };
+            }, meter, { blind: tp.blind_model, judge: tp.judge_model });
+            if (tp.care === false) {
+                return Response.json({ success: true, name: r.plantData.name, scientific_name: r.plantData.scientific_name, confidence: r.identification.confidence,
+                    judge: r.identification.judge || 'ran', blind: r.identification.blind_llm, plantnet: r.identification.plantnet_top, plantnet_score: r.identification.plantnet_score,
+                    named_ms: Date.now() - t0, timing: r.identification.timing, cost: { usd: meterUsd(meter), calls: meter.calls } });
+            }
             const namedMs = Date.now() - t0;
             const same = !!spec && sameSpecies(spec.sci, r.plantData.scientific_name);
             let c: any = same ? await spec.p : null;
