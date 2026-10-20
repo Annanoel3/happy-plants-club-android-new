@@ -1008,6 +1008,44 @@ Deno.serve(async (req) => {
                 return Response.json({ error: "Couldn't write this plant's care", detail: (e as Error).message }, { status: 502 });
             };
 
+            // d) A second photo of a named plant (a close-up, a flower, or its nursery tag), sent
+            //    inline (no upload, so no Base44 credit): name it again from both photos, and if
+            //    it's a different plant now, write the care sheet for the new name.
+            if (typeof body.extra_photo === 'string' && body.extra_photo.length) {
+                if (!plant.image_url) return Response.json({ error: 'No photo on this plant' }, { status: 400 });
+                if ((Number(info.extra_tries) || 0) >= 3) return Response.json({ error: 'too_many', detail: 'Three extra photos already tried for this plant' }, { status: 429 });
+                if (body.extra_photo.length > 6_000_000) return Response.json({ error: 'Photo too large' }, { status: 413 });
+                const mime = /^image\/(jpeg|png|webp)$/.test(String(body.mime || '')) ? String(body.mime) : 'image/jpeg';
+                const b64 = body.extra_photo.replace(/^data:[^,]*,/, '');
+                const bin = atob(b64);
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                const meter = newMeter();
+                info.extra_tries = (Number(info.extra_tries) || 0) + 1;
+                const r = await identify(rid, plant.image_url, context, undefined, meter, {}, { bytes, mime, dataUrl: `data:${mime};base64,${b64}` });
+                const judged = r.plantData;
+                const changed = !!judged.scientific_name && !sameSpecies(judged.scientific_name, plant.scientific_name);
+                const choices = r.identification?.confidence === 'high' ? [] : await buildChoices(judged, r.identification?.alternatives || [], r.pn, cache).catch(() => []);
+                const size = PLANT_SIZES.includes(judged.plant_size) ? judged.plant_size : null;
+                await db.Plant.update(plant.id, {
+                    ...(changed ? {
+                        name: String(judged.name || 'Plant').replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 80) || 'Plant',
+                        scientific_name: String(judged.scientific_name).slice(0, 120),
+                        ...(size ? { plant_size: size } : {}),
+                    } : {}),
+                    add_info: { ...info, ...r.identification, choices, extra_photo_at: new Date().toISOString(), extra_cost: { usd: meterUsd(meter), calls: meter.calls },
+                        ...(changed ? { care_pending: true, care_done: false, renamed_from: plant.scientific_name || null } : {}) },
+                });
+                if (!changed) {
+                    const fresh = (await db.Plant.filter({ id: plant.id }))?.[0];
+                    return Response.json({ success: true, changed: false, plant: fresh });
+                }
+                try {
+                    const fresh = await saveCare({ name: judged.name, scientific_name: String(judged.scientific_name).slice(0, 120), plant_size: size, meter: newMeter(), cache }, null);
+                    return Response.json({ success: true, changed: true, plant: fresh });
+                } catch (e) { return careFailed(e); }
+            }
+
             // b) Added by typing its name (Add > type or say names), or named from a photo but its
             //    care sheet didn't finish (app closed, error): write the care sheet once
             const typedPlant = !plant.image_url && info.typed;
