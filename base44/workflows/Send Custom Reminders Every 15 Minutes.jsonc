@@ -1,6 +1,6 @@
 {
   "name": "Send Custom Reminders Every 15 Minutes",
-  "description": "",
+  "description": "Hourly safety net (was every 15 minutes): reminders are queued with OneSignal up to 26 hours ahead with an exact send time, and the app queues each one the moment it is made, so hourly is enough and uses a quarter of the function runs.",
   "trigger": {
     "condition": null,
     "config": {
@@ -10,8 +10,8 @@
       "cron_expression": null,
       "one_time_date": null,
       "timezone": "UTC",
-      "interval_value": 15,
-      "interval_unit": "minutes",
+      "interval_value": 1,
+      "interval_unit": "hours",
       "interval_anchor": "2026-05-29T18:11:32.547000",
       "ends_type": "never",
       "ends_on_date": null,
