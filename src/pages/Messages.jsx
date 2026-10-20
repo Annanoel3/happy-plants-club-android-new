@@ -155,7 +155,7 @@ export default function Messages() {
       </div>
 
       {/* Input */}
-      <div className="theme-card border-t theme-border p-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+      <div className="theme-card border-t theme-border p-4 sticky bottom-0 z-10" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <div className="max-w-4xl mx-auto">
           {canSend ? (
             <div className="flex gap-2">
