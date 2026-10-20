@@ -22,7 +22,7 @@ import NewPlantsNotice from "@/components/NewPlantsNotice";
 import PhotoIdsBar from "@/components/PhotoIdsBar";
 import IdsWelcome from "@/components/IdsWelcome";
 import PlantdokuEgg from "@/components/PlantdokuEgg";
-import { getIdStatus, isWaitingForId, nameWaitingPlants } from "@/lib/plantIds";
+import { getIdStatus, isWaitingForId, nameWaitingPlants, carePending, carePendingNow } from "@/lib/plantIds";
 import { fetchTrips, tripCovering, welcomeBackTrip, niceDay, addDays } from "@/lib/vacation";
 import { whenPopupFree, releasePopup, popupBusy } from "@/lib/popupGate";
 import { toast } from "sonner";
@@ -185,7 +185,8 @@ export default function Dashboard() {
     placeholderData: [], // (was initialData; that would count as fresh under the 30s staleTime and hide the real data)
     enabled: authChecked && !!user && !!user.location,
     // While a new plant is being named on the server, check back every few seconds
-    refetchInterval: (q) => (Array.isArray(q.state.data) && q.state.data.some((p) => p?.add_status === 'identifying') ? 4000 : false),
+    // (and while a named plant's care sheet is still being written)
+    refetchInterval: (q) => (Array.isArray(q.state.data) && q.state.data.some((p) => p?.add_status === 'identifying' || carePendingNow(p)) ? 4000 : false),
     retry: 1,
     // No staleTime: 0 here any more: the garden list is kept for 30s between visits,
     // and every Plant write refreshes it automatically (api/base44Client.js).
@@ -489,7 +490,7 @@ export default function Dashboard() {
   };
 
   // ---- New plants: being named on the server, then "Check your new plant" ----
-  const identifyingPlants = plantsList.filter((p) => p.add_status === 'identifying');
+  const identifyingPlants = plantsList.filter((p) => p.add_status === 'identifying' || carePending(p));
   // One plant added: the check opens right away. Several at once (add_info.bulk) or put off
   // with "Later": no popup per plant; they wait under "Newly added" until the owner opens
   // each one and says where it lives.
@@ -630,7 +631,7 @@ export default function Dashboard() {
   useEffect(() => {
     for (const p of identifyingPlants) {
       if (retriedRef.current.has(p.id)) continue;
-      const started = Date.parse(p.add_info?.started_at || p.created_date) || 0;
+      const started = Date.parse(p.add_info?.care_started_at || p.add_info?.named_at || p.add_info?.started_at || p.created_date) || 0;
       if (Date.now() - started < 3 * 60 * 1000 || (Number(p.add_info?.tries) || 0) >= 3) continue;
       retriedRef.current.add(p.id);
       base44.functions.invoke('identifyPlantWithExpert', { plant_id: p.id }).then(() => refreshPlantData()).catch(() => {});
@@ -898,7 +899,7 @@ export default function Dashboard() {
                       <div className="px-2 py-1.5">
                         <p className={`text-xs font-semibold truncate ${getTextColor()}`}>{naming && !p.add_info?.typed ? 'Naming…' : (p.nickname || p.name)}</p>
                         <p className={`text-[10px] truncate ${getSecondaryTextColor()}`}>
-                          {naming ? (p.add_info?.typed ? 'Looking up its care…' : 'Almost ready') : isWaitingForId(p) ? 'Waiting for a photo ID' : p.add_status === 'failed' ? "Couldn't name it" : (p.scientific_name ? <i>{p.scientific_name}</i> : 'Set it up')}
+                          {naming ? (p.add_info?.typed ? 'Looking up its care…' : 'Almost ready') : carePendingNow(p) ? 'Writing its care…' : isWaitingForId(p) ? 'Waiting for a photo ID' : p.add_status === 'failed' ? "Couldn't name it" : (p.scientific_name ? <i>{p.scientific_name}</i> : 'Set it up')}
                         </p>
                       </div>
                     </button>
