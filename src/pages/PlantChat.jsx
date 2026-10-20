@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { usePhotoSource } from "@/components/PhotoSourceSheet";
 import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
 import { base44 } from "@/api/base44Client";
+import { transcribe } from "@/lib/transcribe";
 import { handleAiLimit } from "@/lib/premium";
 import { useNavigate } from "react-router-dom";
 import { Send, Loader2, Sparkles, Camera, Mic, Square, PanelLeft } from "lucide-react";
@@ -119,8 +120,8 @@ export default function PlantChat() {
           setIsProcessing(true);
           toast.loading('Processing voice...');
           const audioBlob = new Blob([Uint8Array.from(atob(result.value.recordDataBase64), c => c.charCodeAt(0))], { type: 'audio/wav' });
-          const { file_url } = await base44.integrations.Core.UploadFile({ file: audioBlob });
-          const transcript = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
+          // Our own transcription, sent inline (Base44's upload + TranscribeAudio cost credits)
+          const transcript = await transcribe(audioBlob, 'audio/wav');
           setInputMessage(transcript);
           setIsProcessing(false);
           toast.success('Voice transcribed!');
