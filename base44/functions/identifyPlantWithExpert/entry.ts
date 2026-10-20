@@ -106,13 +106,32 @@ function imageMessage(imageUrl, text) {
     };
 }
 
-async function askJson(systemPrompt, imageUrl, userText, maxTokens) {
+// ---- What each plant costs on the OpenAI bill -------------------------------------------
+// Prices: developers.openai.com/docs/models/gpt-6-astra (Oct 2026): $10 input, $1 cached
+// input, $50 output per 1M tokens (output includes reasoning tokens); web search $10 per
+// 1,000 calls. Pl@ntNet is free (500 a day). Saved on each new plant as add_info.cost.
+const PRICE: Record<string, { in: number; cached: number; out: number }> = { [MODEL]: { in: 10, cached: 1, out: 50 } };
+const SEARCH_USD = 0.01;
+type Meter = { calls: any[] };
+const newMeter = (): Meter => ({ calls: [] });
+function meterAdd(m: Meter | null | undefined, step: string, u: { input?: number; cached?: number; output?: number; reasoning?: number; searches?: number }) {
+    if (!m) return;
+    const p = PRICE[MODEL];
+    const input = u.input || 0, cached = u.cached || 0, output = u.output || 0, searches = u.searches || 0;
+    const usd = ((input - cached) * p.in + cached * p.cached + output * p.out) / 1e6 + searches * SEARCH_USD;
+    m.calls.push({ step, input, cached, output, reasoning: u.reasoning || 0, searches, usd: Math.round(usd * 10000) / 10000 });
+}
+const meterUsd = (m: Meter | null | undefined) => Math.round((m?.calls || []).reduce((s, c) => s + c.usd, 0) * 10000) / 10000;
+
+async function askJson(systemPrompt, imageUrl, userText, maxTokens, meter?: Meter | null, step = 'id') {
     const response = await openai.chat.completions.create({
         model: MODEL,
         messages: [{ role: "system", content: systemPrompt }, imageMessage(imageUrl, userText)],
         response_format: { type: "json_object" },
         max_completion_tokens: maxTokens
     });
+    const u: any = response.usage || {};
+    meterAdd(meter, step, { input: u.prompt_tokens, cached: u.prompt_tokens_details?.cached_tokens, output: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens });
     return JSON.parse(response.choices[0].message.content);
 }
 
@@ -291,12 +310,12 @@ async function profileNow(base44: any, plantId: string) {
 
 // onBlind: called with the blind opinion as soon as it's in, so the care sheet can start
 // while the judge works (most of the time the judge keeps the same species).
-async function identify(rid: string, imageUrl: string, context: string, onBlind?: (b: any) => void) {
+async function identify(rid: string, imageUrl: string, context: string, onBlind?: (b: any) => void, meter?: Meter | null) {
     const t0 = Date.now();
     const timing: Record<string, number | null> = { plantnet_ms: null, blind_ms: null, judge_ms: null };
     const [pn, blind] = await Promise.all([
         identifyWithPlantNet(imageUrl).finally(() => { timing.plantnet_ms = Date.now() - t0; }),
-        askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, imageUrl, "Identify this plant following the method. Return the JSON.", 1200)
+        askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, imageUrl, "Identify this plant following the method. Return the JSON.", 1200, meter, 'id: botanist')
             .then((b) => { timing.blind_ms = Date.now() - t0; try { onBlind?.(b); } catch { /* ignore */ } return b; })
             .catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; })
     ]);
@@ -344,7 +363,7 @@ ${context}
 
 ${JSON_JUDGE}`;
     const tj = Date.now();
-    const parsed = await askJson(judgePrompt, imageUrl, "Judge the identification. Return the JSON.", 2500);
+    const parsed = await askJson(judgePrompt, imageUrl, "Judge the identification. Return the JSON.", 2500, meter, 'id: judge');
     timing.judge_ms = Date.now() - tj;
     const { confidence, identification_notes, alternatives, plantnet_agreement, ...plantData } = parsed;
     console.log(`[${rid}] 🌿 Final:`, plantData.name, '|', plantData.scientific_name, '| confidence:', confidence);
@@ -514,7 +533,7 @@ function parseJsonLoose(s: string): any {
     if (a < 0 || b <= a) throw new Error('no JSON in reply');
     return JSON.parse(s.slice(a, b + 1));
 }
-async function askCare(system: string, userText: string, effortIn?: string) {
+async function askCare(system: string, userText: string, effortIn?: string, meter?: Meter | null, step = 'care sheet') {
     const key = Deno.env.get('OPENAI_API_KEY') || '';
     const t0 = Date.now();
     // Low reasoning effort: same numbers and facts in a 4-plant side-by-side test, in half the time (it still
@@ -545,6 +564,8 @@ async function askCare(system: string, userText: string, effortIn?: string) {
                         }
                     }
                 }
+                const u: any = j?.usage || {};
+                meterAdd(meter, step, { input: u.input_tokens, cached: u.input_tokens_details?.cached_tokens, output: u.output_tokens, reasoning: u.output_tokens_details?.reasoning_tokens, searches });
                 const data = parseJsonLoose(text);
                 return { data, searched: tool, searches, cited, ms: Date.now() - t0 };
             } catch (e) {
@@ -558,6 +579,8 @@ async function askCare(system: string, userText: string, effortIn?: string) {
         response_format: { type: 'json_object' },
         max_completion_tokens: 8000,
     });
+    const u: any = r.usage || {};
+    meterAdd(meter, `${step} (no search)`, { input: u.prompt_tokens, cached: u.prompt_tokens_details?.cached_tokens, output: u.completion_tokens, reasoning: u.completion_tokens_details?.reasoning_tokens });
     return { data: JSON.parse(r.choices[0].message.content || '{}'), searched: null, searches: 0, cited: [] as string[], ms: Date.now() - t0 };
 }
 
@@ -572,7 +595,7 @@ function cleanNumbers(x: any, hasRest: boolean) {
 // Write the care sheet for a plant whose name is settled.
 //   ident.scientific_name / ident.name: what the photo ID settled on, or what the owner typed
 //   ident.typed: true when the name came from the owner (fix the spelling, keep the plant)
-async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null; effort?: string }) {
+async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null; effort?: string; meter?: Meter | null; step?: string }) {
     const us = isUsOwner(user);
     const spotBits = [plant?.location, plant?.environment, plant?.pot_type, Number(plant?.pot_diameter_in) > 0 ? `${plant.pot_diameter_in}-inch pot` : null, plant?.sun_exposure].filter(Boolean);
     const who = ident.typed
@@ -585,7 +608,7 @@ async function writeCare(user: any, plant: any, today: string, ident: { name?: s
         spotBits.length ? `What the owner has said about its spot so far: ${spotBits.join(', ')}.` : 'The owner has not said yet where it is kept; give both indoor and outdoor numbers.',
         'Write the care sheet. Return the JSON.',
     ].filter(Boolean).join('\n');
-    const r = await askCare(`${CARE_RULES}\n\n${CARE_JSON}`, userText, ident.effort);
+    const r = await askCare(`${CARE_RULES}\n\n${CARE_JSON}`, userText, ident.effort, ident.meter, ident.step);
     const d = r.data || {};
     const ci = d.care_instructions && typeof d.care_instructions === 'object' ? d.care_instructions : {};
     const wp = d.watering_profile && typeof d.watering_profile === 'object' ? d.watering_profile : {};
