@@ -50,6 +50,7 @@ import PhotoViewer from "@/components/PhotoViewer";
 import WaterCompare from "@/components/WaterCompare";
 import { lightMeterAvailable } from "@/lib/lightMeter";
 import { carePendingNow } from "@/lib/plantIds";
+import { nudgeUpgrade } from '@/lib/upgradeNudge';
 
 export default function PlantDetail() {
   const navigate = useNavigate();
@@ -852,7 +853,7 @@ export default function PlantDetail() {
                 <HealthHistoryCard plant={plant} plus={plus} plusReady={plusReady} ui={ui} onRecheck={() => setHealthOpenKey((k) => k + 1)} />
               </>
             ) : plusReady ? (
-              <button onClick={() => navigate('/Premium')} className={`w-full text-left ${sectionCls}`}>
+              <button onClick={() => nudgeUpgrade('more') || navigate('/Premium')} className={`w-full text-left ${sectionCls}`}>
                 <p className={`font-semibold flex items-center gap-2 ${ui.text}`}><Lock className="w-4 h-4" /> More care with Plus</p>
                 <p className={`text-sm mt-1 ${ui.sub}`}>How many ounces to give, rain and heat adjustments, reminders to feed, mist, turn and repot, and follow-ups after a health check.</p>
               </button>
@@ -1013,7 +1014,7 @@ export default function PlantDetail() {
             ) : (
             <>
             {plusReady && (
-              <button onClick={() => navigate('/Premium')} className={`w-full text-left rounded-2xl p-4 border mb-4 ${getThemedClasses()}`}>
+              <button onClick={() => nudgeUpgrade('timelapse') || navigate('/Premium')} className={`w-full text-left rounded-2xl p-4 border mb-4 ${getThemedClasses()}`}>
                 <p className={`font-semibold ${getTextColor()}`}>🎞️ Growth time-lapse</p>
                 <p className={`text-sm mt-1 ${getSecondaryTextColor()}`}>Plus lines up each photo with the last one, then plays them as a time-lapse and compares before and after.</p>
               </button>

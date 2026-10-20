@@ -13,6 +13,7 @@ import {
   CARE_TYPES, hemisphere, scheduleFromSuggestion, completeCare, saveCareSchedule,
   isPausedForWinter, hasCareSchedule, effectiveNext,
 } from '@/lib/care';
+import { nudgeUpgrade } from '@/lib/upgradeNudge';
 
 export const EVERY_OPTIONS = [1, 2, 3, 4, 5, 7, 10, 14, 21, 30, 45, 60, 90, 120, 180, 365, 540, 730, 1095];
 export function everyText(days) {
@@ -49,7 +50,7 @@ export default function CareScheduleCard({ plant, user, plus, plusReady, ui }) {
   if (!plus) {
     if (!plusReady) return null;
     return (
-      <button onClick={() => navigate('/Premium')} className={`w-full text-left rounded-2xl p-4 border ${ui.card}`}>
+      <button onClick={() => nudgeUpgrade('care') || navigate('/Premium')} className={`w-full text-left rounded-2xl p-4 border ${ui.card}`}>
         <p className={`font-semibold flex items-center gap-2 ${ui.text}`}><Lock className="w-4 h-4" /> Care schedule</p>
         <p className={`text-sm mt-1 ${ui.sub}`}>Plus reminds you when to fertilize, mist, rotate and repot, and only schedules feeding in spring and summer.</p>
       </button>

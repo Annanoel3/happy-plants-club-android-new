@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { nudgeUpgrade } from '@/lib/upgradeNudge';
 
 export default function PlantHealthCheck({ plant, openKey = 0 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -271,7 +272,7 @@ export default function PlantHealthCheck({ plant, openKey = 0 }) {
                         </div>
                       )}
                       {!plusResult && plusReady && check?.status && check.status !== 'healthy' && (
-                        <button onClick={() => navigate('/Premium')} className="mt-4 w-full text-left text-sm rounded-xl p-3 bg-green-50 text-green-900 border border-green-200">
+                        <button onClick={() => nudgeUpgrade('plan') || navigate('/Premium')} className="mt-4 w-full text-left text-sm rounded-xl p-3 bg-green-50 text-green-900 border border-green-200">
                           🌿 Plus turns this into a step-by-step plan, reminds you to re-check, and shows if it's getting better.
                         </button>
                       )}

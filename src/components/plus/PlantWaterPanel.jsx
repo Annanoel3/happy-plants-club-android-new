@@ -10,6 +10,7 @@ import { waterAmount, POT_SIZES } from '@/lib/waterAmount';
 import { todayHint, getsRain, weatherApplies, setGetsRain, RAIN_ENVS } from '@/lib/weather';
 import LocationDialog from '@/components/plus/LocationDialog';
 import WaterCompare from '@/components/WaterCompare';
+import { nudgeUpgrade } from '@/lib/upgradeNudge';
 
 // Plant page: "How to water" — how much (oz) and what today's weather changed. Plus.
 export default function PlantWaterPanel({ plant, user, plus, plusReady, ui }) {
@@ -22,7 +23,7 @@ export default function PlantWaterPanel({ plant, user, plus, plusReady, ui }) {
   if (!plus) {
     if (!plusReady) return null;
     return (
-      <button onClick={() => navigate('/Premium')} className={`w-full text-left rounded-2xl p-4 border ${ui.card}`}>
+      <button onClick={() => nudgeUpgrade('water') || navigate('/Premium')} className={`w-full text-left rounded-2xl p-4 border ${ui.card}`}>
         <p className={`font-semibold flex items-center gap-2 ${ui.text}`}><Lock className="w-4 h-4" /> How much to water</p>
         <p className={`text-sm mt-1 ${ui.sub}`}>Plus tells you how many ounces this plant needs and adjusts for rain and heat outside.</p>
       </button>

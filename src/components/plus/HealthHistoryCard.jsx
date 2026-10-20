@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
 import { localToday } from '@/lib/dates';
+import { nudgeUpgrade } from '@/lib/upgradeNudge';
 
 const STATUS = {
   healthy: { label: 'Healthy', light: 'bg-green-100 text-green-800', dark: 'bg-green-700 text-white' },
@@ -31,7 +32,7 @@ export default function HealthHistoryCard({ plant, plus, plusReady, ui, onRechec
   if (!plus) {
     if (!plusReady) return null;
     return (
-      <button onClick={() => navigate('/Premium')} className={`w-full text-left rounded-2xl p-4 border ${ui.card}`}>
+      <button onClick={() => nudgeUpgrade('followup') || navigate('/Premium')} className={`w-full text-left rounded-2xl p-4 border ${ui.card}`}>
         <p className={`font-semibold flex items-center gap-2 ${ui.text}`}><Lock className="w-4 h-4" /> Plant doctor follow-up</p>
         <p className={`text-sm mt-1 ${ui.sub}`}>Plus keeps every health check, gives a step-by-step plan, and reminds you to re-check.</p>
       </button>
