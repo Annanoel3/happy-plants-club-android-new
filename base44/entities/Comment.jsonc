@@ -11,6 +11,14 @@
       "description": "The comment content",
       "type": "string"
     },
+    "hidden": {
+      "default": false,
+      "description": "Hidden by a moderator or by 3+ reports",
+      "type": "boolean"
+    },
+    "hidden_reason": {
+      "type": "string"
+    },
     "post_id": {
       "description": "ID of the post this comment belongs to",
       "type": "string"
@@ -22,13 +30,26 @@
   ],
   "rls": {
     "create": {
-      "data.author_email": "{{user.email}}"
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "delete": {
-      "data.author_email": "{{user.email}}"
+      "$or": [
+        {
+          "data.author_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
     },
     "update": {
-      "data.author_email": "{{user.email}}"
+      "user_condition": {
+        "role": "admin"
+      }
     }
   },
   "type": "object"
