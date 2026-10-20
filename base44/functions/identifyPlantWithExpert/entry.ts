@@ -264,7 +264,7 @@ function contextFor(user: any, plant: any, day: string): string {
     const label = String(user?.location_label || '');
     const us = !label || /,\s*(US|USA|United States)\s*$/i.test(label);
     lines.push(us
-        ? 'Write every care text in US units: temperatures in °F, lengths and depths in inches, water in fluid ounces. Never use °C, cm or mL.'
+        ? 'Write every care text in US units and American spelling: temperatures in °F, lengths and depths in inches, water in fluid ounces. Never use °C, cm or mL.'
         : 'Write every care text in metric units: temperatures in °C, lengths in cm, water in mL.');
     return lines.join('\n');
 }
@@ -614,6 +614,17 @@ Deno.serve(async (req) => {
         // it calls with the sweep key and works as the plant's owner.
         const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
         const svc = !!(sweepKey && body?.key && body.key === sweepKey && body?.plant_id);
+
+        // Admin test: write a care sheet for a name without saving anything
+        // { key, test_care: { scientific_name, name?, typed?, environment?, location?, owner_email } }
+        if (sweepKey && body?.key === sweepKey && body?.test_care) {
+            const tc = body.test_care;
+            const owner = (await base44.asServiceRole.entities.User.filter({ email: String(tc.owner_email || '') }))?.[0] || {};
+            const fake = { environment: tc.environment || null, location: tc.location || null };
+            const today = aiLocalDay(owner.timezone);
+            const c = await writeCare(owner, fake, today, { name: tc.name, scientific_name: tc.scientific_name, typed: !!tc.typed });
+            return Response.json({ success: true, today, ...c });
+        }
         let user: any = null;
         if (!svc) {
             try { user = await base44.auth.me(); } catch { user = null; }
@@ -644,32 +655,60 @@ Deno.serve(async (req) => {
                 info.id_paid = t.day || today;
             }
             const context = contextFor(user, plant, today);
+            // Seasonal numbers belong to the plant the care sheet was written for
+            const clearSeasons = (p: any) => (p.care_profile?.user_interval ? {} : { water_days_grow: null, water_days_rest: null, water_rest_season: null, water_season: null });
 
             // a) Owner typed a different scientific name
             if (corrected) {
-                const raw = await careForName(plant.image_url || null, corrected, context);
-                const d = cleanPlantData({ ...raw, scientific_name: raw?.scientific_name || corrected });
+                const c = await writeCare(user, plant, today, { scientific_name: corrected, typed: true });
+                const d = c.fields;
                 const last = String(plant.last_watered || '').slice(0, 10) || today;
-                const prof = { ...(plant.care_profile || {}) };
-                delete prof.v; // re-profile for the new plant, keeping the owner's own choices
-                prof.prev_every = d.water_frequency_days;
                 const patch: any = {
                     ...d,
+                    ...clearSeasons(plant),
                     next_watering_due: addDays(last, d.water_frequency_days),
-                    care_profile: prof,
-                    add_info: { ...info, error: null, renamed_from: plant.scientific_name || null, renamed_at: new Date().toISOString() },
+                    care_profile: pendingProfile(plant, c.ai, d.water_frequency_days),
+                    add_info: { ...info, error: null, renamed_from: plant.scientific_name || null, renamed_at: new Date().toISOString(), care_done: true },
                     // A plant we couldn't name is named now: on to the check
                     ...(plant.add_status === 'failed' || plant.add_status === 'identifying' ? { add_status: 'review' } : {}),
                 };
-                // Seasonal numbers belonged to the old name
-                if (!prof.user_interval) { patch.water_days_grow = null; patch.water_days_rest = null; patch.water_rest_season = null; patch.water_season = null; }
                 await db.Plant.update(plant.id, patch);
                 if (!svc) await profileNow(base44, plant.id);
                 const fresh = (await db.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
                 return Response.json({ success: true, plant: fresh });
             }
 
-            // b) Identify from the photo
+            // b) Added by typing its name (Add > type or say names): write its care sheet once
+            if (!plant.image_url && info.typed) {
+                if (info.care_done) return Response.json({ success: true, plant });
+                info.tries = (Number(info.tries) || 0) + 1;
+                info.started_at = new Date().toISOString();
+                delete info.error;
+                try {
+                    const c = await writeCare(user, plant, today, { name: plant.name, scientific_name: plant.scientific_name || plant.name, typed: true });
+                    const d = c.fields;
+                    const last = String(plant.last_watered || '').slice(0, 10) || today;
+                    const patch: any = {
+                        ...d,
+                        ...clearSeasons(plant),
+                        last_watered: last,
+                        next_watering_due: addDays(last, d.water_frequency_days),
+                        care_profile: pendingProfile(plant, c.ai, d.water_frequency_days),
+                        add_status: info.final_status === 'done' ? 'done' : 'review',
+                        add_info: { ...info, care_done: true, done_at: new Date().toISOString() },
+                    };
+                    await db.Plant.update(plant.id, patch);
+                    if (!svc) await profileNow(base44, plant.id);
+                    const fresh = (await db.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
+                    return Response.json({ success: true, plant: fresh });
+                } catch (e) {
+                    console.error(`[${rid}] care for typed plant failed`, (e as Error).message);
+                    await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: (e as Error).message.slice(0, 200) } }).catch(() => {});
+                    return Response.json({ error: "Couldn't write this plant's care", detail: (e as Error).message }, { status: 502 });
+                }
+            }
+
+            // c) Identify from the photo, then write the care sheet for that name (not from the photo)
             if (!plant.image_url) return Response.json({ error: 'No photo on this plant' }, { status: 400 });
             info.tries = (Number(info.tries) || 0) + 1;
             info.started_at = new Date().toISOString();
@@ -677,17 +716,24 @@ Deno.serve(async (req) => {
             await db.Plant.update(plant.id, { add_status: 'identifying', add_info: info });
             try {
                 const r = await identify(rid, plant.image_url, context);
-                const d = cleanPlantData(r.plantData);
+                const c = await writeCare(user, plant, today, {
+                    name: r.plantData.name, scientific_name: r.plantData.scientific_name,
+                    plant_size: PLANT_SIZES.includes(r.plantData.plant_size) ? r.plantData.plant_size : null,
+                });
+                const d = c.fields;
                 const last = String(plant.last_watered || '').slice(0, 10) || today;
                 // Added in bulk with the area already picked, and a sure name: nothing left to
                 // ask, so it skips "Newly added". Otherwise the owner checks it.
                 const settled = info.bulk && String(plant.location || '').trim() && r.identification?.confidence === 'high';
                 const patch = {
                     ...d,
+                    ...clearSeasons(plant),
+                    ...(PLANT_SIZES.includes(r.plantData.plant_size) ? { plant_size: r.plantData.plant_size } : {}),
                     last_watered: last,
                     next_watering_due: addDays(last, d.water_frequency_days),
+                    care_profile: pendingProfile(plant, c.ai, d.water_frequency_days),
                     add_status: settled ? 'done' : 'review',
-                    add_info: { ...info, ...r.identification, done_at: new Date().toISOString() },
+                    add_info: { ...info, ...r.identification, care_done: true, done_at: new Date().toISOString() },
                 };
                 await db.Plant.update(plant.id, patch);
                 if (!svc) await profileNow(base44, plant.id);
@@ -708,7 +754,8 @@ Deno.serve(async (req) => {
         if (t.blocked) return t.blocked;
         console.log(`[${rid}] 🌱 identifyPlantWithExpert`, image_url);
         const r = await identify(rid, image_url, contextFor(user, null, today));
-        return Response.json({ success: true, plantData: r.plantData, identification: r.identification });
+        const c = await writeCare(user, null, today, { name: r.plantData.name, scientific_name: r.plantData.scientific_name });
+        return Response.json({ success: true, plantData: { ...r.plantData, ...c.fields }, identification: r.identification });
     } catch (error) {
         console.error(`[${rid}] Error in identifyPlantWithExpert:`, error.message);
         return Response.json({ error: error.message }, { status: 500 });
