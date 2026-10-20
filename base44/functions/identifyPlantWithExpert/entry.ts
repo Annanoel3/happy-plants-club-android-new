@@ -456,7 +456,13 @@ function toUsUnits(s: string): string {
 // Sentences about the photo or the identification don't belong in a care sheet.
 const PHOTO_TALK = /\b(photo|photograph|picture|pictured|image|snapshot)s?\b|\b(?:can ?not|can't|couldn't) be (?:determined|assessed|confirmed|seen|told)|identification (?:is |was |remains )?(?:uncertain|unclear|not certain|tentative)|\bthis (?:specimen|particular pot|container)\b/i;
 function tidyText(s: any, us: boolean): string {
-    let t = String(s || '').replace(/\s+/g, ' ').trim();
+    let t = String(s || '')
+        // web-search citations: "([nc.edu](https://...))", "[NC State](https://...)", bare URLs
+        .replace(/\s*\(\s*\[[^\]]*\]\([^)]*\)\s*\)/g, '')
+        .replace(/\[([^\]]+)\]\((?:https?:)?[^)]*\)/g, '$1')
+        .replace(/\s*\(?https?:\/\/\S+\)?/g, '')
+        .replace(/\s+([.,;])/g, '$1')
+        .replace(/\s+/g, ' ').trim();
     if (!t) return '';
     const kept = t.split(/(?<=[.!?])\s+(?=[A-Z"'(])/).filter((x) => !PHOTO_TALK.test(x));
     t = kept.join(' ').trim();
@@ -564,7 +570,7 @@ async function writeCare(user: any, plant: any, today: string, ident: { name?: s
     const ai = {
         source: 'care', group: PROFILE_GROUPS.includes(wp.group) ? wp.group : 'other', method, strict: !!wp.strict,
         drought_tolerant: dry === 'dry' || (!!wp.drought_tolerant && dry !== 'moist'), dry_rule: dry, rest_season: restSeason, numbers,
-        water_tpl: tpl, why: typeof wp.why === 'string' ? wp.why.slice(0, 200) : null, sources,
+        water_tpl: tpl, why: typeof wp.why === 'string' ? tidyText(wp.why, us).slice(0, 200) : null, sources,
     };
     const name = String(d.name || ident.name || 'Plant').replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 80);
     const sci = ident.typed ? String(d.scientific_name || ident.scientific_name || ident.name || '').slice(0, 120) : String(ident.scientific_name || d.scientific_name || '').slice(0, 120);
