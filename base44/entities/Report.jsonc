@@ -1,0 +1,113 @@
+{
+  "name": "Report",
+  "properties": {
+    "details": {
+      "type": "string"
+    },
+    "reason": {
+      "enum": [
+        "spam",
+        "harassment",
+        "hate",
+        "sexual",
+        "violence",
+        "self_harm",
+        "other",
+        "auto_blocked"
+      ],
+      "type": "string"
+    },
+    "reporter_email": {
+      "description": "Who reported it ('auto' for the automatic filter)",
+      "type": "string"
+    },
+    "resolved_at": {
+      "type": "string"
+    },
+    "resolved_by": {
+      "type": "string"
+    },
+    "resolved_note": {
+      "type": "string"
+    },
+    "source": {
+      "default": "user",
+      "enum": [
+        "user",
+        "auto"
+      ],
+      "type": "string"
+    },
+    "status": {
+      "default": "open",
+      "enum": [
+        "open",
+        "removed",
+        "dismissed"
+      ],
+      "type": "string"
+    },
+    "target_email": {
+      "description": "Email of the person who wrote the content, or the reported user",
+      "type": "string"
+    },
+    "target_id": {
+      "description": "ID of the reported post/comment/message (empty for a user report)",
+      "type": "string"
+    },
+    "target_image": {
+      "type": "string"
+    },
+    "target_name": {
+      "type": "string"
+    },
+    "target_preview": {
+      "description": "Copy of the reported text at the time of the report",
+      "type": "string"
+    },
+    "target_type": {
+      "description": "What was reported",
+      "enum": [
+        "post",
+        "comment",
+        "user",
+        "message"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "target_type",
+    "reason"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "$or": [
+        {
+          "data.reporter_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "type": "object"
+}
