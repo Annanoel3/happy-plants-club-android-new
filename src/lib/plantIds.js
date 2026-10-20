@@ -35,11 +35,13 @@ export const canWatchForIds = (ids) => !!ids?.can_reward && rewardedAvailable();
 export async function nameNewPlants(plantIds) {
   let approved = plantIds;
   let waiting = [];
+  let ids = null;
   try {
     const { data } = await base44.functions.invoke('premium', { action: 'reserve_ids', plant_ids: plantIds });
     if (data?.success) {
       approved = data.approved || [];
       waiting = data.waiting || [];
+      ids = data.ids || null;
       remember(data.ids);
     }
   } catch {
@@ -51,7 +53,7 @@ export async function nameNewPlants(plantIds) {
       .catch(() => refreshPlantData());
   }
   if (waiting.length) refreshPlantData();
-  return { approved, waiting };
+  return { approved, waiting, ids };
 }
 
 /** Plants added by typing their names: write each one's care sheet (no photo ID used).
