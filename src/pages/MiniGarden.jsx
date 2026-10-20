@@ -192,8 +192,19 @@ export default function MiniGarden() {
     const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
   }, []);
-  // Leaving the screen: keep the daily's time
-  useEffect(() => () => { pauseClock(); }, []);
+  // Leaving the screen (or switching to practice): keep the daily's time, not just its plants
+  const modeRef = useRef(mode);
+  const resultRef = useRef(result);
+  modeRef.current = mode;
+  resultRef.current = result;
+  const saveDailyTime = () => {
+    if (modeRef.current !== 'daily' || resultRef.current) return;
+    try {
+      const s = JSON.parse(localStorage.getItem(storeKey(today)) || 'null');
+      if (s) localStorage.setItem(storeKey(today), JSON.stringify({ ...s, ms: Math.round(elapsedMs()) }));
+    } catch { /* ignore */ }
+  };
+  useEffect(() => () => { pauseClock(); saveDailyTime(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openTutorial = () => { pauseClock(); setTutorial(true); };
   const closeTutorial = () => {
@@ -271,6 +282,8 @@ export default function MiniGarden() {
   };
 
   const newPractice = (lv) => {
+    pauseClock();
+    saveDailyTime();
     adBeforeNext();
     setLevel(lv);
     setMode('practice');
