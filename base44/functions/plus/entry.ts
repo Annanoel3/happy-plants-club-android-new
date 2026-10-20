@@ -434,7 +434,9 @@ async function weatherNote(db: any, user: any, now: number, memo: Map<string, an
             console.warn('weather note model failed, using template', (e as Error).message);
         }
     }
-    return { message, location: f.place, facts: f };
+    // A real warning: frost/freeze for outdoor plants, or extreme heat
+    const warning = (outdoor && f.low_f !== null && f.low_f <= 35) || f.high_f >= 100;
+    return { message, location: f.place, facts: f, warning };
 }
 
 // ---------------------------------------------------------------- care pushes
