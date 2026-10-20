@@ -275,17 +275,6 @@ function addDays(day: string, n: number): string {
 }
 const PLANT_TYPES = ['Houseplants', 'Succulents & Cacti', 'Flowers', 'Herbs', 'Vegetables', 'Trees & Shrubs', 'Perennials', 'Annuals', 'Seedlings'];
 const PLANT_SIZES = ['Seedling', 'Small', 'Medium', 'Large', 'Mature'];
-function cleanPlantData(d: any) {
-    const freq = Math.round(Number(d?.water_frequency_days));
-    return {
-        name: String(d?.name || 'Plant').slice(0, 80),
-        scientific_name: d?.scientific_name ? String(d.scientific_name).slice(0, 120) : null,
-        care_instructions: d?.care_instructions && typeof d.care_instructions === 'object' ? d.care_instructions : {},
-        water_frequency_days: Number.isFinite(freq) ? Math.min(60, Math.max(1, freq)) : 7,
-        ...(PLANT_SIZES.includes(d?.plant_size) ? { plant_size: d.plant_size } : {}),
-        ...(PLANT_TYPES.includes(d?.plant_type) ? { plant_type: d.plant_type } : {}),
-    };
-}
 
 // Give the plant its watering profile right away (how it's watered, finicky or not,
 // seasonal intervals). If this fails, the garden page and the hourly sweep do it later.
@@ -642,11 +631,12 @@ Deno.serve(async (req) => {
             const today = aiLocalDay(user.timezone);
             const info = { ...(plant.add_info || {}) };
             const corrected = typeof body.scientific_name === 'string' ? body.scientific_name.trim().slice(0, 120) : '';
-            if (corrected) {
+            const typedNew = !corrected && !plant.image_url && !!info.typed && !info.care_done;
+            if (corrected || typedNew) {
                 // Typing a name isn't a photo ID
                 const q = await useAiQuota(base44, user, 'rename');
                 if (!q.allowed) return aiLimitResponse('rename', q);
-            } else if (!info.id_paid) {
+            } else if (!info.id_paid && plant.image_url) {
                 const t = await takeOneId(base44, user);
                 if (t.blocked) {
                     await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: 'limit_reached' } }).catch(() => {});
