@@ -692,83 +692,109 @@ Deno.serve(async (req) => {
                 return Response.json({ success: true, plant: fresh });
             }
 
-            // b) Added by typing its name (Add > type or say names): write its care sheet once
-            if (!plant.image_url && info.typed) {
+            // Write the care sheet for a plant that already has its name and save it. The owner
+            // can be setting the plant up meanwhile (where it lives, pot, how it's watered), so
+            // this re-reads the plant and only touches the care fields; if they renamed it in the
+            // meantime, the rename wrote its own care sheet and this one is dropped.
+            //   ready: a care sheet already being written (the photo flow starts one early)
+            const saveCare = async (ident: any, ready: Promise<any> | null, extraInfo: any = {}) => {
+                const t0 = Date.now();
+                let c: any = ready ? await ready : null;
+                const early = !!c;
+                if (!c) c = await writeCare(user, plant, today, ident);
+                const fresh = (await db.Plant.filter({ id: plant.id }))?.[0];
+                if (!fresh) return null;
+                const fi = fresh.add_info || {};
+                if (fi.renamed_at && Date.parse(fi.renamed_at) >= t0 - 1000 && !ident.typed_rename) return fresh;
+                const d = c.fields;
+                // Numbers for where it lives NOW (the owner may have just said)
+                const n = c.ai?.numbers?.[spotOf(fresh.environment)] || null;
+                const every = n ? (restNow(today, user?.location_lat, c.ai.rest_season) ? (n.rest || n.grow) : n.grow) : d.water_frequency_days;
+                const last = String(fresh.last_watered || '').slice(0, 10) || today;
+                const own = !!fresh.care_profile?.user_interval;
+                const patch: any = {
+                    care_instructions: d.care_instructions,
+                    ...(d.plant_type ? { plant_type: d.plant_type } : {}),
+                    // Typed names: the care sheet fixes the spelling and finds the scientific name.
+                    // Photo IDs keep the identified name unless the owner already changed it.
+                    ...(ident.typed ? { name: d.name, scientific_name: d.scientific_name } : (fresh.name === ident.name && d.name ? { name: d.name } : {})),
+                    ...(own ? {} : { ...clearSeasons(fresh), water_frequency_days: every, next_watering_due: addDays(last, every) }),
+                    last_watered: last,
+                    care_profile: pendingProfile(fresh, c.ai, every),
+                    add_info: { ...fi, ...extraInfo, care_pending: false, care_done: true, care_error: null, done_at: new Date().toISOString(),
+                        care_run: { early, searches: c.meta?.searches ?? null, ms: Date.now() - t0 } },
+                };
+                if (fresh.add_status === 'identifying') patch.add_status = fi.final_status === 'done' ? 'done' : 'review';
+                await db.Plant.update(plant.id, patch);
+                if (!svc) await profileNow(base44, plant.id);
+                return (await db.Plant.filter({ id: plant.id }))?.[0] || { ...fresh, ...patch };
+            };
+            const careFailed = async (e: any) => {
+                console.error(`[${rid}] care sheet failed`, (e as Error).message);
+                const fresh = (await db.Plant.filter({ id: plant.id }))?.[0] || plant;
+                await db.Plant.update(plant.id, { add_info: { ...(fresh.add_info || {}), care_pending: true, care_error: (e as Error).message.slice(0, 200) } }).catch(() => {});
+                return Response.json({ error: "Couldn't write this plant's care", detail: (e as Error).message }, { status: 502 });
+            };
+
+            // b) Added by typing its name (Add > type or say names), or named from a photo but its
+            //    care sheet didn't finish (app closed, error): write the care sheet once
+            const typedPlant = !plant.image_url && info.typed;
+            const namedNoCare = !!plant.image_url && info.care_pending && !info.care_done && !!plant.scientific_name;
+            if (typedPlant || namedNoCare) {
                 if (info.care_done) return Response.json({ success: true, plant });
                 info.tries = (Number(info.tries) || 0) + 1;
-                info.started_at = new Date().toISOString();
-                delete info.error;
+                info.care_started_at = new Date().toISOString();
+                if (typedPlant) info.started_at = info.care_started_at;
+                await db.Plant.update(plant.id, { add_info: { ...info, care_pending: true } }).catch(() => {});
                 try {
-                    const c = await writeCare(user, plant, today, { name: plant.name, scientific_name: plant.scientific_name || plant.name, typed: true });
-                    const d = c.fields;
-                    const last = String(plant.last_watered || '').slice(0, 10) || today;
-                    const patch: any = {
-                        ...d,
-                        ...clearSeasons(plant),
-                        last_watered: last,
-                        next_watering_due: addDays(last, d.water_frequency_days),
-                        care_profile: pendingProfile(plant, c.ai, d.water_frequency_days),
-                        add_status: info.final_status === 'done' ? 'done' : 'review',
-                        add_info: { ...info, care_done: true, done_at: new Date().toISOString() },
-                    };
-                    await db.Plant.update(plant.id, patch);
-                    if (!svc) await profileNow(base44, plant.id);
-                    const fresh = (await db.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
+                    const fresh = await saveCare(typedPlant
+                        ? { name: plant.name, scientific_name: plant.scientific_name || plant.name, typed: true }
+                        : { name: plant.name, scientific_name: plant.scientific_name, plant_size: plant.plant_size || null }, null);
                     return Response.json({ success: true, plant: fresh });
-                } catch (e) {
-                    console.error(`[${rid}] care for typed plant failed`, (e as Error).message);
-                    await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: (e as Error).message.slice(0, 200) } }).catch(() => {});
-                    return Response.json({ error: "Couldn't write this plant's care", detail: (e as Error).message }, { status: 502 });
-                }
+                } catch (e) { return careFailed(e); }
             }
 
-            // c) Identify from the photo, then write the care sheet for that name (not from the photo)
+            // c) Identify from the photo. The name is saved as soon as it's settled, so the owner
+            //    can set the plant up right away; the care sheet (written for that name, not from
+            //    the photo, and usually already started while the name was being settled) is saved
+            //    a few seconds later.
             if (!plant.image_url) return Response.json({ error: 'No photo on this plant' }, { status: 400 });
             info.tries = (Number(info.tries) || 0) + 1;
             info.started_at = new Date().toISOString();
             delete info.error;
             await db.Plant.update(plant.id, { add_status: 'identifying', add_info: info });
+            let spec: any = null;
+            let r: any = null;
             try {
-                // Start the care sheet for the blind opinion's species while the judge works;
-                // use it if the judge settles on the same species, else write it again.
-                let spec: any = null;
-                const r = await identify(rid, plant.image_url, context, (b) => {
+                // Start the care sheet for the blind opinion's species while the name is settled;
+                // use it if the final name is the same species, else write it again.
+                r = await identify(rid, plant.image_url, context, (b) => {
                     if (b?.scientific_name) spec = { sci: b.scientific_name, p: writeCare(user, plant, today, { name: b.name, scientific_name: b.scientific_name }).catch(() => null) };
                 });
-                const tJudged = Date.now();
-                let c: any = spec && sameSpecies(spec.sci, r.plantData.scientific_name) ? await spec.p : null;
-                const early = !!c;
-                if (c) c.fields.scientific_name = String(r.plantData.scientific_name || c.fields.scientific_name).slice(0, 120);
-                else c = await writeCare(user, plant, today, {
-                    name: r.plantData.name, scientific_name: r.plantData.scientific_name,
-                    plant_size: PLANT_SIZES.includes(r.plantData.plant_size) ? r.plantData.plant_size : null,
-                });
-                console.log(`[${rid}] care sheet: ${early ? 'early (same species)' : 'after judge'}`);
-                info.care_run = { early, blind: spec?.sci || null, wait_after_judge_ms: Date.now() - tJudged, searches: c.meta?.searches ?? null, total_ms: Date.now() - Date.parse(info.started_at) };
-                const d = c.fields;
-                const last = String(plant.last_watered || '').slice(0, 10) || today;
-                // Added in bulk with the area already picked, and a sure name: nothing left to
-                // ask, so it skips "Newly added". Otherwise the owner checks it.
-                const settled = info.bulk && String(plant.location || '').trim() && r.identification?.confidence === 'high';
-                const patch = {
-                    ...d,
-                    ...clearSeasons(plant),
-                    ...(PLANT_SIZES.includes(r.plantData.plant_size) ? { plant_size: r.plantData.plant_size } : {}),
-                    last_watered: last,
-                    next_watering_due: addDays(last, d.water_frequency_days),
-                    care_profile: pendingProfile(plant, c.ai, d.water_frequency_days),
-                    add_status: settled ? 'done' : 'review',
-                    add_info: { ...info, ...r.identification, care_done: true, done_at: new Date().toISOString() },
-                };
-                await db.Plant.update(plant.id, patch);
-                if (!svc) await profileNow(base44, plant.id);
-                const fresh = (await db.Plant.filter({ id: plant.id }))?.[0] || { ...plant, ...patch };
-                return Response.json({ success: true, plant: fresh });
             } catch (e) {
                 console.error(`[${rid}] identify failed`, (e as Error).message);
                 await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: (e as Error).message.slice(0, 200) } }).catch(() => {});
                 return Response.json({ error: "Couldn't identify this plant", detail: (e as Error).message }, { status: 502 });
             }
+            const judged = r.plantData;
+            const size = PLANT_SIZES.includes(judged.plant_size) ? judged.plant_size : null;
+            // Added in bulk with the area already picked, and a sure name: nothing left to
+            // ask, so it skips "Newly added". Otherwise the owner checks it.
+            const settled = info.bulk && String(plant.location || '').trim() && r.identification?.confidence === 'high';
+            const named = {
+                name: String(judged.name || 'Plant').replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 80) || 'Plant',
+                scientific_name: judged.scientific_name ? String(judged.scientific_name).slice(0, 120) : null,
+                ...(size ? { plant_size: size } : {}),
+                add_status: settled ? 'done' : 'review',
+                add_info: { ...info, ...r.identification, care_pending: true, named_at: new Date().toISOString(),
+                    named_ms: Date.now() - Date.parse(info.started_at) },
+            };
+            await db.Plant.update(plant.id, named);
+            try {
+                const ready = spec && sameSpecies(spec.sci, judged.scientific_name) ? spec.p : null;
+                const fresh = await saveCare({ name: named.name, scientific_name: named.scientific_name, plant_size: size }, ready);
+                return Response.json({ success: true, plant: fresh });
+            } catch (e) { return careFailed(e); }
         }
 
         // ---- Old flow (older app screens): identify a photo and return the data
