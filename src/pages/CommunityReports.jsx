@@ -95,7 +95,7 @@ export default function CommunityReports() {
                     </button>
                   )}
                   {r.status === 'open' && (
-                    <button disabled={busy === r.id} onClick={() => resolve(r, r.target_type === 'user' ? 'remove' : 'dismiss')}
+                    <button disabled={busy === r.id} onClick={() => resolve(r, 'dismiss')}
                       className={`px-3 py-2 rounded-xl text-sm font-semibold border flex items-center gap-1 ${ui.chip}`}>
                       <Check className="w-4 h-4" /> {r.target_type === 'user' ? 'Mark reviewed' : 'Dismiss'}
                     </button>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Home, Calendar, MessageCircle, Settings, Sun, Moon, Leaf, User, Search, Puzzle } from "lucide-react";
+import { Home, Calendar, MessageCircle, Settings, Sun, Moon, Leaf, User, Search, Puzzle, Flag } from "lucide-react";
 import { plantdokuFound } from "@/lib/plantdoku/egg";
 import { base44 } from "@/api/base44Client";
 import { scheduleStatsSync } from "@/lib/stats";
@@ -202,6 +202,8 @@ function LayoutContent({ children, currentPageName }) {
     { title: "Community", url: "/Feed", icon: MessageCircle, badge: user?.notifications_enabled !== false ? feedNotifications.length : 0 },
     { title: "Plant Expert", url: "/PlantChat", icon: MessageCircle },
     ...(showPd ? [{ title: "Garden Games", url: "/Games", icon: Puzzle }] : []),
+    // Admins only: review Community reports
+    ...(user?.role === "admin" ? [{ title: "Reports", url: "/CommunityReports", icon: Flag }] : []),
     { title: "Settings", url: "/Settings", icon: Settings },
   ];
 
