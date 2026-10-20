@@ -33,7 +33,7 @@ function onVacation(p: any, today: string): boolean {
 
 // Plus: how much to water, in US fl oz. Same formula as src/lib/waterAmount.js:
 // ~10% of the pot's volume (RHS rule of thumb); volume ≈ 0.545 × width³ in³; 1 in³ = 0.554 fl oz.
-const GUESS_BY_PLANT_SIZE: Record<string, number> = { Seedling: 3, Small: 4, Medium: 6, Large: 10, Mature: 12 };
+// No pot width = no amount. We never guess from plant size (a guess can be way off).
 // Garden-wide vacation (Schedule > Vacations): the trip that covers `today`. An unconfirmed
 // sitter plan also covers the 2 days after the trip, so the first morning home doesn't say
 // "16 plants need water" before the app has asked "did your sitter water as planned?".
@@ -64,13 +64,11 @@ function amountText(p: any): string | null {
     if (m !== 'pour') return METHOD_SHORT[m];
     const d = p.pot_diameter_in;
     if (d === 0) return 'deep soak';
-    let w = Number(d) > 0 ? Number(d) : null;
-    let guessed = false;
-    if (!w) { w = GUESS_BY_PLANT_SIZE[p.plant_size] || null; guessed = true; }
+    const w = Number(d) > 0 ? Number(d) : null;
     if (!w) return null;
     const raw = 0.545 * w * w * w * 0.10 * 0.554;
     const oz = raw < 1 ? 1 : raw < 16 ? Math.round(raw) : raw < 64 ? Math.round(raw / 2) * 2 : Math.round(raw / 8) * 8;
-    return `${guessed ? '~' : ''}${oz} oz`;
+    return `${oz} oz`;
 }
 function detailFor(p: any, today: string, plus: boolean): string | null {
     if (!plus) return null;
