@@ -32,11 +32,24 @@ const recent = (rows: any[], field: string, email: string, ms = 3600_000) =>
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const me = await base44.auth.me();
-    if (!me) return err(401, 'unauthorized', 'Please sign in.');
     const db = base44.asServiceRole.entities;
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || '');
+
+    // Owner tool (PLUS_SWEEP_KEY): delete test records, e.g. after checking Community works
+    if (action === 'owner_cleanup') {
+      const sweepKey = (Deno.env.get('PLUS_SWEEP_KEY') || '').trim();
+      if (!sweepKey || body?.key !== sweepKey) return err(401, 'unauthorized', 'Unauthorized');
+      const allowed: Record<string, any> = { Block: db.Block, Notification: db.Notification, Report: db.Report, Comment: db.Comment, DirectMessage: db.DirectMessage, Like: db.Like };
+      const ent = allowed[String(body?.entity || '')];
+      if (!ent) return err(400, 'bad_request', 'Unknown entity');
+      const ids = (Array.isArray(body?.ids) ? body.ids : []).map(String).slice(0, 100);
+      const res = await Promise.allSettled(ids.map((id: string) => ent.delete(id)));
+      return Response.json({ ok: true, removed: res.filter((r) => r.status === 'fulfilled').length });
+    }
+
+    const me = await base44.auth.me();
+    if (!me) return err(401, 'unauthorized', 'Please sign in.');
     const isAdmin = me.role === 'admin';
 
     // ---------- helpers that need the db ----------
