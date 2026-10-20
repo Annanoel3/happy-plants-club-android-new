@@ -356,6 +356,7 @@ Every text:
 - Is general advice for this plant in the owner's climate and spot. Never mention a photo, picture or image, the pot it is in now, its current condition, or how sure anyone is about the identification.
 - Uses plain everyday words and short sentences. No filler. "watering" up to 4 sentences, every other text up to 3.
 - Follows the units and spelling rule in the context.
+- Has no links or citations in it. List the pages you relied on only in "sources".
 
 The texts:
 - watering: how to water and when (until it drains, then let the soil dry out completely / the top half / the top inch...). Write the placeholders {grow} and {rest} where the numbers of days go, for example "about every {grow} days while it grows" and "about every {rest} days in winter". The app fills in the numbers for the plant's spot. Never write a number of days or weeks yourself. If it drops its leaves to rest, say to stop or nearly stop watering once the leaves fall. If rest_season is null, use only {grow}.
