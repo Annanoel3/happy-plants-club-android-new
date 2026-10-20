@@ -11,7 +11,7 @@ import GameTutorial from '@/components/games/GameTutorial';
 import PlantIcon from '@/components/games/PlantIcon';
 import {
   makePuzzle, dailySeed, DAILY_LEVEL, findConflicts, isSolved, hintFor,
-  rowOf, colOf, boxOf, PLANT_NAMES, SIZE,
+  rowOf, colOf, boxOf, PLANT_NAMES, PLANT_ICONS, SIZE,
 } from '@/lib/games/minigarden';
 
 // Mini Garden: a 6×6 Sudoku with plants. Every row, every column and every box (thick
@@ -32,7 +32,7 @@ const PLANT_VALUES = [0, 1, 2, 3, 4, 5];
 function Cell({ v, bg, style, className = '' }) {
   return (
     <span className={`flex items-center justify-center aspect-square ${className}`} style={{ background: bg, ...style }}>
-      {v !== null && v !== undefined && <PlantIcon index={v} className="w-[80%] h-[80%]" />}
+      {v !== null && v !== undefined && <PlantIcon index={PLANT_ICONS[v]} className="w-[80%] h-[80%]" />}
     </span>
   );
 }
@@ -86,7 +86,7 @@ function tutorialSteps(dark, ui) {
           <div className="grid grid-cols-6 gap-1.5">
             {PLANT_VALUES.map((v) => (
               <span key={v} className={`rounded-xl border p-1 flex items-center justify-center ${ui.chip} ${v === 0 ? 'ring-2 ring-sky-500' : ''}`}>
-                <PlantIcon index={v} className="w-8 h-8" />
+                <PlantIcon index={PLANT_ICONS[v]} className="w-8 h-8" />
               </span>
             ))}
           </div>
@@ -379,7 +379,7 @@ export default function MiniGarden() {
                 }}>
                 {peer && <span className="absolute inset-0 bg-sky-400/15 pointer-events-none" aria-hidden />}
                 {bad && <span className="absolute inset-0 bg-red-500/20 pointer-events-none" aria-hidden />}
-                {v !== null && <PlantIcon index={v} className="w-[78%] h-[78%]" />}
+                {v !== null && <PlantIcon index={PLANT_ICONS[v]} className="w-[78%] h-[78%]" />}
                 {bad && (
                   <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center pointer-events-none" aria-hidden>!</span>
                 )}
@@ -398,7 +398,7 @@ export default function MiniGarden() {
                   <button key={v} type="button" onClick={() => place(v)}
                     aria-label={`Plant a ${PLANT_NAMES[v]}, ${left} left`}
                     className={`flex flex-col items-center rounded-xl border pt-1 pb-0.5 active:scale-95 ${ui.chip} ${left === 0 ? 'opacity-40' : ''} ${selValue === v ? 'ring-2 ring-sky-500' : ''}`}>
-                    <span className="w-10 h-10 flex items-center justify-center"><PlantIcon index={v} className="w-full h-full" /></span>
+                    <span className="w-10 h-10 flex items-center justify-center"><PlantIcon index={PLANT_ICONS[v]} className="w-full h-full" /></span>
                     <span className="text-[11px] font-bold">{left} left</span>
                   </button>
                 );

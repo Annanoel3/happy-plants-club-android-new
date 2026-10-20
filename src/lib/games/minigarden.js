@@ -10,7 +10,9 @@ export const BOX_COLS = 3;
 export const LEVELS = { easy: 18, medium: 14, hard: 10 }; // target number of given squares
 
 // Same order as PLANTS in src/components/games/PlantIcon.jsx (indexes 0–5)
-export const PLANT_NAMES = ['red flower', 'sunflower', 'blue tulip', 'cactus', 'purple flower', 'orange tulip'];
+// Six plants with different shapes (not just different colors), so they're easy to tell apart.
+export const PLANT_ICONS = [0, 1, 2, 3, 6, 7]; // indexes into PLANTS in components/games/PlantIcon
+export const PLANT_NAMES = ['red flower', 'sunflower', 'blue tulip', 'cactus', 'succulent', 'daisy'];
 export const PLANT_PLURALS = ['red flowers', 'sunflowers', 'blue tulips', 'cacti', 'purple flowers', 'orange tulips'];
 
 // ---------- Seeded random (xmur3 + sfc32) ----------
