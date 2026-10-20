@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
-import { transcribeVoice } from "@/functions/transcribeVoice";
+import { transcribe } from "@/lib/transcribe";
 import { processVoiceWatering } from "@/functions/processVoiceWatering";
 import { Capacitor } from "@capacitor/core";
 import { setMicActive, showAdForEvent } from "@/lib/admob";
@@ -110,29 +110,9 @@ export default function VoiceLog() {
   const transcribeAudio = async (audioBlob) => {
     setIsProcessing(true);
     try {
-      // Create a File object from the blob
-      const audioFile = new File([audioBlob], 'recording.webm', { 
-        type: 'audio/webm' 
-      });
-      
-      // Upload the audio file
-      const uploadResult = await base44.integrations.Core.UploadFile({ 
-        file: audioFile 
-      });
-      
-      if (!uploadResult.file_url) {
-        toast.error('Failed to upload audio');
-        setIsProcessing(false);
-        return;
-      }
+      // Sent inline to our own transcription (no upload: saves a Base44 credit)
+      const data = { transcript: await transcribe(audioBlob, audioBlob.type || 'audio/webm') };
 
-      console.log('📁 Audio uploaded to:', uploadResult.file_url);
-
-      // Now transcribe using the file URL
-      const { data } = await transcribeVoice({
-        file_url: uploadResult.file_url
-      });
-      
       if (data.transcript) {
         setTranscript(data.transcript);
         await processTranscript(data.transcript);
