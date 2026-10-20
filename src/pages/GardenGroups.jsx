@@ -47,7 +47,7 @@ export default function GardenGroups() {
   const puzzle = useMemo(() => makeGroupsPuzzle(seed), [seed]);
   const stateKey = mode === 'daily' ? `hp_gg_state_${today}` : null;
 
-  const fresh = () => ({ order: puzzle.tiles, solved: [], mistakes: 0, guesses: [], tried: [], over: false, won: false });
+  const fresh = () => ({ seed: puzzle.seed, order: puzzle.tiles, solved: [], mistakes: 0, guesses: [], tried: [], over: false, won: false });
   const [game, setGame] = useState(fresh);
   const [selected, setSelected] = useState([]);
   const [shake, setShake] = useState(false);
@@ -59,7 +59,9 @@ export default function GardenGroups() {
     if (stateKey) {
       try {
         const s = JSON.parse(localStorage.getItem(stateKey) || 'null');
-        if (s && Array.isArray(s.order) && Array.isArray(s.solved)) g = s;
+        const keys = puzzle.groups.map((x) => x.key);
+        if (s && s.seed === puzzle.seed && Array.isArray(s.order) && Array.isArray(s.solved)
+          && s.order.every((w) => puzzle.tiles.includes(w)) && s.solved.every((k) => keys.includes(k))) g = s;
       } catch { /* ignore */ }
     }
     setGame(g || fresh());
@@ -67,8 +69,9 @@ export default function GardenGroups() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puzzle]);
   useEffect(() => {
-    if (stateKey) { try { localStorage.setItem(stateKey, JSON.stringify(game)); } catch { /* ignore */ } }
-  }, [game, stateKey]);
+    // Only save a board into today's slot if it really is today's board (not a practice one mid-switch)
+    if (stateKey && game.seed === puzzle.seed) { try { localStorage.setItem(stateKey, JSON.stringify(game)); } catch { /* ignore */ } }
+  }, [game, stateKey, puzzle]);
 
   const groupOf = (w) => puzzle.groups.find((g) => g.words.includes(w));
   const solvedGroups = game.solved.map((k) => puzzle.groups.find((g) => g.key === k)).filter(Boolean);
