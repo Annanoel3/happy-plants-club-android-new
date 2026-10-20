@@ -51,6 +51,7 @@ import WaterCompare from "@/components/WaterCompare";
 import { lightMeterAvailable } from "@/lib/lightMeter";
 import { carePendingNow } from "@/lib/plantIds";
 import { nudgeUpgrade } from '@/lib/upgradeNudge';
+import ProgressiveImage from '@/components/ProgressiveImage';
 
 export default function PlantDetail() {
   const navigate = useNavigate();
@@ -725,7 +726,7 @@ export default function PlantDetail() {
             <>
               {/* Tap to see the whole photo (the card crops it) */}
               <button onClick={() => setPhotoOpen(true)} aria-label="See the full photo" className="block w-full h-full">
-                <img src={plant.image_url} alt={title} className={`w-full h-full object-cover ${plant.status === 'wilted' ? 'grayscale' : ''}`} />
+                <ProgressiveImage src={plant.image_url} thumb={plant.thumbnail_url} alt={title} className={`w-full h-full object-cover ${plant.status === 'wilted' ? 'grayscale' : ''}`} />
               </button>
               <button onClick={() => setPhotoOpen(true)} aria-label="See the full photo"
                 className="absolute bottom-3 left-3 bg-black/55 backdrop-blur text-white p-2.5 rounded-full active:scale-95">
