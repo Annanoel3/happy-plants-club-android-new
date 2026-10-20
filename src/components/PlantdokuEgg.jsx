@@ -12,9 +12,9 @@ export default function PlantdokuEgg({ page, className = '' }) {
   return (
     <div className={`flex ${align} px-2 py-3 ${className}`}>
       <button
-        onClick={() => { markPlantdokuFound(); navigate('/Plantdoku'); }}
+        onClick={() => { markPlantdokuFound(); navigate('/Games'); }}
         className="text-[10px] italic opacity-40 hover:opacity-80 theme-text select-none"
-        aria-label="A hidden game"
+        aria-label="Hidden games"
       >
         {egg.text}
       </button>
