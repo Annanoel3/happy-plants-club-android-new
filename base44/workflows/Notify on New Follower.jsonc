@@ -1,0 +1,34 @@
+{
+  "name": "Notify on New Follower",
+  "description": "When someone follows a public profile, push the owner: 'X started following you'.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "create"
+      ],
+      "entity_name": "Follow"
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {},
+            "function_name": "sendFollowNotifications"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "notify_on_new_follower",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
