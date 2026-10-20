@@ -187,7 +187,7 @@ function LayoutContent({ children, currentPageName }) {
   // like/comment badge poll is off until it launches. Re-enable with the feature.
   const feedNotifications = [];
 
-  // Plantdoku (the hidden game) joins the menu once someone has found it
+  // Garden Games (the hidden games) join the menu once someone has found them
   const [pdFound, setPdFound] = useState(() => plantdokuFound());
   useEffect(() => {
     const on = () => setPdFound(true);
@@ -201,7 +201,7 @@ function LayoutContent({ children, currentPageName }) {
     { title: "Schedule", url: "/Schedule", icon: Calendar },
     { title: "Community", url: "/Feed", icon: MessageCircle, badge: user?.notifications_enabled !== false ? feedNotifications.length : 0 },
     { title: "Plant Expert", url: "/PlantChat", icon: MessageCircle },
-    ...(showPd ? [{ title: "Plantdoku", url: "/Plantdoku", icon: Puzzle }] : []),
+    ...(showPd ? [{ title: "Garden Games", url: "/Games", icon: Puzzle }] : []),
     { title: "Settings", url: "/Settings", icon: Settings },
   ];
 
