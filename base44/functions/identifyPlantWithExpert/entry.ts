@@ -6,9 +6,9 @@ const openai = new OpenAI({
 });
 
 // Which OpenAI model names the plant and which writes its care sheet. Both are gpt-6-luna
-// since Oct 20, 2026: on 33 of Anna's own plant photos Luna named 21 right and Astra about
-// 22, at under 1/50th of the price (Astra: ~12 cents a photo, Luna: ~0.15 cents). Set the
-// ID_MODEL / CARE_MODEL secrets to "gpt-6-astra" to switch back without a code change.
+// since Oct 20, 2026. Test on Anna's own plant photos: Luna named 21 of 33 right; on the 20
+// hardest of them Astra got 9 and Luna 8. Astra costs ~12 cents a photo, Luna ~0.15 cents.
+// Set the ID_MODEL / CARE_MODEL secrets to "gpt-6-astra" to switch back without a code change.
 const MODEL = (Deno.env.get('ID_MODEL') || 'gpt-6-luna').trim();
 const CARE_MODEL = (Deno.env.get('CARE_MODEL') || 'gpt-6-luna').trim();
 
