@@ -52,6 +52,36 @@ function markAdShown() {
   try { localStorage.setItem(LAST_AD_KEY, String(Date.now())); } catch { /* ignore */ }
 }
 
+// Every 3rd full-screen ad is followed by the small "Tired of ads?" Plus popup, once the
+// ad is closed. Reward videos the person chose to watch don't count.
+const ADS_SEEN_KEY = 'hp_ads_seen';
+const NUDGE_EVERY_N_ADS = 3;
+function adsSeen() {
+  try { return parseInt(localStorage.getItem(ADS_SEEN_KEY) || '0', 10) || 0; } catch { return 0; }
+}
+function setAdsSeen(n) {
+  try { localStorage.setItem(ADS_SEEN_KEY, String(n)); } catch { /* ignore */ }
+}
+function nudgeAfterThisAd() {
+  let done = false;
+  let sub = null;
+  let timer = null;
+  const cleanup = () => { clearTimeout(timer); try { sub?.remove?.(); } catch { /* ignore */ } };
+  const fire = () => {
+    if (done) return;
+    done = true;
+    cleanup();
+    import('@/lib/upgradeNudge').then((m) => m.nudgeUpgrade('ads')).catch(() => {});
+  };
+  try {
+    Promise.resolve(AdMob.addListener('interstitialAdDismissed', fire))
+      .then((s) => { sub = s; if (done) cleanup(); })
+      .catch(() => {});
+  } catch { /* ignore */ }
+  timer = setTimeout(fire, 60000); // if the closed event never arrives
+  return { fire, cancel: () => { done = true; cleanup(); } };
+}
+
 export async function showInterstitialAd() {
   if (!AdMob) return false;
 
@@ -65,12 +95,17 @@ export async function showInterstitialAd() {
   // Still busy after waiting — skip ad
   if (isUserBusy()) return false;
 
+  const nth = adsSeen() + 1;
+  let nudge = null;
   try {
     await AdMob.prepareInterstitial({ adId: AD_UNIT_ID, isTesting: false });
+    if (nth % NUDGE_EVERY_N_ADS === 0) nudge = nudgeAfterThisAd();
     await AdMob.showInterstitial();
     markAdShown();
+    setAdsSeen(nth);
     return true;
   } catch (e) {
+    nudge?.cancel();
     console.warn('[AdMob] interstitial failed:', e);
     return false;
   }
