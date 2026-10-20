@@ -870,7 +870,7 @@ async function profilePlants(db: any, plants: any[], owner: any, now: number) {
                 // The app and the hourly sweep can both be profiling the same plants (the AI
                 // call takes a while): re-read and skip any plant the other one already did.
                 const fresh = (await db.Plant.filter({ id: p.id }))?.[0];
-                if (!fresh || !needsProfile(fresh)) continue;
+                if (!fresh || !needsProfile(fresh) || fresh.add_status === 'identifying') continue;
                 const answer = fresh.care_profile?.ai || ai?.[p.id];
                 if (!answer) continue;
                 await db.Plant.update(p.id, profilePatch(fresh, answer, ctx.today, ctx.hemi));
@@ -881,7 +881,9 @@ async function profilePlants(db: any, plants: any[], owner: any, now: number) {
     return done;
 }
 
-const needsProfile = (p: any) => !p?.care_profile || (Number(p.care_profile.v) || 0) < PROFILE_V;
+// A plant still being named is skipped: its care sheet (with its watering numbers) is on the
+// way. Profiling it early used to give it numbers for its placeholder name.
+const needsProfile = (p: any) => p?.add_status !== 'identifying' && (!p?.care_profile || (Number(p.care_profile.v) || 0) < PROFILE_V);
 
 // Spread out a pile-up of watering days. Moves only forgiving plants (not strict, not on
 // vacation, watered every 5+ days), by at most 1-3 days depending on how long they go
