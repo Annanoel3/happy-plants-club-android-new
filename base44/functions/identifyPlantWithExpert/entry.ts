@@ -286,10 +286,14 @@ async function profileNow(base44: any, plantId: string) {
     }
 }
 
-async function identify(rid: string, imageUrl: string, context: string) {
+// onBlind: called with the blind opinion as soon as it's in, so the care sheet can start
+// while the judge works (most of the time the judge keeps the same species).
+async function identify(rid: string, imageUrl: string, context: string, onBlind?: (b: any) => void) {
     const [pn, blind] = await Promise.all([
         identifyWithPlantNet(imageUrl),
-        askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, imageUrl, "Identify this plant following the method. Return the JSON.", 1200).catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; })
+        askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, imageUrl, "Identify this plant following the method. Return the JSON.", 1200)
+            .then((b) => { try { onBlind?.(b); } catch { /* ignore */ } return b; })
+            .catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; })
     ]);
     console.log(`[${rid}] 🌿 PlantNet:`, pn ? pn.map(c => `${c.scientific_name} ${c.score.toFixed(2)}`).join(' | ') : 'none');
     console.log(`[${rid}] 🌿 Blind LLM:`, blind ? `${blind.scientific_name} (${blind.confidence})` : 'none');
@@ -593,6 +597,13 @@ async function writeCare(user: any, plant: any, today: string, ident: { name?: s
     };
 }
 
+// "Echeveria colorata 'Lindsayana'" and "echeveria colorata" are the same species; "Echeveria sp." is not.
+function sameSpecies(a: any, b: any): boolean {
+    const key = (s: any) => String(s || '').toLowerCase().replace(/['"‘’“”].*$/, '').replace(/×/g, 'x').replace(/\s+x\s+/g, ' x').trim().split(/\s+/).slice(0, 2).join(' ');
+    const ka = key(a), kb = key(b);
+    return !!ka && ka === kb && !/\bsp{1,2}\.?$/.test(ka) && ka.split(' ').length === 2;
+}
+
 // The care_profile to save with a fresh care sheet: the owner's own choices are kept, and the
 // new answer waits in `ai` for functions/plus to apply (it sets v when it does).
 function pendingProfile(plant: any, ai: any, every: number) {
@@ -715,11 +726,19 @@ Deno.serve(async (req) => {
             delete info.error;
             await db.Plant.update(plant.id, { add_status: 'identifying', add_info: info });
             try {
-                const r = await identify(rid, plant.image_url, context);
-                const c = await writeCare(user, plant, today, {
+                // Start the care sheet for the blind opinion's species while the judge works;
+                // use it if the judge settles on the same species, else write it again.
+                let spec: any = null;
+                const r = await identify(rid, plant.image_url, context, (b) => {
+                    if (b?.scientific_name) spec = { sci: b.scientific_name, p: writeCare(user, plant, today, { name: b.name, scientific_name: b.scientific_name }).catch(() => null) };
+                });
+                let c: any = spec && sameSpecies(spec.sci, r.plantData.scientific_name) ? await spec.p : null;
+                if (c) c.fields.scientific_name = String(r.plantData.scientific_name || c.fields.scientific_name).slice(0, 120);
+                else c = await writeCare(user, plant, today, {
                     name: r.plantData.name, scientific_name: r.plantData.scientific_name,
                     plant_size: PLANT_SIZES.includes(r.plantData.plant_size) ? r.plantData.plant_size : null,
                 });
+                console.log(`[${rid}] care sheet: ${spec && c && sameSpecies(spec.sci, r.plantData.scientific_name) ? 'early (same species)' : 'after judge'}`);
                 const d = c.fields;
                 const last = String(plant.last_watered || '').slice(0, 10) || today;
                 // Added in bulk with the area already picked, and a sure name: nothing left to
