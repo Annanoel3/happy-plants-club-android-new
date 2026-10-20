@@ -1120,7 +1120,7 @@ Deno.serve(async (req) => {
                     if (retried >= 3) break; // each one takes up to a minute
                     const info = p.add_info || {};
                     const tries = Number(info.tries) || 0;
-                    if (tries >= 3 || info.error === 'limit_reached' || !p.image_url) continue;
+                    if (tries >= 3 || info.error === 'limit_reached' || (!p.image_url && !info.typed)) continue;
                     const started = Date.parse(info.started_at || p.created_date) || 0;
                     const wait = p.add_status === 'identifying' ? 10 * 60 * 1000 : 30 * 60 * 1000;
                     if (now - started < wait) continue;
