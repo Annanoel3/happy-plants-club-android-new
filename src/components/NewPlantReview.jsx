@@ -130,7 +130,11 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
       const chosen = method || waterMethod(local);
       if (chosen !== waterMethod(local)) {
         patch.water_method = chosen;
-        patch.care_profile = { ...(local?.care_profile || {}), user_method: true };
+        // The care sheet can land while this screen is open: build on the saved profile, not
+        // the copy this screen started with, so its watering numbers aren't overwritten
+        let cur = local?.care_profile || {};
+        try { const [fresh] = await base44.entities.Plant.filter({ id: plant.id }); if (fresh?.care_profile) cur = fresh.care_profile; } catch { /* use what we have */ }
+        patch.care_profile = { ...cur, user_method: true };
       }
       if (chosen === 'pour' && pot !== null && pot !== 'unsure') patch.pot_diameter_in = Number(pot);
       await base44.entities.Plant.update(plant.id, patch);
