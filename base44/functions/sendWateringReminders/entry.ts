@@ -58,8 +58,7 @@ function tripCovering(trips: any[] | undefined, today: string): any | null {
     return null;
 }
 
-// Plus: ounces to give (same formula as src/lib/waterAmount.js)
-const GUESS_BY_PLANT_SIZE: Record<string, number> = { Seedling: 3, Small: 4, Medium: 6, Large: 10, Mature: 12 };
+// Plus: ounces to give (same formula as src/lib/waterAmount.js). No pot width = no amount; never guessed.
 // How it's watered (same rule as src/lib/waterAmount.js waterMethod)
 const METHODS = ['pour', 'reservoir', 'soak', 'mist', 'bottom', 'in_water'];
 function waterMethod(p: any): string {
@@ -75,7 +74,7 @@ const METHOD_PHRASE: Record<string, string> = {
 };
 function ozText(p: any): string | null {
     if (waterMethod(p) !== 'pour' || p.pot_diameter_in === 0) return null;
-    let w = Number(p.pot_diameter_in) > 0 ? Number(p.pot_diameter_in) : (GUESS_BY_PLANT_SIZE[p.plant_size] || null);
+    const w = Number(p.pot_diameter_in) > 0 ? Number(p.pot_diameter_in) : null;
     if (!w) return null;
     const raw = 0.545 * w * w * w * 0.10 * 0.554;
     const oz = raw < 1 ? 1 : raw < 16 ? Math.round(raw) : raw < 64 ? Math.round(raw / 2) * 2 : Math.round(raw / 8) * 8;
