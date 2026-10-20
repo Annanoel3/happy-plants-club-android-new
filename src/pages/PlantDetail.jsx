@@ -47,6 +47,7 @@ import GrowthTimeline from "@/components/plus/GrowthTimeline";
 import NewPlantReview from "@/components/NewPlantReview";
 import LightMeter from "@/components/LightMeter";
 import PhotoViewer from "@/components/PhotoViewer";
+import WaterCompare from "@/components/WaterCompare";
 import { lightMeterAvailable } from "@/lib/lightMeter";
 
 export default function PlantDetail() {
@@ -799,6 +800,13 @@ export default function PlantDetail() {
           )}
           {schedule?.note && <p className={`text-sm ${ui.sub}`}>{schedule.note}</p>}
           {specialWater && <p className={`text-sm ${ui.sub}`}>{amount.text}</p>}
+          {plus && amount.kind === 'oz' && <WaterCompare oz={amount.oz} ui={ui} className="mt-2" />}
+          {plus && amount.needsPot && (
+            <button onClick={() => document.getElementById('how-to-water')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              className={`mt-2 text-sm font-semibold underline ${ui.text}`}>
+              How much? Set the pot size
+            </button>
+          )}
           {plant.last_watered && (
             <p className={`text-sm mt-1 ${ui.sub}`}>Last watered {format(parseISO(String(plant.last_watered).slice(0, 10)), 'EEE, MMM d')}</p>
           )}
@@ -826,7 +834,7 @@ export default function PlantDetail() {
           <TabsContent value="care" className="space-y-4 mt-0">
             {plus ? (
               <>
-                <PlantWaterPanel plant={plant} user={me} plus={plus} plusReady={plusReady} ui={ui} />
+                <div id="how-to-water"><PlantWaterPanel plant={plant} user={me} plus={plus} plusReady={plusReady} ui={ui} /></div>
                 <CareScheduleCard plant={plant} user={me} plus={plus} plusReady={plusReady} ui={ui} />
                 <HealthHistoryCard plant={plant} plus={plus} plusReady={plusReady} ui={ui} onRecheck={() => setHealthOpenKey((k) => k + 1)} />
               </>
