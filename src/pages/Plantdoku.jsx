@@ -216,7 +216,8 @@ function Board({ puzzle, marks, check, hint, highlight, dark, locked, mini, hide
   return (
     <div
       className={`grid w-full mx-auto aspect-square rounded-xl overflow-hidden select-none ${mini ? 'max-w-[180px]' : 'max-w-[440px]'}`}
-      style={{ gridTemplateColumns: `repeat(${N}, 1fr)`, border: thick, touchAction: locked ? 'auto' : 'none' }}
+      // Fixed, equal rows and columns: what's in a square can never stretch or squeeze it
+      style={{ gridTemplateColumns: `repeat(${N}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${N}, minmax(0, 1fr))`, border: thick, touchAction: locked ? 'auto' : 'none' }}
       onPointerDown={locked ? undefined : down} onPointerMove={locked ? undefined : move} onPointerUp={locked ? undefined : up}
       onPointerCancel={() => { drag.current = null; }}
       role="grid" aria-label={`${N} by ${N} Plantdoku board`}
@@ -231,15 +232,19 @@ function Board({ puzzle, marks, check, hint, highlight, dark, locked, mini, hide
         return (
           <div key={i} data-cell={i} role="gridcell"
             aria-label={`Row ${r + 1}, column ${c + 1}, ${BED_NAMES[reg]} bed${v === 2 ? ', plant' : v === 1 ? ', marked empty' : ''}${isBad ? ', breaks a rule' : ''}`}
-            className={`relative flex items-center justify-center ${hinted ? (hint.type === 'wrong' ? 'ring-4 ring-inset ring-red-600 animate-pulse' : 'ring-4 ring-inset ring-green-600 animate-pulse') : lit ? 'ring-[3px] ring-inset ring-green-700' : isBad ? 'ring-[3px] ring-inset ring-red-600' : ''}`}
+            className={`relative min-w-0 min-h-0 overflow-hidden ${hinted ? (hint.type === 'wrong' ? 'ring-4 ring-inset ring-red-600 animate-pulse' : 'ring-4 ring-inset ring-green-600 animate-pulse') : lit ? 'ring-[3px] ring-inset ring-green-700' : isBad ? 'ring-[3px] ring-inset ring-red-600' : ''}`}
             style={{
               background: colors[reg],
               borderTop: r > 0 ? (puzzle.regions[i - N] !== reg ? thick : thin) : 'none',
               borderLeft: c > 0 ? (puzzle.regions[i - 1] !== reg ? thick : thin) : 'none',
             }}>
             {inBadZone && <span className="absolute inset-0 bg-red-500/25 pointer-events-none" aria-hidden />}
-            {v === 2 && <PlantIcon region={reg} />}
-            {v === 1 && !hideX && <span className={`${mini ? 'text-[10px]' : 'text-sm'} font-bold pointer-events-none ${dark ? 'text-white/45' : 'text-black/35'}`}>✕</span>}
+            {(v === 2 || (v === 1 && !hideX)) && (
+              <span className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
+                {v === 2 && <PlantIcon region={reg} />}
+                {v === 1 && <span className={`${mini ? 'text-[10px]' : 'text-sm'} font-bold leading-none ${dark ? 'text-white/45' : 'text-black/35'}`}>✕</span>}
+              </span>
+            )}
             {isBad && (
               <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center pointer-events-none" aria-hidden>!</span>
             )}
