@@ -31,7 +31,9 @@
   ],
   "rls": {
     "create": {
-      "data.owner_email": "{{user.email}}"
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "delete": {
       "data.owner_email": "{{user.email}}"
@@ -40,7 +42,9 @@
       "data.owner_email": "{{user.email}}"
     },
     "update": {
-      "data.owner_email": "{{user.email}}"
+      "user_condition": {
+        "role": "admin"
+      }
     }
   },
   "type": "object"
