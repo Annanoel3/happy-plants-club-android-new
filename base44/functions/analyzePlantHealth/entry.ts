@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { image_url, plant_name, plant_id } = (await req.json().catch(() => null)) || {};
+        const { image_url, plant_name, plant_id } = ((await req.json().catch(() => null)) || {}) as any;
         if (!image_url || typeof image_url !== 'string') {
             console.error('❌ No image URL provided');
             return Response.json({ error: 'Image URL is required' }, { status: 400 });
