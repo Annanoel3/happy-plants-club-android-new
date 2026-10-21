@@ -301,7 +301,14 @@ Deno.serve(async (req) => {
         }
 
         // ---------- sweep (workflow, every 15 min) ----------
-        const users = await db.User.list('-created_date', 1000);
+        // Every user, a page at a time: one list() call only returns the newest 1,000, and
+        // reminders of anyone older were skipped as "no-owner"
+        const users: any[] = [];
+        for (let skip = 0; skip < 100000; skip += 500) {
+            const page = (await db.User.list('created_date', 500, skip)) || [];
+            users.push(...page);
+            if (page.length < 500) break;
+        }
         const byEmail = new Map<string, any>();
         for (const u of users) if (u?.email) byEmail.set(u.email, u);
 
