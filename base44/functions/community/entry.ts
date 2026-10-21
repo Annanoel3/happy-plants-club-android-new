@@ -289,7 +289,8 @@ Deno.serve(async (req) => {
       const isPrivate = target.profile_private === true;
       const gardenOn = target.garden_public !== false;
       const canSee = isMe || (!iBlocked && gardenOn && (!isPrivate || iFollow));
-      const plants = canSee ? await gardenOf(target.email) : [];
+      // counts_only: My Profile just needs follower numbers (it loads its own plants)
+      const plants = canSee && !body?.counts_only ? await gardenOf(target.email) : [];
       return Response.json({
         person: {
           ...pub(target),
@@ -302,7 +303,7 @@ Deno.serve(async (req) => {
         i_follow: iFollow,
         requested: (myReq || []).length > 0,
         i_blocked: iBlocked,
-        counts: { followers: (followers || []).length, following: (followingRows || []).length, plants: canSee ? plants.length : null },
+        counts: { followers: (followers || []).length, following: (followingRows || []).length, plants: canSee && !body?.counts_only ? plants.length : null },
         can_see_garden: canSee,
         // why the garden is hidden: 'hidden' (their Public Garden switch is off), 'follow' (private profile)
         garden_note: canSee || iBlocked ? null : !gardenOn ? 'hidden' : 'follow',
