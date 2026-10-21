@@ -18,7 +18,9 @@ Deno.serve(async (req) => {
 
         const body = await req.json();
         const playerId = body.playerId;
-        const externalId = body.externalId || user.email;
+        // Always the signed-in person's own email (never one sent by the app), so nobody can
+        // link their phone to someone else's account and get their notifications
+        const externalId = user.email || `${user.id}@happyplants.club`;
 
         if (!playerId) {
             return Response.json({ success: false, error: 'No playerId provided' }, { status: 400 });
@@ -31,7 +33,6 @@ Deno.serve(async (req) => {
             return Response.json({ success: false, error: 'OneSignal credentials not configured' }, { status: 500 });
         }
 
-        console.log(`Linking player ${playerId} → external_id: ${externalId}`);
 
         // Use the OneSignal Users API to set the alias on this subscription (player)
         const response = await fetch(`https://api.onesignal.com/apps/${appId}/users/by/onesignal_id/${playerId}/identity`, {
