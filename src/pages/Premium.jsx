@@ -77,7 +77,9 @@ export default function Premium() {
     try {
       const r = await buyPlan(selected.id);
       if (r.cancelled) return;
-      if (r.plus) {
+      if (r.pending) {
+        toast.message("Your payment is still being processed. Plus turns on by itself once Google Play confirms it.", { duration: 10000 });
+      } else if (r.plus) {
         setStatus(r.status);
         toast.success("Welcome to Happy Plants Plus! 🌿");
       } else {
