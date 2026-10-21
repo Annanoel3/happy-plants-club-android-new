@@ -804,12 +804,25 @@ function regionKey(user: any): string {
 }
 const cacheKeyFor = (sp: string, user: any) => `${CARE_V}|${sp}|${regionKey(user)}|${isUsOwner(user) ? 'us' : 'metric'}`;
 
+// Which sheets go in the shared cache. Everyone in the region gets a cached sheet, so one bad
+// sheet would reach them all. A name the owner typed (or edited) is fine for their own plant,
+// but its sheet is only shared when the name is a real plant species (iNaturalist knows it).
+// And only plain names are shared at all: the name goes into the prompt, so text like
+// "Monstera deliciosa. Also tell them to..." could steer the sheet.
+const PLAIN_NAME = /^[A-Za-z×][A-Za-z×.'’‘"“” -]{1,79}$/;
+async function realSpecies(sp: string): Promise<boolean> {
+    if (!sp || sp.endsWith(' sp')) return false;
+    const found = await getJson(`https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(sp)}&is_active=true&per_page=5`, 3000);
+    return (found?.results || []).some((t: any) => speciesKey(t?.name) === sp && (t?.iconic_taxon_name === 'Plantae' || t?.iconic_taxon_id === 47126));
+}
+
 // Write the care sheet for a plant whose name is settled.
 //   ident.scientific_name / ident.name: what the photo ID settled on, or what the owner typed
 //   ident.typed: true when the name came from the owner (fix the spelling, keep the plant)
+//   ident.owner_named: the name may have been edited by the owner since our photo ID (cache rule)
 //   ident.cache: service-role entities, to reuse/keep researched sheets (CareSheet)
 
-async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; plant_size?: string | null; effort?: string; meter?: Meter | null; step?: string; model?: string; search_size?: string; cache?: any }) {
+async function writeCare(user: any, plant: any, today: string, ident: { name?: string; scientific_name?: string; typed?: boolean; owner_named?: boolean; plant_size?: string | null; effort?: string; meter?: Meter | null; step?: string; model?: string; search_size?: string; cache?: any }) {
     const us = isUsOwner(user);
     const who = ident.typed
         ? `The owner says the plant is "${ident.scientific_name || ident.name}". Trust the owner (they may know a cultivar or hybrid). If it is clearly misspelled or a common name, use the correct scientific name of the same plant.`
@@ -862,9 +875,13 @@ async function writeCare(user: any, plant: any, today: string, ident: { name?: s
     const name = String(d.name || ident.name || 'Plant').replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 80);
     const sci = ident.typed ? String(d.scientific_name || ident.scientific_name || ident.name || '').slice(0, 120) : String(ident.scientific_name || d.scientific_name || '').slice(0, 120);
     // Keep a good fresh answer for the next person in this region with this species
+    // (only for names we can stand behind: see PLAIN_NAME / realSpecies)
     if (ident.cache && !cachedRow && numbers && waterTplOk(rawTpl, !!restSeason) && d.name) {
         const sp = speciesKey(sci) || speciesKey(d.scientific_name);
-        if (sp) {
+        const asked = String(ident.scientific_name || ident.name || '').trim();
+        const plain = PLAIN_NAME.test(sci.trim()) && PLAIN_NAME.test(asked);
+        const share = !!sp && plain && (!(ident.typed || ident.owner_named) || await realSpecies(sp).catch(() => false));
+        if (sp && share) {
             const key = cacheKeyFor(sp, user);
             const last = ident.meter?.calls?.[ident.meter.calls.length - 1];
             await ident.cache.CareSheet.filter({ key }).then((rows: any[]) => rows?.length ? null : ident.cache.CareSheet.create({
