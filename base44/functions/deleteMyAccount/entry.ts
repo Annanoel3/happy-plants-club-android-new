@@ -33,7 +33,8 @@ const OWNERSHIP: Record<string, Array<[string, Who]>> = {
     GameEvent: CREATED,
     PlantConversation: [...CREATED, ['user_email', 'email']],
     DailyWateringReminder: [...CREATED, ['user_email', 'email']],
-    Notification: [['user_email', 'email'], ['from_user_email', 'email']],
+    // Newer notifications store who sent them by id (from_user_id), not email
+    Notification: [['user_email', 'email'], ['from_user_email', 'email'], ['from_user_id', 'id']],
     DirectMessage: [['sender_email', 'email'], ['receiver_email', 'email']],
     FollowRequest: [['requester_email', 'email'], ['target_email', 'email']],
     Follow: [['follower_email', 'email'], ['following_email', 'email']],
