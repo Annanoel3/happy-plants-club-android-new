@@ -111,20 +111,23 @@ Deno.serve(async (req) => {
             convId = newConv.id;
         }
 
+        // Empty fields read as "not set" (they used to reach the model as "undefined"); a new
+        // plant has no watering logged yet on purpose
+        const v = (x: any) => (x === undefined || x === null || x === '' ? 'not set' : x);
         const systemPrompt = `You are a plant care expert having an ongoing conversation about a specific plant.
 
 Plant Details:
 - Name: ${plant.name}
 - Scientific: ${plant.scientific_name || 'unknown'}
-- Environment: ${plant.environment}
-- Sun exposure: ${plant.sun_exposure}
-- Pot type: ${plant.pot_type}
-- Water frequency: Every ${plant.water_frequency_days} days
-- Last watered: ${plant.last_watered}
-- Growth stage: ${plant.growth_stage}
-- Status: ${plant.status}
+- Environment: ${v(plant.environment)}
+- Sun exposure: ${v(plant.sun_exposure)}
+- Pot type: ${v(plant.pot_type)}
+- Water frequency: ${plant.water_frequency_days ? `Every ${plant.water_frequency_days} days` : 'not set'}
+- Last watered: ${plant.last_watered ? String(plant.last_watered).slice(0, 10) : 'not logged yet'}
+- Growth stage: ${v(plant.growth_stage)}
+- Status: ${v(plant.status)}
 
-User location: ${user.location}
+User location: ${v(user.location)}
 
 Answer questions about this specific plant, provide care tips, troubleshoot problems, and help with any concerns. Be friendly, concise, and actionable.`;
 
