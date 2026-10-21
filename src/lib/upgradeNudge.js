@@ -29,14 +29,15 @@ export function nudgeCopy(reason, extra = {}) {
     case 'ids':
       return {
         title: "You're out of photo IDs for today",
-        body: `${extra.saved ? 'Your photos are saved and get named tomorrow. ' : 'They come back tomorrow. '}Typing a plant's name is always free. Plus gives you ${PLUS.ids} photo IDs a day.`,
+        body: `${extra.saved ? 'Your photos are saved and get named tomorrow. ' : 'They come back tomorrow. '}Typing a plant's name doesn't use a photo ID. Plus gives you ${PLUS.ids} photo IDs a day.`,
       };
     case 'health':
       return { title: `That's today's ${limit || ''} free health checks`.replace('  ', ' '), body: `Plus gives you ${PLUS.health} a day, a step-by-step plan, and reminders to re-check.` };
     case 'chat':
       return { title: `That's today's ${limit || ''} free chat messages`.replace('  ', ' '), body: `Plus gives you ${PLUS.chat} a day. Or chat again tomorrow.` };
     case 'rename':
-      return { title: "That's all the free renames for today", body: 'They come back tomorrow, and Plus gives you more.' };
+      // Typing a plant's name (new plant or a fix): its own daily limit, separate from photo IDs
+      return { title: "That's all the typed plant names for today", body: 'You can type more tomorrow, and Plus gives you more.' };
     case 'water':
       return { title: 'How much to water is part of Plus', body: 'Plus tells you how many ounces each plant needs and adjusts for rain and heat outside.' };
     case 'care':
