@@ -62,6 +62,15 @@ function LayoutContent({ children, currentPageName }) {
     // Tell every mounted page/component the theme changed (replaces their old 100ms polling)
     window.dispatchEvent(new Event('hp-theme-change'));
   }, [theme]);
+  // The garden's secret button switches the theme itself: keep the menu's theme button in step
+  useEffect(() => {
+    const mo = new MutationObserver(() => {
+      const t = document.documentElement.getAttribute('data-theme');
+      if (t) setTheme((prev) => (prev === t ? prev : t));
+    });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => mo.disconnect();
+  }, []);
 
   const checkAuth = async () => {
     try {
