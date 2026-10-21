@@ -22,6 +22,45 @@ const CARE_MODEL = (Deno.env.get('CARE_MODEL') || 'gpt-6-luna').trim();
 // Without PLANTNET_API_KEY, steps 2 and 3 still run.
 // ---------------------------------------------------------------------------
 
+// ---- Pl@ntNet's free plan: 500 identifications a day for the whole app ------------------
+// Under PN_SAVE_FROM calls today nothing changes: every photo gets Pl@ntNet's opinion too.
+// From there on, Pl@ntNet is saved for the photos the botanist isn't sure about (a "high"
+// confidence answer is used as is), so the rest of the day's 500 go to the hard ones.
+// At 500 Pl@ntNet says no and the botanist + judge carry on alone, as they always have.
+// Counted in AiUsage (user_id 'app', kind 'plantnet', the UTC day).
+const PN_DAILY = 500;
+const PN_SAVE_FROM = 350;
+let pnDb: any = null; // service-role entities, set at the start of each request
+const pnDay = () => new Date().toISOString().slice(0, 10);
+let pnCache: { day: string; used: number; at: number } | null = null;
+async function pnUsedToday(): Promise<number> {
+    const day = pnDay();
+    if (pnCache && pnCache.day === day && Date.now() - pnCache.at < 60_000) return pnCache.used;
+    if (!pnDb) return pnCache?.day === day ? pnCache.used : 0;
+    try {
+        const row = (await pnDb.AiUsage.filter({ user_id: 'app', kind: 'plantnet', day }))?.[0];
+        const used = Number(row?.count) || 0;
+        pnCache = { day, used, at: Date.now() };
+        return used;
+    } catch {
+        return pnCache?.day === day ? pnCache.used : 0;
+    }
+}
+// remaining: Pl@ntNet's own count of what's left today, when its answer includes it
+async function pnRecord(remaining?: number) {
+    if (!pnDb) return;
+    const day = pnDay();
+    try {
+        const row = (await pnDb.AiUsage.filter({ user_id: 'app', kind: 'plantnet', day }))?.[0];
+        const used = typeof remaining === 'number' && remaining >= 0 ? PN_DAILY - remaining : (Number(row?.count) || 0) + 1;
+        if (row) await pnDb.AiUsage.update(row.id, { count: used });
+        else await pnDb.AiUsage.create({ user_id: 'app', day, kind: 'plantnet', count: used });
+        pnCache = { day, used, at: Date.now() };
+    } catch (e) {
+        console.warn('[PlantNet] count failed:', (e as Error)?.message);
+    }
+}
+
 // extra: a second photo of the same plant (close-up, flower, the nursery tag), sent as a file.
 // Pl@ntNet scores all the photos of one plant together, which is more accurate than one.
 // include-related-images: reference photos for each candidate, for "Is it one of these?".
@@ -47,10 +86,14 @@ async function identifyWithPlantNet(imageUrl, extra?: { bytes: Uint8Array; mime:
             res = await send();
         }
         if (!res.ok) {
+            // 429 = today's 500 are used up (not counted); anything else still used one
+            if (res.status !== 429) pnRecord();
+            else pnRecord(0);
             console.warn('[PlantNet] HTTP', res.status, await res.text().catch(() => ''));
             return null;
         }
         const data = await res.json();
+        pnRecord(typeof data?.remainingIdentificationRequests === 'number' ? data.remainingIdentificationRequests : undefined);
         const results = Array.isArray(data?.results) ? data.results : [];
         if (results.length === 0) return null;
         const toMatch = (r) => ({
@@ -353,12 +396,40 @@ async function identify(rid: string, imageUrl: string, context: string, onBlind?
     const timing: Record<string, number | null> = { plantnet_ms: null, blind_ms: null, judge_ms: null };
     const photos = extra ? [imageUrl, extra.dataUrl] : imageUrl;
     const note = extra ? `\n${MULTI_PHOTO_NOTE}` : '';
-    const [pn, blind] = await Promise.all([
-        identifyWithPlantNet(imageUrl, extra).finally(() => { timing.plantnet_ms = Date.now() - t0; }),
-        askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, photos, `Identify this plant following the method.${note} Return the JSON.`, 1200, meter, 'id: botanist', blindModel, idEffort)
-            .then((b) => { timing.blind_ms = Date.now() - t0; try { onBlind?.(b); } catch { /* ignore */ } return b; })
-            .catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; })
-    ]);
+    const runPn = () => identifyWithPlantNet(imageUrl, extra).finally(() => { timing.plantnet_ms = Date.now() - t0; });
+    const runBlind = () => askJson(`${BOTANIST}\n\n${JSON_ID_ONLY}`, photos, `Identify this plant following the method.${note} Return the JSON.`, 1200, meter, 'id: botanist', blindModel, idEffort)
+        .then((b) => { timing.blind_ms = Date.now() - t0; try { onBlind?.(b); } catch { /* ignore */ } return b; })
+        .catch(e => { console.warn(`[${rid}] blind ID failed:`, e?.message); return null; });
+    let pn: any = null, blind: any = null;
+    const usedToday = await pnUsedToday();
+    if (usedToday < PN_SAVE_FROM) {
+        // Normal day: both opinions at once
+        [pn, blind] = await Promise.all([runPn(), runBlind()]);
+    } else {
+        // Busy day (see PN_SAVE_FROM): ask the botanist first and only spend a Pl@ntNet call
+        // when it isn't sure
+        blind = await runBlind();
+        if (blind?.scientific_name && blind.confidence === 'high') {
+            console.log(`[${rid}] 🌿 Saving Pl@ntNet (${usedToday} used today): botanist sure, ${blind.scientific_name}`);
+            return {
+                pn: null,
+                plantData: { name: blind.name, scientific_name: blind.scientific_name, plant_size: blind.plant_size },
+                identification: {
+                    source: 'llm',
+                    plantnet_top: null,
+                    plantnet_score: null,
+                    blind_llm: blind.scientific_name,
+                    plantnet_agreement: null,
+                    confidence: blind.confidence,
+                    notes: blind.reasoning || null,
+                    alternatives: Array.isArray(blind.alternatives) ? blind.alternatives.slice(0, 4) : [],
+                    judge: `skipped (saving Pl@ntNet: ${usedToday} of ${PN_DAILY} used today, botanist sure)`,
+                    timing,
+                },
+            };
+        }
+        if (usedToday < PN_DAILY) pn = await runPn();
+    }
     console.log(`[${rid}] 🌿 PlantNet:`, pn ? pn.map(c => `${c.scientific_name} ${c.score.toFixed(2)}`).join(' | ') : 'none');
     console.log(`[${rid}] 🌿 Blind LLM:`, blind ? `${blind.scientific_name} (${blind.confidence})` : 'none');
     // Pl@ntNet is sure (0.50+) and the botanist, who never saw Pl@ntNet's answer, named the same
