@@ -1,17 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Delete, Share2, PlayCircle, Flame } from 'lucide-react';
+import { Delete, Share2, PlayCircle, Flame, Lightbulb, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { localToday } from '@/lib/dates';
 import { ANSWERS } from '@/lib/games/sproutAnswers';
 import { useGameTheme, getDone, setDone, streakFor, countFinish, adBeforeNext, seededRng, shuffleWith, dayNumber } from '@/lib/games/common';
 import { markPlantdokuFound } from '@/lib/plantdoku/egg';
+import { usePlus } from '@/lib/plus';
+import { rewardedAvailable, showRewardedAd } from '@/lib/admob';
 import GameHeader from '@/components/games/GameHeader';
 import GameTutorial from '@/components/games/GameTutorial';
 
 // Sprout Word: guess the hidden 5-letter plant or garden word in 6 tries.
 // Green = right letter, right spot. Yellow = in the word, somewhere else. Gray = not in it.
 // Guesses can be any real 5-letter English word. Same daily word for everyone.
+// Hints: each one shows one letter in its right spot and costs a reward video (Plus: unlimited).
 
 const TRIES = 6;
 const LEN = 5;
@@ -87,9 +90,38 @@ export default function SproutWord() {
   }, [answer, storeKey]);
   useEffect(() => { if (storeKey) { try { localStorage.setItem(storeKey, JSON.stringify(guesses)); } catch { /* ignore */ } } }, [guesses, storeKey]);
 
+  // Hints: letters shown in their right spot (positions), kept for today's word
+  const plus = usePlus();
+  const hintKey = storeKey ? `${storeKey}_hints` : null;
+  const [revealed, setRevealed] = useState([]);
+  const [hintBusy, setHintBusy] = useState(false);
+  useEffect(() => {
+    let r = [];
+    if (hintKey) { try { r = JSON.parse(localStorage.getItem(hintKey) || '[]'); } catch { r = []; } }
+    setRevealed(Array.isArray(r) ? r.filter((i) => Number.isInteger(i) && i >= 0 && i < LEN) : []);
+  }, [answer, hintKey]);
+  useEffect(() => { if (hintKey) { try { localStorage.setItem(hintKey, JSON.stringify(revealed)); } catch { /* ignore */ } } }, [revealed, hintKey]);
+
   const won = guesses.includes(answer);
   const lost = !won && guesses.length >= TRIES;
   const over = won || lost;
+
+  const askHint = async () => {
+    if (over || hintBusy || !answer) return;
+    // The next letter they don't already have in its right spot
+    const known = new Set(revealed);
+    guesses.forEach((g) => [...g].forEach((ch, i) => { if (ch === answer[i]) known.add(i); }));
+    const next = [...Array(LEN).keys()].find((i) => !known.has(i));
+    if (next === undefined) { toast('You already know where every letter goes. Just type it in!'); return; }
+    if (!plus) {
+      if (!rewardedAvailable()) { toast('No video is ready right now, so no hint yet. Try again in a little while.'); return; }
+      setHintBusy(true);
+      const r = await showRewardedAd();
+      setHintBusy(false);
+      if (!r.ok) { toast(r.reason === 'closed' ? 'The video was closed early, so no hint this time.' : "Couldn't play the video. Try again in a little while."); return; }
+    }
+    setRevealed((r) => (r.includes(next) ? r : [...r, next]));
+  };
 
   // The day is done once: mark it (for the games list and the streak) and count it for ads
   const [counted, setCounted] = useState(null);
@@ -97,7 +129,7 @@ export default function SproutWord() {
     if (!over || counted === answer) return;
     setCounted(answer);
     if (mode === 'daily') {
-      if (!getDone('sproutword', today)) { setDone('sproutword', { won, tries: guesses.length }, today); countFinish(); }
+      if (!getDone('sproutword', today)) { setDone('sproutword', { won, tries: guesses.length, hints: revealed.length }, today); countFinish(); }
     } else countFinish();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [over, answer]);
@@ -151,7 +183,8 @@ export default function SproutWord() {
   const share = async () => {
     const day = new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const grid = guesses.map((g) => scoreGuess(g, answer).map((s) => (s === 'right' ? '🟩' : s === 'close' ? '🟨' : '⬜')).join('')).join('\n');
-    const text = `Sprout Word ${day} 🔤 ${won ? guesses.length : 'X'}/${TRIES}\n${grid}\nhappyplants.club`;
+    const hintsText = revealed.length ? ` (${revealed.length} hint${revealed.length === 1 ? '' : 's'})` : '';
+    const text = `Sprout Word ${day} 🔤 ${won ? guesses.length : 'X'}/${TRIES}${hintsText}\n${grid}\nhappyplants.club`;
     if (Capacitor.isNativePlatform()) {
       try { await registerPlugin('NotifyBridge').shareText({ text, title: 'Sprout Word' }); return; } catch { /* older build */ }
     }
@@ -213,7 +246,31 @@ export default function SproutWord() {
         </div>
 
         {!over && (
-          <div className="mt-5 space-y-1.5 select-none" aria-label="Keyboard">
+          // Hint row: always the same height, so nothing moves when a hint shows up
+          <div className="mt-3 h-10 max-w-[300px] mx-auto flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1" aria-live="polite">
+              {revealed.length > 0 && (
+                <>
+                  <span className="text-base mr-0.5" aria-hidden>💡</span>
+                  {[...Array(LEN).keys()].map((i) => (
+                    <span key={i} className={`w-7 h-7 flex items-center justify-center rounded-md border-2 text-sm font-bold uppercase ${revealed.includes(i) ? COLORS.right : 'border-gray-300 bg-white/60 text-transparent'}`}
+                      aria-label={revealed.includes(i) ? `Letter ${i + 1} is ${answer[i].toUpperCase()}` : undefined}>
+                      {revealed.includes(i) ? answer[i] : '·'}
+                    </span>
+                  ))}
+                </>
+              )}
+            </div>
+            <button onClick={askHint} disabled={hintBusy}
+              className={`shrink-0 flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold border active:scale-95 ${dark ? 'bg-white/15 text-white border-white/10' : 'bg-white text-gray-900 border-gray-300'}`}>
+              {hintBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : plus ? <Lightbulb className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
+              Hint
+            </button>
+          </div>
+        )}
+
+        {!over && (
+          <div className="mt-3 space-y-1.5 select-none" aria-label="Keyboard">
             {KEYS.map((line, li) => (
               <div key={line} className="flex justify-center gap-1">
                 {li === 2 && (
