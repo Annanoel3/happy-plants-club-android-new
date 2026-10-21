@@ -1,66 +1,72 @@
 // The full Community feed, restored from before June 24, 2026, when the Base44 builder
-// deleted it to make the "Coming soon" screen. Open since Oct 20, 2026: see COMMUNITY_OPEN
-// in src/pages/Feed.jsx.
-import React, { useState, useEffect, useRef, useMemo } from "react";
+// deleted it to make the "Coming soon" screen. Shown when COMMUNITY_OPEN in src/pages/Feed.jsx
+// is true. Everything here goes through the community function: people are identified by user
+// id (never email), and the server says what's yours ("mine") and what you can delete.
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Heart, MessageCircle, Send, Image, Filter, Loader2, Camera, Leaf, Trash2, User, MoreHorizontal, Flag, ShieldX, EyeOff } from "lucide-react";
+import { Heart, MessageCircle, Send, Loader2, Camera, Leaf, Trash2, User, MoreHorizontal, Flag, ShieldX, EyeOff } from "lucide-react";
+import confetti from "canvas-confetti";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { community } from "@/lib/community";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { community, communityToast, displayName, parseServerDate, profilePath } from "@/lib/community";
 import ReportSheet from "@/components/community/ReportSheet";
+import { usePhotoSource } from "@/components/PhotoSourceSheet";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { format, parseISO, formatDistanceToNow } from "date-fns";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { format } from "date-fns";
 import { motion, AnimatePresence } from 'framer-motion';
 import QuietNote from "@/components/community/QuietNote";
 import PlantdokuEgg from "@/components/PlantdokuEgg";
 
+// The hidden 🌿 button: a little confetti and a happy line (made on the phone, nothing loaded
+// from other sites)
+const EGG_LINES = [
+  "You found the secret sprout! 🌱",
+  "Your plants think you're doing great. 💚",
+  "Leaf it to you to find this! 🍃",
+  "Photosynthesis party! ☀️🌿",
+  "Grow on, plant friend! 🪴",
+];
 
 export default function CommunityFeed() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
-  const [newPost, setNewPost] = useState(""); // Changed from newPostContent
-  const [uploadedImage, setUploadedImage] = useState(null); // Changed from newPostImage
-  const [isUploadingImage, setIsUploadingImage] = useState(false); // Changed from isUploading
-  const [selectedPlant, setSelectedPlant] = useState(null); // New state for plant selection
-  const [showPlantPicker, setShowPlantPicker] = useState(false); // New state to control plant picker visibility
-  const imageInputRef = useRef(null); // New ref for image input
-  const [commentInputs, setCommentInputs] = useState({}); // Changed from commentText, object to store comment per post
-  const [expandedPost, setExpandedPost] = useState(null); // New state to control expanded comments for a post
-  // Removed filter state as it's removed from UI in the outline
+  const [newPost, setNewPost] = useState("");
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [selectedPlant, setSelectedPlant] = useState(null);
+  const [showPlantPicker, setShowPlantPicker] = useState(false);
+  const [commentInputs, setCommentInputs] = useState({});
+  const [expandedPost, setExpandedPost] = useState(null);
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [followingOnly, setFollowingOnly] = useState(false);
   const [sortMode, setSortMode] = useState('friends_first'); // 'friends_first' | 'newest'
 
   const [reportTarget, setReportTarget] = useState(null);
-  const [showEasterEgg, setShowEasterEgg] = useState(false);
-  const [currentGif, setCurrentGif] = useState(0);
-  
-  const easterEggGifs = [
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcWp5dzh5dGJ4dHFyZGRsMzZyMzJwOGJyZGRsMzZyMzJwOGJy/giphy.gif',
-    'https://media.giphy.com/media/26u4cqiYI30juCOGY/giphy.gif',
-    'https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif',
-    'https://media.giphy.com/media/26FmQ6EOvLxp6cWyY/giphy.gif',
-  ];
+  const [eggLine, setEggLine] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // { kind: 'post'|'comment', id }
 
   useEffect(() => {
     loadUser();
@@ -86,31 +92,16 @@ export default function CommunityFeed() {
     try {
       const currentUser = await base44.auth.me();
       setUser(currentUser);
-      
-      // Mark all notifications as dismissed when Feed is visited
-      const userNotifications = await base44.entities.Notification.filter({ user_email: currentUser.email, dismissed: false });
-      for (const notif of userNotifications) {
-        await base44.entities.Notification.update(notif.id, { dismissed: true });
-      }
-      // Invalidate query to clear the red dot
-      queryClient.invalidateQueries(['feedNotifications']);
-    } catch (error) {
-      console.error('Error loading user:', error);
+      // Opening the feed marks like/comment notices as seen (clears the menu badge). Follow
+      // approvals are left alone so their pop-up still shows.
+      const unseen = await base44.entities.Notification.filter({ user_email: currentUser.email, dismissed: false });
+      await Promise.allSettled((unseen || [])
+        .filter((n) => n.type === 'like' || n.type === 'comment')
+        .map((n) => base44.entities.Notification.update(n.id, { dismissed: true })));
+      queryClient.invalidateQueries({ queryKey: ['feedNotifications'] });
+    } catch {
+      // not signed in or offline: the feed shows its loading state
     }
-  };
-
-  const parseLocation = (location) => {
-    if (!location) return { city: null, state: null, country: null };
-    
-    const parts = location.split(',').map(p => p.trim());
-    
-    if (parts.length === 2) {
-      return { city: parts[0], state: parts[1], country: null };
-    } else if (parts.length === 3) {
-      return { city: parts[0], state: parts[1], country: parts[2] };
-    }
-    
-    return { city: null, state: location, country: null };
   };
 
   const getThemedClasses = () => {
@@ -133,19 +124,9 @@ export default function CommunityFeed() {
     return 'bg-white/60 backdrop-blur-md border border-gray-300/50';
   };
 
-  const getTextColor = () => {
-    // Dark themes - white text
-    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'valentines' || theme === 'stpatricks' || theme === 'fall') return 'text-white';
-    // Light themes - dark text
-    return 'text-gray-900';
-  };
-
-  const getSecondaryTextColor = () => {
-    // Dark themes - light secondary text
-    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'valentines' || theme === 'stpatricks' || theme === 'fall') return 'text-white/80';
-    // Light themes - dark secondary text
-    return 'text-gray-600';
-  };
+  const isDarkTheme = theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'valentines' || theme === 'stpatricks' || theme === 'fall';
+  const getTextColor = () => (isDarkTheme ? 'text-white' : 'text-gray-900');
+  const getSecondaryTextColor = () => (isDarkTheme ? 'text-white/80' : 'text-gray-600');
 
   const getPrimaryButtonClasses = () => {
     if (theme === 'botanical') return 'bg-green-700 hover:bg-green-800 text-white';
@@ -164,41 +145,31 @@ export default function CommunityFeed() {
     return 'bg-green-600 hover:bg-green-700 text-white';
   };
 
-  const getInputClasses = () => {
-    // Dark themes - dark inputs with light text
-    if (theme === 'dark' || theme === 'botanical' || theme === 'christmas' || theme === 'newyears' || theme === 'stpatricks' || theme === 'valentines' || theme === 'fall' || theme === 'halloween' || theme === 'fourthofjuly') {
-      return 'bg-white/10 text-white border-white/20 placeholder:text-white/50';
-    }
-    // Light themes - light inputs with dark text
-    return 'bg-white text-gray-900 border-gray-300';
-  };
+  const getInputClasses = () => (isDarkTheme
+    ? 'bg-white/10 text-white border-white/20 placeholder:text-white/50'
+    : 'bg-white text-gray-900 border-gray-300');
 
-  const getIconColor = () => {
-    // Dark themes need white icons
-    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'valentines' || theme === 'stpatricks' || theme === 'fall' || theme === 'fourthofjuly') return 'text-white';
-    // Light themes need dark icons
-    return 'text-gray-700';
-  };
+  const getIconColor = () => (isDarkTheme ? 'text-white' : 'text-gray-700');
 
   const handleEasterEggClick = () => {
-    setShowEasterEgg(true);
-    setCurrentGif((prev) => (prev + 1) % easterEggGifs.length);
-    setTimeout(() => setShowEasterEgg(false), 3000);
+    setEggLine(EGG_LINES[Math.floor(Math.random() * EGG_LINES.length)]);
+    try {
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        startVelocity: 38,
+        origin: { y: 0.6 },
+        colors: ['#16a34a', '#22c55e', '#86efac', '#facc15', '#f472b6'],
+        disableForReducedMotion: true,
+        zIndex: 400,
+      });
+    } catch { /* confetti is just for fun */ }
+    setTimeout(() => setEggLine(null), 2600);
   };
-
-  const { data: following = [] } = useQuery({
-    queryKey: ['following', user?.email],
-    queryFn: async () => {
-      const follows = await base44.entities.Follow.filter({ follower_email: user.email });
-      return follows.map(f => f.following_email);
-    },
-    enabled: !!user,
-    initialData: [],
-  });
 
   // Posts, comments, like counts and my likes all come from the community function, which
   // leaves out anything hidden and anyone blocked (either direction).
-  const { data: feed } = useQuery({
+  const { data: feed, isLoading: feedLoading } = useQuery({
     queryKey: ['communityFeed', user?.email],
     queryFn: () => community('feed'),
     enabled: !!user,
@@ -207,15 +178,17 @@ export default function CommunityFeed() {
   const allComments = feed?.comments || {};
   const userLikes = feed?.liked || [];
   const isBanned = !!feed?.me?.banned;
+  const isAdmin = !!feed?.me?.admin;
   const refreshFeed = () => queryClient.invalidateQueries({ queryKey: ['communityFeed'] });
 
-  const blockPerson = async (email, name) => {
+  const blockPerson = async (person) => {
+    if (!person?.id) return;
     try {
-      await community('block', { email });
-      toast.success(`${name || 'They'} won't see your posts and you won't see theirs. Unblock from their profile.`);
+      await community('block', { user_id: person.id });
+      toast.success(`${displayName(person)} won't see your posts and you won't see theirs. Unblock anytime from Blocked people in your profile.`);
       refreshFeed();
     } catch (e) {
-      toast.error(e.message);
+      communityToast(e, navigate);
     }
   };
 
@@ -228,25 +201,19 @@ export default function CommunityFeed() {
 
   const createPostMutation = useMutation({
     // Checked by moderateContent on the server before it's saved (text and photo)
-    mutationFn: (postData) => community('post', {
-      content: postData.content,
-      image_url: postData.image_url,
-      plant_id: postData.plant_id,
-    }),
+    mutationFn: (postData) => community('post', postData),
     onSuccess: () => {
       refreshFeed();
-      setNewPost(""); // Updated state name
-      setUploadedImage(null); // Updated state name
-      setSelectedPlant(null); // Clear selected plant
-      toast.success('Post created!');
+      setNewPost("");
+      setUploadedImage(null);
+      setSelectedPlant(null);
+      toast.success('Posted!');
     },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to create post');
-    },
+    onError: (error) => communityToast(error, navigate),
   });
 
   const likeMutation = useMutation({
-    // Toggles the like on the server, which also sends the in-app notification and keeps the count right
+    // Toggles the like on the server, which also tells the post's owner (once) and keeps the count right
     mutationFn: ({ postId }) => community('like', { post_id: postId }),
     onMutate: ({ postId, isLiked }) => {
       // Show the heart and count change right away
@@ -257,113 +224,101 @@ export default function CommunityFeed() {
       }));
     },
     onError: (error) => {
-      toast.error(error.message);
+      communityToast(error, navigate);
       refreshFeed();
     },
     onSettled: () => refreshFeed(),
   });
 
   const commentMutation = useMutation({
-    // Checked by moderateContent on the server before it's saved; the server also sends the
-    // in-app notification (the push comes from the "Notify on Comment" automation)
+    // Checked by moderateContent on the server before it's saved; the server also tells the post's owner
     mutationFn: ({ postId, content }) => community('comment', { post_id: postId, content }),
     onSuccess: (data, variables) => {
       refreshFeed();
       setCommentInputs(prev => ({ ...prev, [variables.postId]: "" }));
       toast.success('Comment added!');
     },
-    onError: (error) => {
-      console.error('Comment mutation error:', error);
-      toast.error(error.message || 'Failed to add comment');
-    },
+    onError: (error) => communityToast(error, navigate),
   });
 
-  const deletePostMutation = useMutation({
-    mutationFn: (postId) => base44.entities.Post.delete(postId),
-    onSuccess: () => {
+  // Deleting a post also removes its comments, likes and notices (on the server)
+  const deleteMutation = useMutation({
+    mutationFn: ({ kind, id }) => (kind === 'post'
+      ? community('delete_post', { post_id: id })
+      : community('delete_comment', { comment_id: id })),
+    onSuccess: (_d, { kind }) => {
       refreshFeed();
-      toast.success('Post deleted successfully!');
+      toast.success(kind === 'post' ? 'Post deleted' : 'Comment deleted');
     },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to delete post');
-    },
+    onError: (error) => communityToast(error, navigate),
+    onSettled: () => setConfirmDelete(null),
   });
 
-  const deleteCommentMutation = useMutation({
-    mutationFn: (commentId) => base44.entities.Comment.delete(commentId),
-    onSuccess: () => {
-      refreshFeed();
-      toast.success('Comment deleted successfully!');
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to delete comment');
-    },
-  });
-
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
+  // Camera or gallery, like everywhere else in the app
+  const uploadPostPhoto = async (file) => {
     if (!file) return;
-
-    setIsUploadingImage(true); // Updated state name
+    setIsUploadingImage(true);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setUploadedImage(file_url); // Updated state name
-      toast.success('Image uploaded!');
-    } catch (error) {
-      toast.error('Failed to upload image');
+      setUploadedImage(file_url);
+    } catch {
+      toast.error("That photo didn't upload. Please try again.");
     } finally {
-      setIsUploadingImage(false); // Updated state name
+      setIsUploadingImage(false);
     }
   };
+  const postPhoto = usePhotoSource((files) => uploadPostPhoto(files?.[0]), { title: 'Add a photo' });
 
   const handleCreatePost = () => {
-    if (!newPost.trim() && !uploadedImage) { // Updated state names
-      toast.error('Post cannot be empty');
+    if (!newPost.trim() && !uploadedImage) {
+      toast.error('Write something or add a photo.');
       return;
     }
-
     createPostMutation.mutate({
-      content: newPost, // Updated state name
-      image_url: uploadedImage, // Updated state name
-      author_email: user.email,
-      author_name: user.full_name,
-      plant_id: selectedPlant?.id, // Added plant_id
-      plant_name: selectedPlant?.nickname || selectedPlant?.name, // Added plant_name
+      content: newPost,
+      image_url: uploadedImage,
+      plant_id: selectedPlant?.id,
     });
   };
 
   const handleLike = (postId) => {
-    const isLiked = userLikes.includes(postId); // Updated to use userLikes
+    const isLiked = userLikes.includes(postId);
     likeMutation.mutate({ postId, isLiked });
   };
 
   const handleComment = (postId) => {
-    const content = commentInputs[postId]; // Updated state name
+    const content = commentInputs[postId];
     if (!content?.trim()) {
-      toast.error('Comment cannot be empty');
+      toast.error('Write a comment first.');
       return;
     }
     commentMutation.mutate({ postId, content });
   };
 
-  // Filter and sort posts: following users' posts first, then optional following-only filter
-  const displayedPosts = useMemo(() => { // eslint-disable-line
+  const openProfile = (person) => {
+    const path = profilePath(person?.id);
+    if (path) navigate(path);
+  };
+
+  const postDate = (d) => {
+    const date = parseServerDate(d);
+    return date ? format(date, 'MMM d, yyyy') : '';
+  };
+
+  // Followed people's posts first (or only), then newest
+  const displayedPosts = useMemo(() => {
     let filtered = posts;
-    if (followingOnly) {
-      filtered = posts.filter(p => following.includes(p.author_email) || p.author_email === user?.email);
-    }
-    if (sortMode === 'newest') {
-      return [...filtered].sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-    }
-    // friends_first: followed users' posts first, then by date
+    if (followingOnly) filtered = posts.filter(p => p.followed || p.mine);
+    const time = (p) => parseServerDate(p.created_date)?.getTime() || 0;
+    if (sortMode === 'newest') return [...filtered].sort((a, b) => time(b) - time(a));
     return [...filtered].sort((a, b) => {
-      const aIsFollowed = following.includes(a.author_email) || a.author_email === user?.email;
-      const bIsFollowed = following.includes(b.author_email) || b.author_email === user?.email;
-      if (aIsFollowed && !bIsFollowed) return -1;
-      if (!aIsFollowed && bIsFollowed) return 1;
-      return new Date(b.created_date) - new Date(a.created_date);
+      const aF = a.followed || a.mine;
+      const bF = b.followed || b.mine;
+      if (aF && !bF) return -1;
+      if (!aF && bF) return 1;
+      return time(b) - time(a);
     });
-  }, [posts, following, followingOnly, sortMode, user?.email]);
+  }, [posts, followingOnly, sortMode]);
 
   if (!user) {
     return (
@@ -376,33 +331,52 @@ export default function CommunityFeed() {
     );
   }
 
-  // Removed userLocation as filter is removed from UI
-
   return (
     <div className="min-h-screen theme-bg p-6 pb-24">
       {reportTarget && (
         <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} onBlocked={() => refreshFeed()} />
       )}
-      {/* Easter Egg GIF Popup */}
+      {postPhoto.sheet}
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(open) => { if (!open && !deleteMutation.isPending) setConfirmDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDelete?.kind === 'post' ? 'Delete this post?' : 'Delete this comment?'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDelete?.kind === 'post'
+                ? 'Its comments and likes will be deleted too. This can’t be undone.'
+                : 'This can’t be undone.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={deleteMutation.isPending}
+              onClick={(e) => { e.preventDefault(); if (confirmDelete) deleteMutation.mutate(confirmDelete); }}
+            >
+              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Easter egg: confetti and a happy line */}
       <AnimatePresence>
-        {showEasterEgg && (
+        {eggLine && (
           <motion.div
-            initial={{ scale: 0, opacity: 0 }}
+            initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="fixed inset-x-0 top-1/3 z-50 flex justify-center px-6 pointer-events-none"
           >
-            <img 
-              src={easterEggGifs[currentGif]} 
-              alt="Celebration" 
-              className="max-w-md max-h-96 rounded-2xl shadow-2xl"
-            />
+            <p className="rounded-2xl bg-green-600 text-white text-lg font-bold px-6 py-4 shadow-2xl text-center">{eggLine}</p>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Darker overlay for specific dark themes */}
-      {(theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'valentines' || theme === 'stpatricks' || theme === 'fall') && (
+      {isDarkTheme && (
         <div className="fixed inset-0 bg-black/60 -z-10"></div>
       )}
       
@@ -438,6 +412,7 @@ export default function CommunityFeed() {
             {/* Easter Egg Button */}
             <button
               onClick={handleEasterEggClick}
+              aria-label="A little surprise"
               className="absolute bottom-2 right-2 text-[8px] opacity-20 hover:opacity-40 transition-opacity"
             >
               🌿
@@ -449,7 +424,7 @@ export default function CommunityFeed() {
           {isBanned && (
             <Card className={`mb-6 ${getThemedClasses()}`}>
               <CardContent className="p-6">
-                <p className={getTextColor()}>Your Community access has been turned off because of reports about your posts or messages. You can still read the feed.</p>
+                <p className={getTextColor()}>Your Community access has been turned off because of reports about your posts or comments. You can still read the feed.</p>
               </CardContent>
             </Card>
           )}
@@ -460,14 +435,16 @@ export default function CommunityFeed() {
                 placeholder="Share something about your plants..."
                 value={newPost}
                 onChange={(e) => setNewPost(e.target.value)}
+                maxLength={2000}
                 className={`mb-4 ${getInputClasses()}`}
               />
               
               {uploadedImage && (
                 <div className="mb-4 relative inline-block">
-                  <img src={uploadedImage} alt="Preview" className="h-32 rounded-lg" />
+                  <img src={uploadedImage} alt="Your photo" className="h-32 rounded-lg" />
                   <button
                     onClick={() => setUploadedImage(null)}
+                    aria-label="Remove photo"
                     className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
                   >
                     ×
@@ -478,22 +455,16 @@ export default function CommunityFeed() {
               {selectedPlant && (
                 <div className={`mb-4 p-3 rounded-lg border flex items-center justify-between ${getThemedClasses()}`}>
                   <span className={getTextColor()}>🪴 {selectedPlant.nickname || selectedPlant.name}</span>
-                  <button onClick={() => setSelectedPlant(null)} className="text-red-500">×</button>
+                  <button onClick={() => setSelectedPlant(null)} aria-label="Remove plant" className="text-red-500">×</button>
                 </div>
               )}
 
               <div className="flex gap-2">
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => imageInputRef.current?.click()}
+                  aria-label="Add a photo"
+                  onClick={postPhoto.openPicker}
                   disabled={isUploadingImage}
                   className={`${getThemedClasses()} ${getIconColor()}`}
                 >
@@ -506,6 +477,7 @@ export default function CommunityFeed() {
                 <Button
                   variant="outline"
                   size="icon"
+                  aria-label="Tag one of your plants"
                   onClick={() => setShowPlantPicker(!showPlantPicker)}
                   className={`${getThemedClasses()} ${getIconColor()}`}
                 >
@@ -513,7 +485,7 @@ export default function CommunityFeed() {
                 </Button>
                 <Button
                   onClick={handleCreatePost}
-                  disabled={createPostMutation.isPending || (!newPost.trim() && !uploadedImage)}
+                  disabled={createPostMutation.isPending || isUploadingImage || (!newPost.trim() && !uploadedImage)}
                   className={`flex-1 ${getPrimaryButtonClasses()}`}
                 >
                   {createPostMutation.isPending ? 'Posting...' : 'Post'}
@@ -522,28 +494,36 @@ export default function CommunityFeed() {
 
               {showPlantPicker && (
                 <div className={`mt-4 p-4 rounded-lg border ${getThemedClasses()}`}>
-                  <p className={`text-sm font-semibold mb-2 ${getTextColor()}`}>Choose a plant:</p>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {userPlants.map(plant => (
-                      <button
-                        key={plant.id}
-                        onClick={() => {
-                          setSelectedPlant(plant);
-                          setShowPlantPicker(false);
-                        }}
-                        className={`w-full text-left p-2 rounded hover:bg-opacity-70 ${getThemedClasses()}`}
-                      >
-                        <span className={getTextColor()}>{plant.nickname || plant.name}</span>
-                      </button>
-                    ))}
-                  </div>
+                  {userPlants.length === 0 ? (
+                    <p className={`text-sm ${getSecondaryTextColor()}`}>You don't have any plants yet.</p>
+                  ) : (
+                    <>
+                      <p className={`text-sm font-semibold mb-2 ${getTextColor()}`}>Choose a plant:</p>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {userPlants.map(plant => (
+                          <button
+                            key={plant.id}
+                            onClick={() => {
+                              setSelectedPlant(plant);
+                              setShowPlantPicker(false);
+                            }}
+                            className={`w-full text-left p-2 rounded hover:bg-opacity-70 ${getThemedClasses()}`}
+                          >
+                            <span className={getTextColor()}>{plant.nickname || plant.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </CardContent>
           </Card>
 
           <div className="space-y-6">
-            {displayedPosts.length === 0 ? (
+            {feedLoading ? (
+              <div className="flex justify-center py-12"><Loader2 className={`w-6 h-6 animate-spin ${getTextColor()}`} /></div>
+            ) : displayedPosts.length === 0 ? (
               <Card className={getThemedClasses()}>
                 <CardContent className="p-12 text-center">
                   <MessageCircle className={`w-16 h-16 mx-auto mb-4 ${getSecondaryTextColor()}`} />
@@ -556,18 +536,16 @@ export default function CommunityFeed() {
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <button
-                        onClick={() => navigate(`/Profile?email=${post.author_email}`)}
-                        className="flex items-center gap-3"
+                        onClick={() => openProfile(post.author)}
+                        className="flex items-center gap-3 min-w-0"
                       >
                         <Avatar className="w-10 h-10">
-                          <AvatarImage src={post.author_profile_picture} />
+                          <AvatarImage src={post.author?.photo} />
                           <AvatarFallback><User className="w-5 h-5" /></AvatarFallback>
                         </Avatar>
-                        <div className="text-left">
-                          <p className={`font-semibold ${getTextColor()}`}>{post.author_name}</p>
-                          <p className={`text-xs ${getSecondaryTextColor()}`}>
-                            {format(parseISO(post.created_date), 'MMM d, yyyy')}
-                          </p>
+                        <div className="text-left min-w-0">
+                          <p className={`font-semibold truncate ${getTextColor()}`}>{displayName(post.author)}</p>
+                          <p className={`text-xs ${getSecondaryTextColor()}`}>{postDate(post.created_date)}</p>
                         </div>
                       </button>
                       <DropdownMenu>
@@ -577,18 +555,21 @@ export default function CommunityFeed() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {post.author_email === user?.email ? (
-                            <DropdownMenuItem onClick={() => deletePostMutation.mutate(post.id)} className="text-red-600">
+                          {(post.mine || isAdmin) && (
+                            <DropdownMenuItem onClick={() => setConfirmDelete({ kind: 'post', id: post.id })} className="text-red-600">
                               <Trash2 className="w-4 h-4 mr-2" /> Delete post
                             </DropdownMenuItem>
-                          ) : (
+                          )}
+                          {!post.mine && (
                             <>
-                              <DropdownMenuItem onClick={() => setReportTarget({ type: 'post', id: post.id, email: post.author_email, name: post.author_name })}>
+                              <DropdownMenuItem onClick={() => setReportTarget({ type: 'post', id: post.id, userId: post.author?.id, name: displayName(post.author) })}>
                                 <Flag className="w-4 h-4 mr-2" /> Report post
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => blockPerson(post.author_email, post.author_name)} className="text-red-600">
-                                <ShieldX className="w-4 h-4 mr-2" /> Block {post.author_name || 'this person'}
-                              </DropdownMenuItem>
+                              {post.author?.id && (
+                                <DropdownMenuItem onClick={() => blockPerson(post.author)} className="text-red-600">
+                                  <ShieldX className="w-4 h-4 mr-2" /> Block {displayName(post.author)}
+                                </DropdownMenuItem>
+                              )}
                             </>
                           )}
                         </DropdownMenuContent>
@@ -601,12 +582,13 @@ export default function CommunityFeed() {
                       </p>
                     )}
 
-                    <p className={`mb-4 whitespace-pre-wrap ${getTextColor()}`}>{post.content}</p>
+                    {post.content && <p className={`mb-4 whitespace-pre-wrap ${getTextColor()}`}>{post.content}</p>}
 
                     {post.image_url && (
                       <img
                         src={post.image_url}
-                        alt="Post"
+                        alt="Post photo"
+                        loading="lazy"
                         className="rounded-lg mb-4 max-w-full"
                       />
                     )}
@@ -621,7 +603,8 @@ export default function CommunityFeed() {
                     <div className="flex items-center gap-4 pt-4 border-t theme-border">
                       <button
                         onClick={() => handleLike(post.id)}
-                        disabled={likeMutation.isPending}
+                        disabled={likeMutation.isPending || isBanned}
+                        aria-label={userLikes.includes(post.id) ? 'Unlike' : 'Like'}
                         className={`flex items-center gap-2 ${
                           userLikes.includes(post.id) ? 'text-red-500' : getSecondaryTextColor()
                         }`}
@@ -631,6 +614,7 @@ export default function CommunityFeed() {
                       </button>
                       <button
                         onClick={() => setExpandedPost(expandedPost === post.id ? null : post.id)}
+                        aria-label="Comments"
                         className={`flex items-center gap-2 ${getSecondaryTextColor()}`}
                       >
                         <MessageCircle className="w-5 h-5" />
@@ -645,15 +629,15 @@ export default function CommunityFeed() {
                             <div key={comment.id} className={`p-3 rounded-lg ${getThemedClasses()}`}>
                               <div className="flex items-start justify-between mb-2">
                                 <button
-                                  onClick={() => navigate(`/Profile?email=${comment.author_email}`)}
-                                  className="flex items-center gap-2"
+                                  onClick={() => openProfile(comment.author)}
+                                  className="flex items-center gap-2 min-w-0"
                                 >
                                   <Avatar className="w-8 h-8">
-                                    <AvatarImage src={comment.author_profile_picture} />
+                                    <AvatarImage src={comment.author?.photo} />
                                     <AvatarFallback><User className="w-4 h-4" /></AvatarFallback>
                                   </Avatar>
-                                  <span className={`font-semibold text-sm ${getTextColor()}`}>
-                                    {comment.author_name}
+                                  <span className={`font-semibold text-sm truncate ${getTextColor()}`}>
+                                    {displayName(comment.author)}
                                   </span>
                                 </button>
                                 <DropdownMenu>
@@ -663,25 +647,28 @@ export default function CommunityFeed() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    {comment.author_email === user?.email ? (
-                                      <DropdownMenuItem onClick={() => deleteCommentMutation.mutate(comment.id)} className="text-red-600">
+                                    {comment.can_delete && (
+                                      <DropdownMenuItem onClick={() => setConfirmDelete({ kind: 'comment', id: comment.id })} className="text-red-600">
                                         <Trash2 className="w-4 h-4 mr-2" /> Delete comment
                                       </DropdownMenuItem>
-                                    ) : (
+                                    )}
+                                    {!comment.mine && (
                                       <>
-                                        <DropdownMenuItem onClick={() => setReportTarget({ type: 'comment', id: comment.id, email: comment.author_email, name: comment.author_name })}>
+                                        <DropdownMenuItem onClick={() => setReportTarget({ type: 'comment', id: comment.id, userId: comment.author?.id, name: displayName(comment.author) })}>
                                           <Flag className="w-4 h-4 mr-2" /> Report comment
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => blockPerson(comment.author_email, comment.author_name)} className="text-red-600">
-                                          <ShieldX className="w-4 h-4 mr-2" /> Block {comment.author_name || 'this person'}
-                                        </DropdownMenuItem>
+                                        {comment.author?.id && (
+                                          <DropdownMenuItem onClick={() => blockPerson(comment.author)} className="text-red-600">
+                                            <ShieldX className="w-4 h-4 mr-2" /> Block {displayName(comment.author)}
+                                          </DropdownMenuItem>
+                                        )}
                                       </>
                                     )}
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>
                               {comment.hidden && <p className="text-xs font-semibold text-red-500 mb-1">Hidden ({comment.hidden_reason || 'reports'}). Only admins see this.</p>}
-                              <p className={`text-sm ${getTextColor()}`}>{comment.content}</p>
+                              <p className={`text-sm whitespace-pre-wrap ${getTextColor()}`}>{comment.content}</p>
                             </div>
                           ))}
                         </div>
@@ -689,17 +676,19 @@ export default function CommunityFeed() {
                           <Input
                             placeholder="Write a comment..."
                             value={commentInputs[post.id] || ''}
+                            maxLength={1000}
                             onChange={(e) => setCommentInputs({
                               ...commentInputs,
                               [post.id]: e.target.value
                             })}
-                            onKeyPress={(e) => e.key === 'Enter' && handleComment(post.id)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleComment(post.id)}
                             className={getInputClasses()}
                           />
                           <Button
                             onClick={() => handleComment(post.id)}
                             disabled={!commentInputs[post.id]?.trim() || commentMutation.isPending}
                             size="icon"
+                            aria-label="Send comment"
                             className={getPrimaryButtonClasses()}
                           >
                             <Send className="w-4 h-4" />
