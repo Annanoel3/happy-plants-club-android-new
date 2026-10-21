@@ -156,7 +156,9 @@ function LayoutContent({ children, currentPageName }) {
   }, []);
   const cycleTheme = () => {
     const themes = (themeEgg || themeEggFound(user)) ? getSeasonalThemes() : ['light', 'dark', 'botanical'];
-    const currentIndex = themes.indexOf(theme);
+    // The garden's secret button changes the theme on its own, so go from what's showing now
+    const current = document.documentElement.getAttribute('data-theme') || theme;
+    const currentIndex = themes.indexOf(current);
     const nextIndex = (currentIndex + 1) % themes.length;
     setTheme(themes[nextIndex]);
   };
