@@ -1,6 +1,5 @@
 import Dashboard from './pages/Dashboard';
 import AddPlant from './pages/AddPlant';
-import VoiceLog from './pages/VoiceLog';
 import PlantChat from './pages/PlantChat';
 import PlantDetail from './pages/PlantDetail';
 import Welcome from './pages/Welcome';
@@ -29,7 +28,6 @@ import __Layout from './Layout.jsx';
 export const PAGES = {
     "Dashboard": Dashboard,
     "AddPlant": AddPlant,
-    "VoiceLog": VoiceLog,
     "PlantChat": PlantChat,
     "PlantDetail": PlantDetail,
     "Welcome": Welcome,
