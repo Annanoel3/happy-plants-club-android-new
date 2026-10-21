@@ -201,9 +201,10 @@ ${contextMessage}`;
             { role: 'assistant', content: reply }
         );
 
+        // The answer was paid for: show it even if saving it fails
         await base44.entities.PlantConversation.update(convId, {
             messages: conversationHistory
-        });
+        }).catch((e: any) => console.error('saving the chat failed:', e?.message));
 
         return Response.json({ 
             message: cut ? `${CUT_NOTE}\n\n${reply}` : reply,
