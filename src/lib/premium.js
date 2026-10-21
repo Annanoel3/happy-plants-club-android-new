@@ -5,6 +5,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { base44 } from '@/api/base44Client';
 
 const PLUS_CACHE_KEY = 'hp_plus';
+export const PREMIUM_STATUS_EVENT = 'hp-premium-status'; // detail = the latest status from the server
 let Billing = null;
 let configuredFor = null;
 
@@ -24,9 +25,40 @@ function cachePlus(v) {
 
 /** Server truth: plan, today's AI usage and limits. refresh=true asks RevenueCat first. */
 export async function getPremiumStatus({ refresh = false } = {}) {
+  watchOnResume();
   const { data } = await base44.functions.invoke('premium', { action: refresh ? 'refresh' : 'status' });
-  if (data?.success) cachePlus(data.plus);
+  if (data?.success) {
+    lastStatusAt = Date.now();
+    cachePlus(data.plus);
+    try { window.dispatchEvent(new CustomEvent(PREMIUM_STATUS_EVENT, { detail: data })); } catch { /* ignore */ }
+  }
   return data;
+}
+
+// The first check runs when the app opens (Layout). Phones keep the app in the background for
+// days, so also check when it comes back to the front, at most every 3 hours, so ads and Plus
+// screens follow an expiry or a new purchase without a restart. One small server call.
+const RESUME_CHECK_MS = 3 * 3600e3;
+let lastStatusAt = 0;
+let watching = false;
+function watchOnResume() {
+  if (watching || typeof document === 'undefined') return;
+  watching = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastStatusAt < RESUME_CHECK_MS) return;
+    lastStatusAt = Date.now(); // count the try too, so a failing call isn't repeated on every resume
+    getPremiumStatus().catch(() => {});
+  });
+}
+
+// After a purchase that didn't clearly finish (pending payment, slow store): ask RevenueCat
+// again in 2 minutes, and check right away the next time the app comes back to the front.
+let soonTimer = null;
+function checkPlusSoon() {
+  lastStatusAt = 0;
+  clearTimeout(soonTimer);
+  soonTimer = setTimeout(() => { getPremiumStatus({ refresh: true }).catch(() => {}); }, 120000);
 }
 
 /** Can this install buy? (Older app versions don't have the billing bridge.) */
@@ -65,10 +97,19 @@ export async function getPlans() {
 /** Returns { cancelled } or { plus } after the server has confirmed it. */
 export async function buyPlan(packageId) {
   const b = await ensureConfigured();
-  const r = await b.purchase({ packageId });
+  let r;
+  try {
+    r = await b.purchase({ packageId });
+  } catch (e) {
+    // Build 13 reports a pending payment as an error too, so it may still go through
+    checkPlusSoon();
+    throw e;
+  }
   if (r?.cancelled) return { cancelled: true };
   const status = await getPremiumStatus({ refresh: true }).catch(() => null);
-  return { plus: !!(status?.plus ?? r?.active), status };
+  const plus = !!(status?.plus ?? r?.active);
+  if (!plus) checkPlusSoon();
+  return { plus, status };
 }
 
 export async function restorePurchases() {
@@ -87,12 +128,19 @@ export function aiLimitInfo(err) {
   return null;
 }
 
-const LIMIT_WORDS = { identify: 'plant IDs', health: 'health checks', chat: 'AI chat messages' };
+const LIMIT_WORDS = { identify: 'photo IDs', health: 'health checks', chat: 'AI chat messages' };
 export function aiLimitMessage(info) {
   if (info.kind === 'identify') {
     return info.plus
-      ? `You've used all ${info.limit} photo IDs for today. They're back tomorrow. Typing a plant's name is always free.`
-      : "You're out of photo IDs for today. The photo is saved and gets named tomorrow, or type its name (always free).";
+      ? `You've used all ${info.limit} photo IDs for today. They're back tomorrow. Typing a plant's name doesn't use a photo ID.`
+      : "You're out of photo IDs for today. The photo is saved and gets named tomorrow. Typing its name doesn't use a photo ID.";
+  }
+  if (info.kind === 'rename') {
+    // Typed names don't use photo IDs, but they have their own daily limit
+    const n = info.limit ? `${info.limit} ` : '';
+    return info.plus
+      ? `You've typed in ${n}plant names today. That's the most for one day, so you can type more tomorrow.`
+      : `You've typed in your ${n}free plant names for today. You can type more tomorrow, and Plus gives you more.`;
   }
   const what = LIMIT_WORDS[info.kind] || 'AI uses';
   return info.plus
@@ -100,11 +148,37 @@ export function aiLimitMessage(info) {
     : `You've used your ${info.limit} free ${what} for today. Plus gives you way more — or try again tomorrow.`;
 }
 
+const APP_PACKAGE = 'com.mediocreatbest.happyplants';
+export const PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=${APP_PACKAGE}`;
+
 /** Play's subscription management screen for this app. */
 export function manageSubscriptionUrl(productId) {
-  const pkg = 'com.mediocreatbest.happyplants';
   const base = 'https://play.google.com/store/account/subscriptions';
-  return productId ? `${base}?sku=${encodeURIComponent(productId.split(':')[0])}&package=${pkg}` : `${base}?package=${pkg}`;
+  return productId ? `${base}?sku=${encodeURIComponent(productId.split(':')[0])}&package=${APP_PACKAGE}` : `${base}?package=${APP_PACKAGE}`;
+}
+
+// Opening Google Play from the Android app. An https link would load Google's website inside
+// the app's own web view: MainActivity.openExternally only hands non-http links (intent:,
+// market:, tel: ...) to the phone. So on Android we turn the https link into an intent: link
+// pinned to the Play Store app (package com.android.vending). That's the same thing Google's
+// docs do in Java (ACTION_VIEW on the play.google.com link + setPackage("com.android.vending")),
+// and unlike market:// it also works for the subscriptions screen. It has to open in the same
+// window: target=_blank / window.open goes through onCreateWindow, which loads the link inside
+// the web view and never reaches openExternally. Web keeps the normal https link in a new tab.
+function isAndroidApp() {
+  try { return Capacitor.getPlatform() === 'android'; } catch { return false; }
+}
+function playIntent(httpsUrl) {
+  return `intent://${httpsUrl.replace(/^https:\/\//, '')}#Intent;scheme=https;package=com.android.vending;end`;
+}
+/** Props for an <a> that opens a play.google.com link in the Play Store app (Android) or a new tab (web). */
+export function playLinkProps(httpsUrl) {
+  return isAndroidApp() ? { href: playIntent(httpsUrl) } : { href: httpsUrl, target: '_blank', rel: 'noreferrer' };
+}
+/** Same as playLinkProps, from code. */
+export function openInPlay(httpsUrl) {
+  if (isAndroidApp()) window.location.href = playIntent(httpsUrl);
+  else window.open(httpsUrl, '_blank', 'noopener');
 }
 
 /** If err is the daily-limit answer, show one friendly toast with a way to Plus. */
