@@ -1,6 +1,7 @@
 // Client side of the `community` backend function. Every post, comment, like, follow, report,
 // block and profile edit goes through it, so moderation and blocking can't be skipped. People
 // are addressed by user id; the server never sends anyone else's email to the phone.
+import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 
 export class CommunityError extends Error {
@@ -25,6 +26,16 @@ export async function community(action, args = {}) {
     try { window.dispatchEvent(new Event('hp-community-terms-needed')); } catch { /* ignore */ }
   }
   throw failure;
+}
+
+/** Shows a community error. "Agree to the rules first" gets a button to the rules (on the Feed). */
+export function communityToast(e, navigate) {
+  const message = e?.message || 'Something went wrong. Please try again.';
+  if (e?.code === 'terms' && navigate) {
+    toast.error(message, { action: { label: 'See the rules', onClick: () => navigate('/Feed') } });
+  } else {
+    toast.error(message);
+  }
 }
 
 /** Link to someone's profile (by user id, never by email) */
