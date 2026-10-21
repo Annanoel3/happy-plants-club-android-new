@@ -1,7 +1,10 @@
 // Shared bits for the Garden Games (Plantdoku, Sprout Word, Garden Groups, Mini Garden).
 import { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { localToday } from '@/lib/dates';
-import { showAdForEvent } from '@/lib/admob';
+import { initAdMob, showInterstitialAd } from '@/lib/admob';
+import { isPlusCached } from '@/lib/premium';
+import { claimPopup, releasePopup } from '@/lib/popupGate';
 
 export const DARK_THEMES = new Set(['dark', 'botanical', 'halloween', 'christmas', 'newyears', 'fourthofjuly', 'valentines', 'stpatricks', 'fall']);
 
@@ -22,7 +25,7 @@ export function useGameTheme() {
 
 export const GAMES = [
   { key: 'plantdoku', name: 'Plantdoku', path: '/Plantdoku', emoji: '🌱', blurb: 'One plant in every color, row and column. No touching.' },
-  { key: 'sproutword', name: 'Sprout Word', path: '/SproutWord', emoji: '🔤', blurb: 'Guess the 5-letter plant word in 6 tries.' },
+  { key: 'sproutword', name: 'Sprout Word', path: '/SproutWord', emoji: '🔤', blurb: 'Guess the 5-letter plant, garden or nature word in 6 tries.' },
   { key: 'gardengroups', name: 'Garden Groups', path: '/GardenGroups', emoji: '🧺', blurb: 'Sort 16 words into 4 groups of 4.' },
   { key: 'minigarden', name: 'Mini Garden', path: '/MiniGarden', emoji: '🪴', blurb: 'Every row, column and box gets one of each plant.' },
 ];
@@ -47,25 +50,70 @@ export function getDone(game, day = localToday()) {
 export function setDone(game, data = {}, day = localToday()) {
   try { localStorage.setItem(doneKey(game, day), JSON.stringify({ ...data, at: Date.now() })); } catch { /* ignore */ }
 }
-/** Days in a row the daily puzzle of this game was finished, ending today or yesterday */
+// A done mark is kept for losses too (so the daily can't be replayed); only wins count for streaks.
+// Sprout Word saves { won }, Garden Groups { solved } (older marks) and { won }; the timed games always win.
+export const isWin = (x) => !!x && x.won !== false && x.solved !== false;
+/** Days in a row the daily puzzle of this game was won, ending today or yesterday. A loss ends it. */
 export function streakFor(game, day = localToday()) {
   let n = 0;
   let d = getDone(game, day) ? day : addDays(day, -1);
-  while (getDone(game, d)) { n++; d = addDays(d, -1); }
+  while (isWin(getDone(game, d))) { n++; d = addDays(d, -1); }
   return n;
 }
 
 // Ads: one full-screen ad per two finished puzzles (any game), shown when the next one starts
+const FINISHED_KEY = 'hp_pd_completed'; // old name, kept so counts carry over
+const LAST_AD_KEY = 'hp_last_ad_at'; // admob.js stamps this after every ad and reward video
+const AD_GAP_MS = 45000; // admob.js never shows two within 45 s
 export function countFinish() {
-  try { localStorage.setItem('hp_pd_completed', String((Number(localStorage.getItem('hp_pd_completed')) || 0) + 1)); } catch { /* ignore */ }
+  try { localStorage.setItem(FINISHED_KEY, String((Number(localStorage.getItem(FINISHED_KEY)) || 0) + 1)); } catch { /* ignore */ }
 }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let adRun = null;
+/**
+ * Call whenever a new puzzle starts (opened from the games list, Play another, Practice, Daily).
+ * Not for going back to a puzzle that's already under way or finished.
+ * showAdForEvent() in admob.js returns nothing and quietly skips (45 s gap, no ad loaded), so the
+ * count used to be reset for ads that never showed. This shows the interstitial itself and only
+ * resets the count when one really showed; otherwise the next puzzle tries again.
+ * Resolves (true if an ad showed) once the ad is closed, so a timed game can hold its clock.
+ */
 export function adBeforeNext() {
+  if (adRun) return adRun;
   let n = 0;
-  try { n = Number(localStorage.getItem('hp_pd_completed')) || 0; } catch { /* ignore */ }
-  if (n >= 2) {
-    try { localStorage.setItem('hp_pd_completed', '0'); } catch { /* ignore */ }
-    showAdForEvent('game');
-  }
+  let last = 0;
+  try {
+    n = Number(localStorage.getItem(FINISHED_KEY)) || 0;
+    last = parseInt(localStorage.getItem(LAST_AD_KEY) || '0', 10) || 0;
+  } catch { /* ignore */ }
+  if (n < 2 || !Capacitor.isNativePlatform() || isPlusCached()) return Promise.resolve(false);
+  if (Date.now() - last < AD_GAP_MS) return Promise.resolve(false);
+  if (!claimPopup('game-ad')) return Promise.resolve(false); // a how-to or other popup is up: next time
+  adRun = (async () => {
+    const subs = [];
+    try {
+      await initAdMob();
+      const plugin = Capacitor.Plugins?.AdMob;
+      let closed = () => {};
+      const gone = new Promise((r) => { closed = r; });
+      // showInterstitial() settles as soon as the ad opens, so wait for it to be closed
+      for (const ev of ['interstitialAdDismissed', 'interstitialAdFailedToShow']) {
+        try { subs.push(await plugin.addListener(ev, () => closed())); } catch { /* ignore */ }
+      }
+      const shown = await showInterstitialAd();
+      if (!shown) return false;
+      try { localStorage.setItem(FINISHED_KEY, '0'); } catch { /* ignore */ }
+      if (subs.length) await Promise.race([gone, sleep(120000)]);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      subs.forEach((s) => { try { s?.remove?.(); } catch { /* ignore */ } });
+      releasePopup('game-ad');
+      adRun = null;
+    }
+  })();
+  return adRun;
 }
 
 export const fmtTime = (sec) => {
