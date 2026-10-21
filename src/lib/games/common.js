@@ -1,5 +1,5 @@
 // Shared bits for the Garden Games (Plantdoku, Sprout Word, Garden Groups, Mini Garden).
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { localToday } from '@/lib/dates';
 import { initAdMob, showInterstitialAd } from '@/lib/admob';
@@ -29,6 +29,22 @@ export const GAMES = [
   { key: 'gardengroups', name: 'Garden Groups', path: '/GardenGroups', emoji: '🧺', blurb: 'Sort 16 words into 4 groups of 4.' },
   { key: 'minigarden', name: 'Mini Garden', path: '/MiniGarden', emoji: '🪴', blurb: 'Every row, column and box gets one of each plant.' },
 ];
+
+/**
+ * Today's date, kept current (every 30 s and when the app comes back), so a screen can notice
+ * midnight. Games lock their daily to the date they opened with and only use this to offer
+ * the new one.
+ */
+export function useToday() {
+  const [t, setT] = useState(localToday);
+  useEffect(() => {
+    const check = () => setT(localToday());
+    const iv = setInterval(check, 30000);
+    document.addEventListener('visibilitychange', check);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', check); };
+  }, []);
+  return t;
+}
 
 export function addDays(day, n) {
   const d = new Date(`${day}T12:00:00Z`);
