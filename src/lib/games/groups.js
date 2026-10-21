@@ -404,6 +404,12 @@ const BY_LEVEL = { 1: [], 2: [], 3: [], 4: [] };
 for (const [k, c] of Object.entries(CATEGORIES)) BY_LEVEL[c.level].push(k);
 
 export const dailyGroupsSeed = (date) => `garden-groups-${String(date).slice(0, 10)}`;
+const addDays = (day, n) => {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const dayNum = (day) => Math.floor(Date.parse(`${day}T12:00:00Z`) / 86400000);
 
 /** Words that can be the answer for category c when the other chosen categories are `others` */
 function poolFor(c, others) {
@@ -428,6 +434,84 @@ export function makeGroupsPuzzle(seed) {
   const chosen = ['tool', 'onion', 'lawn', 'palmP'];
   const groups = chosen.map((c) => ({ key: c, name: CATEGORIES[c].name, level: CATEGORIES[c].level, words: poolFor(c, chosen.filter((o) => o !== c)).slice(0, 4) }));
   return { seed, groups, tiles: shuffleWith(rng, groups.flatMap((g) => g.words)) };
+}
+
+// ---------- Daily puzzles ----------
+// Before ROTATE_FROM each daily picked its 4 categories at random with no memory, so the same
+// category often came back the next day. Those days are kept as they were (people played them).
+// From ROTATE_FROM on, each level is dealt like a deck: the category used longest ago that still
+// makes a fair puzzle with the other three, ties broken by the day's seed, and never one used in
+// the last MIN_GAP days unless nothing else fits. Words go the same way (longest unused first),
+// so a group rarely shows the same words twice in a row. It's worked out day by day from
+// ROTATE_FROM (cached), so every phone gets the same puzzle for the same date.
+export const ROTATE_FROM = '2026-10-21';
+const MIN_GAP = { 1: 7, 2: 7, 3: 6, 4: 7 }; // level 3 has only 6 categories
+const feasibleCache = new Map();
+function poolsFor(chosen) {
+  return chosen.map((c) => poolFor(c, chosen.filter((o) => o !== c)));
+}
+function feasible(chosen) {
+  const k = chosen.join('|');
+  if (!feasibleCache.has(k)) feasibleCache.set(k, poolsFor(chosen).every((p) => p.length >= 4));
+  return feasibleCache.get(k);
+}
+
+const sim = { day: null, n: 0, catUsed: {}, wordUsed: {}, byDay: new Map() };
+function remember(day, p) {
+  const n = dayNum(day);
+  p.groups.forEach((g) => {
+    sim.catUsed[g.key] = n;
+    g.words.forEach((w) => { sim.wordUsed[w] = n; });
+  });
+}
+function rotatedPuzzle(day) {
+  const n = dayNum(day);
+  const seed = dailyGroupsSeed(day);
+  const rng = seededRng(`gg|${seed}`);
+  const ago = (last) => (last === undefined ? Infinity : n - last);
+  // Per level: categories longest-unused first, each with a cost (its place in line, plus a big
+  // cost if it was used too recently)
+  const lines = [1, 2, 3, 4].map((l) => shuffleWith(rng, BY_LEVEL[l])
+    .sort((a, b) => ago(sim.catUsed[b]) - ago(sim.catUsed[a]))
+    .map((c, i) => ({ c, cost: i + Math.max(0, MIN_GAP[l] - ago(sim.catUsed[c])) * 1000 })));
+  // Cheapest fair combination (costs only grow down each line, so cut off early)
+  let best = null, bestCost = Infinity;
+  const rec = (l, picked, cost) => {
+    if (cost >= bestCost) return;
+    if (l === 4) { if (feasible(picked)) { best = picked; bestCost = cost; } return; }
+    for (const x of lines[l]) {
+      if (cost + x.cost >= bestCost) break;
+      rec(l + 1, [...picked, x.c], cost + x.cost);
+    }
+  };
+  rec(0, [], 0);
+  if (!best) return makeGroupsPuzzle(seed);
+  const pools = poolsFor(best);
+  const groups = best.map((c, i) => ({
+    key: c, name: CATEGORIES[c].name, level: CATEGORIES[c].level,
+    words: shuffleWith(rng, pools[i]).sort((a, b) => ago(sim.wordUsed[b]) - ago(sim.wordUsed[a])).slice(0, 4),
+  }));
+  return { seed, groups, tiles: shuffleWith(rng, groups.flatMap((g) => g.words)) };
+}
+
+/** dailyGroupsPuzzle('YYYY-MM-DD') → that day's puzzle (same shape as makeGroupsPuzzle, seed = dailyGroupsSeed(date)) */
+export function dailyGroupsPuzzle(date) {
+  const day = String(date).slice(0, 10);
+  if (day < ROTATE_FROM) return makeGroupsPuzzle(dailyGroupsSeed(day));
+  if (sim.byDay.has(day)) return sim.byDay.get(day);
+  if (!sim.day) {
+    // Start from the last two weeks of the old random puzzles, so day one doesn't repeat them
+    for (let d = addDays(ROTATE_FROM, -14); d < ROTATE_FROM; d = addDays(d, 1)) remember(d, makeGroupsPuzzle(dailyGroupsSeed(d)));
+    sim.day = addDays(ROTATE_FROM, -1);
+  }
+  while (sim.day < day) {
+    const d = addDays(sim.day, 1);
+    const p = rotatedPuzzle(d);
+    remember(d, p);
+    sim.byDay.set(d, p);
+    sim.day = d;
+  }
+  return sim.byDay.get(day);
 }
 
 /** For tests: 16 distinct words, 4 per group, and no word belongs (or looks like it belongs) to another group */
