@@ -29,7 +29,7 @@ const sizeFor = (w) => {
 // A word that shrinks just enough to fit its tile without breaking mid-word. Measured on the
 // phone itself (fonts differ between phones), so the tile never has to grow to fit it.
 let measureCtx = null;
-function FitWord({ word, max = 15, min = 9 }) {
+function FitWord({ word, max = 15, min = 8 }) {
   const ref = useRef(null);
   const [size, setSize] = useState(max);
   useLayoutEffect(() => {
