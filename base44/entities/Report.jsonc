@@ -66,12 +66,13 @@
       "type": "string"
     },
     "target_type": {
-      "description": "What was reported",
+      "description": "What was reported (ai_answer: a Plant Expert answer, from sendFeedback)",
       "enum": [
         "post",
         "comment",
         "user",
-        "message"
+        "message",
+        "ai_answer"
       ],
       "type": "string"
     }
@@ -80,6 +81,7 @@
     "target_type",
     "reason"
   ],
+  "type": "object",
   "rls": {
     "create": {
       "user_condition": {
@@ -108,6 +110,5 @@
         "role": "admin"
       }
     }
-  },
-  "type": "object"
+  }
 }
