@@ -439,6 +439,7 @@ export default function Layout({ children, currentPageName }) {
       const patch = {};
       if (lastOpenDay !== today) patch.last_app_open = new Date().toISOString();
       if (tz && u.timezone !== tz) patch.timezone = tz;
+      if (!u.joined_at && u.created_date) patch.joined_at = u.created_date;
       if (Object.keys(patch).length) base44.auth.updateMe(patch).catch(() => {});
       // Keep stats/achievements true to your history (also fixes old +1 counters)
       scheduleStatsSync(4000);
