@@ -222,6 +222,10 @@ export default function SproutWord() {
       title: 'Any real word counts',
       text: "Your guesses don't have to be plants, just real 5-letter words. Use them to test letters, then go for the plant.",
     },
+    {
+      title: 'Stuck? Get a hint',
+      text: plus ? 'Tap Hint to see one letter in its right spot.' : 'Tap Hint and watch a short video to see one letter in its right spot.',
+    },
   ];
   const closeTutorial = () => { try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch { /* ignore */ } setTutorial(false); };
   const KEYS = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
