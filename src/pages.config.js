@@ -22,6 +22,7 @@ import SproutWord from './pages/SproutWord';
 import MiniGarden from './pages/MiniGarden';
 import GardenGroups from './pages/GardenGroups';
 import CommunityReports from './pages/CommunityReports';
+import BlockedPeople from './pages/BlockedPeople';
 import __Layout from './Layout.jsx';
 
 
@@ -50,6 +51,7 @@ export const PAGES = {
     "MiniGarden": MiniGarden,
     "GardenGroups": GardenGroups,
     "CommunityReports": CommunityReports,
+    "BlockedPeople": BlockedPeople,
 }
 
 export const pagesConfig = {
