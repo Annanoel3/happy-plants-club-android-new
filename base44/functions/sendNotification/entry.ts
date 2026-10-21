@@ -45,8 +45,6 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
-        console.log('[sendNotification] Sending to:', toUserEmail, 'title:', title);
-
         const payload = {
             app_id: ONESIGNAL_APP_ID.trim(),
             include_aliases: { external_id: [toUserEmail] }, target_channel: 'push',
@@ -54,8 +52,6 @@ Deno.serve(async (req) => {
             contents: { en: message },
             data: { screen: screen || '/Dashboard' }
         };
-
-        console.log('[sendNotification] Payload:', JSON.stringify(payload, null, 2));
 
         const response = await fetch('https://api.onesignal.com/notifications', {
             method: 'POST',
@@ -71,7 +67,7 @@ Deno.serve(async (req) => {
         try {
             result = JSON.parse(responseText);
         } catch {
-            console.error('[sendNotification] Failed to parse response:', responseText);
+            console.error('[sendNotification] Failed to parse OneSignal response, status', response.status);
             return Response.json({ 
                 success: false,
                 error: 'Invalid response from OneSignal',
@@ -79,10 +75,11 @@ Deno.serve(async (req) => {
             }, { status: 500 });
         }
 
-        console.log('[sendNotification] Response status:', response.status, 'body:', JSON.stringify(result));
+        // Logs only the status: OneSignal's errors can echo back the recipient's email.
+        console.log('[sendNotification] Response status:', response.status);
 
         if (!result?.id) { // an id means accepted, even if errors lists old unsubscribed devices
-            console.error('[sendNotification] OneSignal error:', result);
+            console.error('[sendNotification] OneSignal rejected the push, status', response.status);
             return Response.json({ 
                 success: false,
                 error: result.errors?.[0] || 'Failed to send notification',
