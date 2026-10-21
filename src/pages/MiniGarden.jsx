@@ -5,9 +5,10 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { localToday } from '@/lib/dates';
 import { usePlus } from '@/lib/plus';
 import { rewardedAvailable, showRewardedAd } from '@/lib/admob';
-import { useGameTheme, getDone, setDone, streakFor, countFinish, adBeforeNext, fmtTime } from '@/lib/games/common';
+import { useGameTheme, useToday, getDone, setDone, streakFor, countFinish, adBeforeNext, fmtTime } from '@/lib/games/common';
 import GameHeader from '@/components/games/GameHeader';
 import GameTutorial from '@/components/games/GameTutorial';
+import NewDailyBar from '@/components/games/NewDailyBar';
 import PlantIcon from '@/components/games/PlantIcon';
 import {
   makePuzzle, dailySeed, DAILY_LEVEL, findConflicts, isSolved, hintFor,
@@ -100,14 +101,19 @@ function tutorialSteps(dark, ui) {
 export default function MiniGarden() {
   const { dark, ui } = useGameTheme();
   const plus = usePlus();
-  const today = localToday();
+  // The daily's date is locked when the screen opens: midnight never swaps the puzzle mid-game.
+  // It moves to the new day via Daily / "Play it", or on a fresh visit.
+  const today = useToday();
+  const [day, setDay] = useState(localToday);
+  const dayRef = useRef(day);
+  dayRef.current = day;
 
   const [mode, setMode] = useState('daily');
   const [level, setLevel] = useState('easy');
   const [seed, setSeed] = useState(() => `mg-practice-${Date.now()}`);
   const puzzle = useMemo(() => (mode === 'daily'
-    ? makePuzzle(dailySeed(today), DAILY_LEVEL)
-    : makePuzzle(seed, level)), [mode, today, seed, level]);
+    ? makePuzzle(dailySeed(day), DAILY_LEVEL)
+    : makePuzzle(seed, level)), [mode, day, seed, level]);
 
   const [grid, setGrid] = useState(() => puzzle.givens.slice());
   const [selected, setSelected] = useState(null);
@@ -135,13 +141,15 @@ export default function MiniGarden() {
     clock.current = { ...c, ms: c.ms + (Date.now() - c.at), at: Date.now(), running: false };
   };
 
-  // A new puzzle: daily comes back where you left it (or finished); practice starts fresh
+  // A new puzzle: daily comes back where you left it (or finished); practice starts fresh.
+  // Only a fresh puzzle (nothing planted yet) runs the "one ad per two finished puzzles" check;
+  // the clock hasn't started then, so the ad never counts toward the time.
   useEffect(() => {
     setSelected(null);
     setHistory([]);
     setHint(null);
     if (mode === 'daily') {
-      const done = getDone('minigarden', today);
+      const done = getDone('minigarden', day);
       if (done) {
         setGrid(puzzle.solution.slice());
         setHints(done.hints || 0);
@@ -150,16 +158,20 @@ export default function MiniGarden() {
         return;
       }
       let saved = null;
-      try { saved = JSON.parse(localStorage.getItem(storeKey(today)) || 'null'); } catch { /* ignore */ }
+      try { saved = JSON.parse(localStorage.getItem(storeKey(day)) || 'null'); } catch { /* ignore */ }
       if (saved && Array.isArray(saved.grid) && saved.grid.length === SIZE * SIZE) {
         const g = puzzle.givens.map((v, i) => (v !== null ? v : (Number.isInteger(saved.grid[i]) ? saved.grid[i] : null)));
         setGrid(g);
         setHints(saved.hints || 0);
         clock.current = { ms: saved.ms || 0, at: Date.now(), running: false, started: (saved.ms || 0) > 0 };
+        // (a save exists as soon as the screen opens, so "fresh" means nothing planted and no time)
+        const played = (saved.ms || 0) > 0 || g.some((v, i) => v !== null && puzzle.givens[i] === null);
+        if (!played) adBeforeNext();
       } else {
         setGrid(puzzle.givens.slice());
         setHints(0);
         clock.current = { ms: 0, at: Date.now(), running: false, started: false };
+        adBeforeNext();
       }
       setResult(null);
     } else {
@@ -167,6 +179,7 @@ export default function MiniGarden() {
       setHints(0);
       setResult(null);
       clock.current = { ms: 0, at: Date.now(), running: false, started: false };
+      adBeforeNext();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puzzle]);
@@ -174,7 +187,7 @@ export default function MiniGarden() {
   // Save the daily as you go
   const saveDaily = () => {
     if (mode !== 'daily' || result) return;
-    try { localStorage.setItem(storeKey(today), JSON.stringify({ grid, hints, ms: Math.round(elapsedMs()) })); } catch { /* ignore */ }
+    try { localStorage.setItem(storeKey(day), JSON.stringify({ grid, hints, ms: Math.round(elapsedMs()) })); } catch { /* ignore */ }
   };
   useEffect(() => { saveDaily(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [grid, hints]);
 
@@ -200,8 +213,9 @@ export default function MiniGarden() {
   const saveDailyTime = () => {
     if (modeRef.current !== 'daily' || resultRef.current) return;
     try {
-      const s = JSON.parse(localStorage.getItem(storeKey(today)) || 'null');
-      if (s) localStorage.setItem(storeKey(today), JSON.stringify({ ...s, ms: Math.round(elapsedMs()) }));
+      const key = storeKey(dayRef.current);
+      const s = JSON.parse(localStorage.getItem(key) || 'null');
+      if (s) localStorage.setItem(key, JSON.stringify({ ...s, ms: Math.round(elapsedMs()) }));
     } catch { /* ignore */ }
   };
   useEffect(() => () => { pauseClock(); saveDailyTime(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -225,8 +239,8 @@ export default function MiniGarden() {
     const seconds = Math.round(elapsedMs() / 1000);
     countFinish();
     if (mode === 'daily') {
-      setDone('minigarden', { seconds, hints });
-      try { localStorage.removeItem(storeKey(today)); } catch { /* ignore */ }
+      setDone('minigarden', { seconds, hints }, day);
+      try { localStorage.removeItem(storeKey(day)); } catch { /* ignore */ }
     }
     setSelected(null);
     setResult({ daily: mode === 'daily', seconds, hints });
@@ -266,10 +280,17 @@ export default function MiniGarden() {
     if (hintBusy || result) return;
     if (needVideo) {
       if (!rewardedAvailable()) { toast("No video is ready right now, so no hint yet. Try again in a little while."); return; }
+      // The clock stops while the video plays, so ad time never counts
+      const wasRunning = clock.current.running;
+      pauseClock();
       setHintBusy(true);
       const r = await showRewardedAd();
       setHintBusy(false);
-      if (!r.ok) { toast(r.reason === 'closed' ? 'The video was closed early, so no hint this time.' : "Couldn't play the video. Try again in a little while."); return; }
+      if (!r.ok) {
+        if (wasRunning && !document.hidden) startClock();
+        toast(r.reason === 'closed' ? 'The video was closed early, so no hint this time.' : "Couldn't play the video. Try again in a little while.");
+        return;
+      }
     }
     const h = hintFor(grid, puzzle.solution);
     if (!h) return;
@@ -284,20 +305,21 @@ export default function MiniGarden() {
   const newPractice = (lv) => {
     pauseClock();
     saveDailyTime();
-    adBeforeNext();
     setLevel(lv);
     setMode('practice');
     setSeed(`mg-practice-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
     setResult(null);
   };
   const backToDaily = () => {
-    adBeforeNext();
+    pauseClock();
+    saveDailyTime(); // yesterday's daily keeps its time if we're moving to the new day
+    setDay(localToday());
     setResult(null);
     setMode('daily');
   };
   const share = async () => {
-    const day = new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const text = `Mini Garden ${day} 🪴\nSolved in ${fmtTime(result.seconds)}${result.hints ? ` (${result.hints} hint${result.hints === 1 ? '' : 's'})` : ''}\nhappyplants.club`;
+    const dayLabel = new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const text = `Mini Garden ${dayLabel} 🪴\nSolved in ${fmtTime(result.seconds)}${result.hints ? ` (${result.hints} hint${result.hints === 1 ? '' : 's'})` : ''}\nhappyplants.club`;
     if (Capacitor.isNativePlatform()) {
       try { await registerPlugin('NotifyBridge').shareText({ text, title: 'Mini Garden' }); return; } catch { /* older build */ }
     }
@@ -305,7 +327,8 @@ export default function MiniGarden() {
     try { await navigator.clipboard.writeText(text); toast.success('Copied! Paste it anywhere.'); } catch { toast.error("Couldn't share."); }
   };
 
-  const dateLabel = new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const dateLabel = new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const newDay = mode === 'daily' && today !== day;
   const btn = `flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold border active:scale-95 disabled:opacity-50 ${ui.chip}`;
   const thick = `2.5px solid ${dark ? '#000' : '#3f3f46'}`;
   const thin = `1px solid ${dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.12)'}`;
@@ -313,7 +336,7 @@ export default function MiniGarden() {
   const bgB = dark ? '#22332a' : '#f1f7ea';
   const givenBg = dark ? '#2f3b33' : '#e6e0d2';
   const selValue = selected !== null ? grid[selected] : null;
-  const streak = result?.daily ? streakFor('minigarden', today) : 0;
+  const streak = result?.daily ? streakFor('minigarden', day) : 0;
 
   return (
     <div className="min-h-screen theme-bg pb-28">
@@ -329,9 +352,11 @@ export default function MiniGarden() {
           )}
         />
 
+        {newDay && <NewDailyBar ui={ui} onGo={backToDaily} />}
+
         {/* Daily / practice */}
         <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
-          <button onClick={() => mode !== 'daily' && backToDaily()}
+          <button onClick={() => (mode !== 'daily' || newDay) && backToDaily()}
             className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold border ${mode === 'daily' ? 'bg-green-600 border-green-600 text-white' : ui.chip}`}>
             Daily
           </button>
@@ -447,7 +472,7 @@ export default function MiniGarden() {
                     <Flame className="w-4 h-4 text-orange-500" /> {streak} day{streak === 1 ? '' : 's'} in a row
                   </p>
                 )}
-                <p className={`text-xs mt-2 ${ui.sub}`}>A new daily garden comes tomorrow.</p>
+                {!newDay && <p className={`text-xs mt-2 ${ui.sub}`}>A new daily garden comes tomorrow.</p>}
               </>
             )}
             <div className="flex flex-wrap gap-2 mt-4">
