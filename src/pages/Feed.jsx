@@ -88,21 +88,20 @@ function ComingSoon() {
             <div className="text-6xl mb-4">🌱</div>
             <CardTitle className={`text-4xl mb-4 ${getTextColor()}`}>Community Coming Soon</CardTitle>
             <CardDescription className={`text-lg ${getSecondaryTextColor()}`}>
-              We're building an amazing community experience where you can share your gardens, connect with other plant lovers, and get inspired.
+              We're putting the finishing touches on a place to share your plants with other plant people.
             </CardDescription>
           </CardHeader>
           <CardContent className="pb-12 space-y-4">
             <p className={`text-base ${getSecondaryTextColor()}`}>
-              📖 Coming soon, the Community tab will include:
+              📖 When it opens, you'll be able to:
             </p>
             <ul className={`text-left space-y-2 max-w-sm mx-auto ${getSecondaryTextColor()}`}>
-              <li>✨ Share your plants and plant photos</li>
-              <li>💬 Connect with other plant enthusiasts</li>
-              <li>👥 Find friends and explore their gardens</li>
-              <li>🏆 Celebrate milestones together</li>
+              <li>✨ Share photos of your plants</li>
+              <li>💬 Like and comment on other people's posts</li>
+              <li>👥 Find friends and see their gardens</li>
             </ul>
             <p className={`text-sm pt-4 ${getSecondaryTextColor()}`}>
-              Stay tuned! We'll notify you when it's ready to launch.
+              Check back soon!
             </p>
             <PlantdokuEgg page="community" />
           </CardContent>
