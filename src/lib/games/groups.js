@@ -88,11 +88,11 @@ W('JADE', 'succ color', 'house girl treeS');
 W('ECHEVERIA', 'succ', 'house');
 W('SEDUM', 'succ', 'house');
 W('HAWORTHIA', 'succ', 'house');
-W('KALANCHOE', 'succ', 'house');
+W('KALANCHOE', 'succ', 'house xmas'); // sold as a Christmas plant
 W('SAGUARO', 'succ cactus');
 W('CHOLLA', 'succ cactus');
 W('OPUNTIA', 'succ cactus');
-W('PRICKLY PEAR', 'succ cactus');
+W('PRICKLY PEAR', 'succ cactus', 'berry'); // the fruit is a berry
 W('ORGAN PIPE', 'succ cactus');
 W('BUNNY EARS', 'succ cactus animal', 'house');
 
@@ -114,13 +114,13 @@ W('ASPEN', 'tree', 'treeS girl boy animal');
 W('OLIVE', 'tree girl color', 'treeS');
 W('MAGNOLIA', 'tree girl', 'treeS color');
 W('ASH', 'tree boy', 'treeS color');
-W('ROWAN', 'tree boy', 'treeS girl');
+W('ROWAN', 'tree boy', 'treeS girl berryP'); // rowanberry
 W('ALDER', 'tree boy', 'treeS');
 W('LINDEN', 'tree boy', 'treeS girl');
 W('FIR', 'tree xmas', 'treeS');
 W('DOGWOOD', 'tree animal', 'treeS');
 W('HOLLY', 'tree girl xmas fernP', 'treeS berry');
-W('LAUREL', 'tree girl', 'treeS');
+W('LAUREL', 'tree girl', 'treeS herb'); // bay laurel = bay leaves
 W('HAZEL', 'girl', 'tree treeS color nut');
 W('JUNIPER', 'girl', 'tree treeS spice berry');
 W('MYRTLE', 'girl', 'tree treeS');
@@ -194,7 +194,7 @@ W('CINNAMON', 'spice color', 'tree fernP treeS');
 W('NUTMEG', 'spice', 'nut tree color treeS');
 W('CLOVE', 'spice', 'tree onion treeS');
 W('PAPRIKA', 'spice', 'night color');
-W('TURMERIC', 'spice', 'rootveg color');
+W('TURMERIC', 'spice', 'rootveg color rootS'); // turmeric root
 W('SAFFRON', 'spice color', 'bulb girl');
 W('GINGER', 'spice girl', 'rootveg color rootS');
 W('VANILLA', 'spice', 'color vine');
@@ -265,14 +265,14 @@ W('ALOCASIA', 'house');
 W('RUBBER PLANT', 'house', 'tree');
 W('SNAKE PLANT', 'house animal', 'succ');
 W('SPIDER PLANT', 'house animal');
-W('ZEBRA PLANT', 'animal', 'house');
+W('ZEBRA PLANT', 'animal', 'house succ'); // also a haworthia
 W('ELEPHANT EAR', 'animal', 'house');
 W('MOTH ORCHID', 'animal', 'house');
 
 // Bulbs, vines, Christmas, names, colors, animals
 W('TULIP', 'bulb', 'treeS');
 W('DAFFODIL', 'bulb', 'color');
-W('HYACINTH', 'bulb', 'girl');
+W('HYACINTH', 'bulb', 'girl color');
 W('CROCUS', 'bulb', 'animal');
 W('SNOWDROP', 'bulb');
 W('MUSCARI', 'bulb');
@@ -294,7 +294,7 @@ W('DAISY', 'girl');
 W('VIOLET', 'girl color');
 W('POPPY', 'girl', 'color spice');
 W('DAHLIA', 'girl', 'bulb');
-W('CAMELLIA', 'girl');
+W('CAMELLIA', 'girl', 'animal'); // starts with CAMEL
 W('AZALEA', 'girl', 'color');
 W('LILAC', 'color', 'girl');
 W('FUCHSIA', 'color');
@@ -311,8 +311,8 @@ W('FESCUE', 'lawn');
 W('BERMUDA', 'lawn');
 W('ZOYSIA', 'lawn');
 W('BUFFALO', 'lawn', 'animal berryP');
-W('CENTIPEDE', 'lawn', 'animal');
-W('ST AUGUSTINE', 'lawn');
+W('CENTIPEDE', 'lawn', 'animal pest');
+W('ST AUGUSTINE', 'lawn', 'boy');
 W('RYEGRASS', 'lawn', 'grain');
 
 // Fruits we call vegetables, true berries
@@ -351,7 +351,7 @@ W('BAR', 'berryP');
 W('SUN', 'flowerS', 'need rootS berryP');
 W('CAULI', 'flowerS');
 W('WALL', 'flowerS');
-W('MAY', 'flowerS', 'girl');
+W('MAY', 'flowerS', 'girl berryP'); // Mayberry
 W('PASSION', 'flowerS', 'vine');
 W('MOON', 'flowerS');
 W('CONE', 'flowerS', 'part');
