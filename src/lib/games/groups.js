@@ -111,7 +111,7 @@ W('CYPRESS', 'tree', 'treeS');
 W('SYCAMORE', 'tree', 'treeS');
 W('WILLOW', 'tree girl', 'treeS color');
 W('ASPEN', 'tree', 'treeS girl boy animal');
-W('OLIVE', 'tree girl color', 'treeS fruitveg');
+W('OLIVE', 'tree girl color', 'treeS');
 W('MAGNOLIA', 'tree girl', 'treeS color');
 W('ASH', 'tree boy', 'treeS color');
 W('ROWAN', 'tree boy', 'treeS girl berryP'); // rowanberry
