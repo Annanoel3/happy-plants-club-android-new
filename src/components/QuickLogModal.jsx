@@ -88,6 +88,8 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
       await submitTranscript(transcript);
     } catch (error) {
       console.error("Error processing audio:", error);
+      // Keep what was heard so it can be sent again; drop the "Transcribing" placeholder
+      setInputMessage((m) => (m.startsWith('🎙️') ? '' : m));
       toast.error("Couldn't log that. Check your signal and try again.");
     } finally {
       setIsProcessing(false);
