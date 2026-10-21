@@ -6,7 +6,7 @@ import { community, REPORT_REASONS } from '@/lib/community';
 import { useGameTheme } from '@/lib/games/common';
 
 // Report a post, comment, message or person. After sending, offers to block them too.
-// target: { type: 'post'|'comment'|'message'|'user', id?, email, name }
+// target: { type: 'post'|'comment'|'message'|'user', id? (post/comment/message id), userId (who wrote it), name }
 export default function ReportSheet({ target, onClose, onBlocked }) {
   const { dark, ui } = useGameTheme();
   const [reason, setReason] = useState(null);
@@ -21,7 +21,7 @@ export default function ReportSheet({ target, onClose, onBlocked }) {
     if (!reason || busy) return;
     setBusy(true);
     try {
-      await community('report', { target_type: target.type, target_id: target.id, target_email: target.email, reason, details: details.trim() });
+      await community('report', { target_type: target.type, target_id: target.id, user_id: target.userId, reason, details: details.trim() });
       setSent(true);
     } catch (e) {
       toast.error(e.message);
@@ -33,9 +33,9 @@ export default function ReportSheet({ target, onClose, onBlocked }) {
   const block = async () => {
     setBusy(true);
     try {
-      await community('block', { email: target.email });
-      toast.success(`${name} is blocked`);
-      onBlocked?.(target.email);
+      await community('block', { user_id: target.userId });
+      toast.success(`${name} is blocked. Unblock anytime from Blocked people in your profile.`);
+      onBlocked?.(target.userId);
       onClose();
     } catch (e) {
       toast.error(e.message);
@@ -56,7 +56,7 @@ export default function ReportSheet({ target, onClose, onBlocked }) {
         {sent ? (
           <>
             <p className={`text-sm ${ui.sub}`}>We’ll review it within 24 hours. The person won’t know who reported them.</p>
-            {target.email && (
+            {target.userId && (
               <button onClick={block} disabled={busy}
                 className="mt-4 w-full rounded-2xl py-3 font-semibold border border-red-400 text-red-500 flex items-center justify-center gap-2">
                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldX className="w-4 h-4" />} Also block {name}
