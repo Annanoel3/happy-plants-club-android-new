@@ -13,6 +13,12 @@ import { billingAvailable, isPlusCached } from "@/lib/premium";
 import { syncWateringPopups } from "@/lib/wateringPopups";
 import { saveLocation } from "@/lib/weather";
 import { usePlus } from "@/lib/plus";
+import { COMMUNITY_OPEN } from "@/pages/Feed";
+import { getPushPermission, requestPushPermission } from "@/components/OneSignalSetup";
+
+const FEEDBACK_MAX = 2000;
+const DEFAULT_WEATHER_HOUR = 8; // sendDailyWeather's default: 8 AM local
+const hourLabel = (h) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? 'AM' : 'PM'}`;
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -42,7 +48,30 @@ export default function Settings() {
   const [notificationsFollows, setNotificationsFollows] = useState(true);
   const [notificationsWeather, setNotificationsWeather] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true); // Community engagement notifications
-  const [weatherNotificationTime, setWeatherNotificationTime] = useState("09:00"); // Local time HH:MM
+  const [weatherHour, setWeatherHour] = useState(DEFAULT_WEATHER_HOUR); // hour of the day, user's local time
+  const [pushPerm, setPushPerm] = useState('unknown'); // can this phone show our notifications?
+  const [pushBusy, setPushBusy] = useState(false);
+
+  // Re-check when coming back from the phone's settings
+  useEffect(() => {
+    const check = () => { getPushPermission().then(setPushPerm).catch(() => {}); };
+    check();
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
+  const handleTurnOnPush = async () => {
+    setPushBusy(true);
+    try {
+      const result = await requestPushPermission();
+      setPushPerm(result);
+      if (result === 'granted') toast.success('Notifications are on.');
+      else if (result === 'denied') toast("To turn them on, go to your phone's Settings > Apps > Happy Plants > Notifications.");
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   useEffect(() => {
     loadUser();
@@ -87,15 +116,16 @@ export default function Settings() {
       setNotificationsFrost(currentUser?.notifications_frost !== false);
       setNotificationsTips(currentUser?.notifications_tips !== false);
 
-      // Load weather notification time (stored as UTC hour, convert back to local)
-      if (currentUser?.weather_notification_hour !== undefined && currentUser?.weather_notification_hour !== null) {
-        const utcHour = currentUser.weather_notification_hour;
+      // Weather push hour, in the user's own time. Older saves only have the UTC hour.
+      const localSaved = Number(currentUser?.weather_local_hour);
+      if (currentUser?.weather_local_hour != null && Number.isInteger(localSaved) && localSaved >= 0 && localSaved < 24) {
+        setWeatherHour(localSaved);
+      } else if (currentUser?.weather_notification_hour !== undefined && currentUser?.weather_notification_hour !== null) {
         const localDate = new Date();
-        localDate.setUTCHours(utcHour, 0, 0, 0);
-        const localHour = localDate.getHours();
-        setWeatherNotificationTime(`${String(localHour).padStart(2, '0')}:00`);
+        localDate.setUTCHours(Number(currentUser.weather_notification_hour), 0, 0, 0);
+        setWeatherHour(localDate.getHours());
       } else {
-        setWeatherNotificationTime("09:00");
+        setWeatherHour(DEFAULT_WEATHER_HOUR);
       }
 
       // Initialize individual privacy states
@@ -173,18 +203,7 @@ export default function Settings() {
 
   // Saves the city and looks it up on the map, so weather is for the right place
   const updateLocationMutation = useMutation({
-    mutationFn: async () => {
-      const value = location.trim();
-      if (!value) {
-        // No location: forget the old map spot too, so weather stops using it
-        await base44.auth.updateMe({
-          location: '', location_lat: null, location_lon: null, location_label: null,
-          location_status: null, location_geocoded_for: null,
-        });
-        return { status: 'missing' };
-      }
-      return await saveLocation(value);
-    },
+    mutationFn: async () => saveLocation(location.trim()),
     onSuccess: (r) => {
       if (r?.status === 'ok') toast.success(`📍 ${r.label || 'Location updated!'}`);
       else if (r?.status === 'too_broad') toast(`Saved ${r.label || ''}. Add your city for local weather.`);
@@ -198,6 +217,12 @@ export default function Settings() {
   });
 
   const handleUpdateLocation = () => {
+    // An empty location sends the app back to the sign-up screens, so keep the old one
+    if (!location.trim()) {
+      setLocation(user?.location || "");
+      toast.error('Add your city so we can tailor watering to your weather.');
+      return;
+    }
     updateLocationMutation.mutate();
   };
 
@@ -217,14 +242,20 @@ export default function Settings() {
     }
   });
 
-  const handleSaveWeatherTime = async (timeStr) => {
-    // Convert local HH:MM to UTC hour
-    const [localHour] = timeStr.split(':').map(Number);
+  const handleSaveWeatherHour = (value) => {
+    const localHour = Number(value);
+    if (!Number.isInteger(localHour) || localHour < 0 || localHour > 23) return;
+    setWeatherHour(localHour);
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // weather_local_hour is a LOCAL hour: the backend reads it in the user's own
+    // time zone (user.timezone), so it stays right across daylight saving.
+    // weather_notification_hour (UTC) is still written for the current
+    // sendDailyWeather, which reads that one until it switches to the local hour.
     const localDate = new Date();
     localDate.setHours(localHour, 0, 0, 0);
-    const utcHour = localDate.getUTCHours();
-    setWeatherNotificationTime(timeStr);
-    updateNotificationMutation.mutate({ weather_notification_hour: utcHour });
+    const patch = { weather_local_hour: localHour, weather_notification_hour: localDate.getUTCHours() };
+    if (tz && user?.timezone !== tz) patch.timezone = tz;
+    updateNotificationMutation.mutate(patch);
   };
 
   const handleToggleNotification = (key, value) => {
@@ -266,36 +297,34 @@ export default function Settings() {
   const [isSendingFeedback, setIsSendingFeedback] = useState(false);
 
   const handleSendFeedback = async () => {
-    if (!feedbackText.trim()) {
-      toast.error('Please enter your feedback');
+    const text = feedbackText.trim();
+    if (!text) {
+      toast.error('Please write a little something first.');
+      return;
+    }
+    if (text.length > FEEDBACK_MAX) {
+      toast.error('Please keep it under 2,000 characters.');
       return;
     }
 
     setIsSendingFeedback(true);
     try {
-      await base44.integrations.Core.SendEmail({
-        to: 'annabairdballew@gmail.com',
-        subject: `Happy Plants Feedback from ${user.full_name}`,
-        body: `From: ${user.full_name} (${user.email})\n\n${feedbackText}`
-      });
-      toast.success('Feedback sent! Thank you! 🌿');
+      // Sent by the server: a browser SendEmail can't reach our inbox and costs credits
+      const res = await base44.functions.invoke('sendFeedback', { kind: 'feedback', message: text });
+      const data = res?.data ?? res;
+      if (!data?.success) throw new Error('not_sent');
+      toast.success('Thanks! We got your feedback. 🌿');
       setFeedbackText("");
     } catch (error) {
-      toast.error('Failed to send feedback');
+      const msg = error?.response?.data?.error;
+      toast.error(typeof msg === 'string' && msg ? msg : "Couldn't send your feedback. Please try again later.");
     } finally {
       setIsSendingFeedback(false);
     }
   };
 
-
-
+  // base44.auth.logout also unlinks this phone from pushes (see api/base44Client.js)
   const handleLogout = async () => {
-    // Best-effort OneSignal cleanup — never block actual logout
-    try { await window.OneSignal?.logout(); } catch (_) {}
-    try { window.onNativePushLogout?.(); } catch (_) {}
-    try { await window.Capacitor?.Plugins?.NotifyBridge?.logout(); } catch (_) {}
-
-    // Always proceed with base44 logout
     await base44.auth.logout();
   };
 
