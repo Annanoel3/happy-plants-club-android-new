@@ -51,7 +51,7 @@ export default function PrivacyPolicy() {
               "Your profile, if you fill it in: a username, a profile photo, a short bio and your city.",
               "Your plants: their names, photos, notes, watering and care history, health checks, growth photos and reminders.",
               "Your city or area, if you add it, so we can show local weather and adjust watering. We turn it into rough map coordinates; we don't use your phone's GPS.",
-              "Voice recordings, when you use a voice button. They are turned into text and then thrown away by us. Very long recordings are uploaded briefly so they can be turned into text.",
+              "Voice recordings, when you use a voice button. They are sent to be turned into text, and we don't keep the recording. The exception is a very long recording, which is saved to our storage so it can be turned into text.",
               "Community activity: posts, photos, comments, likes, follows, direct messages, and any reports or blocks you make.",
               "Plus subscriptions: whether you have Plus and when it renews or ends. Google Play handles the payment; we never see your card.",
               "Phone details for notifications and ads: a notification ID so we can send reminders, and, if you use the free version, the advertising ID and the other details Google's ad service collects (see below).",
@@ -109,7 +109,7 @@ export default function PrivacyPolicy() {
 
             <H>Changes</H>
             <p className="mb-4 theme-text">
-              If this policy changes, we'll update the date at the top. Big changes will also be announced in the app.
+              If this policy changes, we'll update the date at the top of this page.
             </p>
 
             <hr className="my-8 border-gray-300" />
