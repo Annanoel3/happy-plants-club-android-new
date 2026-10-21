@@ -3,6 +3,22 @@ import { ArrowLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 
+// Rewritten Oct 20, 2026 to match what the app really does (the old one said "we never share
+// your data with third parties", which wasn't true: photos go to OpenAI and Pl@ntNet, ads come
+// from Google AdMob, and so on). If a new outside service is added, add it to "Who else sees it".
+const EMAIL = "mediocreatbestdev@outlook.com";
+
+function H({ children }) {
+  return <h3 className="text-lg font-semibold theme-text mt-6 mb-2">{children}</h3>;
+}
+function L({ items }) {
+  return (
+    <ul className="list-disc ml-6 mb-4 theme-text space-y-1">
+      {items.map((t, i) => <li key={i}>{t}</li>)}
+    </ul>
+  );
+}
+
 export default function PrivacyPolicy() {
   const navigate = useNavigate();
 
@@ -10,9 +26,10 @@ export default function PrivacyPolicy() {
     <div className="min-h-screen theme-bg p-6 pb-24">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-4 mb-8">
-          <button 
+          <button
             onClick={() => navigate(-1)}
             className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+            aria-label="Back"
           >
             <ArrowLeft className="w-5 h-5 theme-text" />
           </button>
@@ -21,49 +38,91 @@ export default function PrivacyPolicy() {
 
         <Card className="theme-card rounded-3xl shadow-xl">
           <CardContent className="p-8 theme-text-secondary prose prose-sm max-w-none">
-            <h2 className="text-xl font-bold theme-text mb-4">Happy Plants Privacy Policy</h2>
-            <p className="mb-4">
-              Your privacy is important to us. This policy details how we collect, use, and protect your information.
+            <h2 className="text-xl font-bold theme-text mb-1">Happy Plants Privacy Policy</h2>
+            <p className="text-sm theme-text-secondary mb-4">Last updated October 20, 2026</p>
+            <p className="mb-4 theme-text">
+              Happy Plants Club is made by Mediocre at Best Dev. This page explains what the app collects, why, and who else
+              sees it. We don't sell your information.
             </p>
 
-            <h3 className="text-lg font-semibold theme-text mb-3">Information We Collect</h3>
-            <ul className="list-disc ml-6 mb-4 theme-text">
-              <li>Authentication Data: Email and name for account management</li>
-              <li>Location Data: City/region for climate-specific advice</li>
-              <li>Plant Data: Information you add about your plants</li>
-              <li>Voice Recordings: Processed and immediately deleted</li>
-            </ul>
+            <H>What we collect</H>
+            <L items={[
+              "Your account: your name and email address, from however you sign in (email and password, Google or Facebook).",
+              "Your profile, if you fill it in: a username, a profile photo, a short bio and your city.",
+              "Your plants: their names, photos, notes, watering and care history, health checks, growth photos and reminders.",
+              "Your city or area, if you add it, so we can show local weather and adjust watering. We turn it into rough map coordinates; we don't use your phone's GPS.",
+              "Voice recordings, when you use a voice button. They are turned into text and then thrown away by us. Very long recordings are uploaded briefly so they can be turned into text.",
+              "Community activity: posts, photos, comments, likes, follows, direct messages, and any reports or blocks you make.",
+              "Plus subscriptions: whether you have Plus and when it renews or ends. Google Play handles the payment; we never see your card.",
+              "Phone details for notifications and ads: a notification ID so we can send reminders, and, if you use the free version, the advertising ID and the other details Google's ad service collects (see below).",
+              "How much of each feature you've used today, so daily limits work (for example, how many photo IDs).",
+            ]} />
 
-            <h3 className="text-lg font-semibold theme-text mb-3">How We Use Your Information</h3>
-            <ul className="list-disc ml-6 mb-4 theme-text">
-              <li>To provide personalized plant care advice</li>
-              <li>To manage your account</li>
-              <li>To improve our services</li>
-            </ul>
+            <H>How we use it</H>
+            <L items={[
+              "To run the app: your garden, reminders, care info, weather-based watering, the games and the community.",
+              "To identify plants and check their health from your photos.",
+              "To send the notifications you've turned on.",
+              "To show ads in the free version and to handle Plus.",
+              "To keep the community safe: posts, comments and messages are checked automatically for things that break the rules, and reports are reviewed.",
+              "To fix problems and keep the app working.",
+            ]} />
 
-            <h3 className="text-lg font-semibold theme-text mb-3">Data Sharing</h3>
+            <H>Who else sees it</H>
+            <p className="mb-2 theme-text">We use these services to make the app work. Each one only gets what it needs for its job:</p>
+            <L items={[
+              "Base44: hosts the app, its database and your photos, and handles signing in.",
+              "OpenAI: receives plant photos and text to identify plants, write care info, answer plant questions, check plant health, turn voice into text and check community posts for harmful content.",
+              "Pl@ntNet: receives plant photos to help identify them.",
+              "Google AdMob (free version only): shows ads. Google's ad service collects your phone's advertising ID, IP address, which ads you see and tap, and app performance details. Plus members don't see ads.",
+              "Google Play and RevenueCat: handle Plus purchases, renewals and cancellations.",
+              "OneSignal: sends notifications. Your notifications are linked to your email address.",
+              "MET Norway (weather) and OpenStreetMap (place names): receive the rough location of the city you entered, never your name or email.",
+              "Google or Facebook: only if you choose to sign in with them.",
+            ]} />
             <p className="mb-4 theme-text">
-              We never share your data with third parties.
+              Other people in the app can see what you share in the Community (posts, comments, your profile, the plants you
+              attach). If you make your profile private, only people you approve can follow you. If you share a garden link,
+              anyone with that link can see that garden.
             </p>
 
-            <h3 className="text-lg font-semibold theme-text mb-3">Data Security</h3>
+            <H>Your choices</H>
+            <L items={[
+              "Turn notifications on or off in Settings or in your phone's settings.",
+              "You can limit ad tracking in your phone's settings (on Android, Settings > Privacy > Ads). Plus removes ads completely.",
+              "You can delete posts and comments you made, and block or report anyone.",
+              "You can delete your account any time: Settings > Delete Account. This permanently deletes your account and the information tied to it, such as your plants, logs, posts, comments and messages.",
+              `If you can't get into the app, email ${EMAIL} and we'll delete your account for you.`,
+            ]} />
+
+            <H>Keeping it safe</H>
             <p className="mb-4 theme-text">
-              All data is stored securely with encryption and access controls.
+              Everything travels over encrypted connections, and your account is protected by your sign-in. No system is
+              perfectly secure, but we only keep what the app needs.
+            </p>
+
+            <H>Children</H>
+            <p className="mb-4 theme-text">
+              Happy Plants isn't meant for children under 13, and we don't knowingly collect information from them. If you
+              think a child has signed up, email us and we'll delete the account.
+            </p>
+
+            <H>Changes</H>
+            <p className="mb-4 theme-text">
+              If this policy changes, we'll update the date at the top. Big changes will also be announced in the app.
             </p>
 
             <hr className="my-8 border-gray-300" />
 
             <h3 className="text-lg font-semibold theme-text mb-4">Questions?</h3>
             <p className="mb-6 theme-text">
-              If you have questions about this policy, contact us at{' '}
-              <a href="mailto:mediocreatbestdev@outlook.com" className="underline hover:opacity-80">
-                mediocreatbestdev@outlook.com
-              </a>
+              Email{' '}
+              <a href={`mailto:${EMAIL}`} className="underline hover:opacity-80">{EMAIL}</a>
             </p>
 
             <h2 className="text-xl font-bold theme-text mb-4">© Copyright & Intellectual Property</h2>
             <p className="font-semibold theme-text mb-4">© 2026 Happy Plants. All rights reserved.</p>
-            
+
             <p className="mb-6 theme-text">
               The Happy Plants application, including its design, code, branding, and user interface, is the intellectual property of Happy Plants and is protected by applicable copyright, trademark, and intellectual property laws.
             </p>
@@ -80,9 +139,7 @@ export default function PrivacyPolicy() {
 
             <p className="theme-text">
               For licensing inquiries, contact{' '}
-              <a href="mailto:mediocreatbestdev@outlook.com" className="underline hover:opacity-80">
-                mediocreatbestdev@outlook.com
-              </a>
+              <a href={`mailto:${EMAIL}`} className="underline hover:opacity-80">{EMAIL}</a>
               .
             </p>
 
