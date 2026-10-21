@@ -12,6 +12,7 @@ import ShareGardenCard from "@/components/ShareGardenCard";
 import AchievementsCard, { useStats } from "@/components/AchievementsCard";
 import { withPendingWaterings } from "@/lib/outbox";
 import { community } from "@/lib/community";
+import { COMMUNITY_OPEN } from "@/pages/Feed";
 
 export default function MyProfile() {
   const navigate = useNavigate();
@@ -186,6 +187,11 @@ export default function MyProfile() {
                   <LogOut className="w-4 h-4" />
                 </Button>
               </div>
+              {COMMUNITY_OPEN && (
+                <button onClick={() => navigate('/BlockedPeople')} className={`mt-3 text-sm underline ${getSecondaryTextColor()}`}>
+                  Blocked people
+                </button>
+              )}
             </div>
           </CardContent>
         </Card>
