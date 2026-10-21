@@ -138,7 +138,7 @@ export default function TermsAndConditions() {
               <section>
                 <h2 className="text-xl font-semibold mb-3">10. Intellectual Property</h2>
                 <p className="mb-3">
-                  Happy Plants and its original content, features, and functionality are owned by Happy Plants and are protected by international copyright, trademark, and other intellectual property laws.
+                  Happy Plants and its original content, features, and functionality are owned by Mediocre at Best Dev, the maker of Happy Plants, and are protected by international copyright, trademark, and other intellectual property laws.
                 </p>
               </section>
 
@@ -192,14 +192,14 @@ export default function TermsAndConditions() {
               <section>
                 <h2 className="text-xl font-semibold mb-3">17. Termination</h2>
                 <p className="mb-3">
-                  We may terminate or suspend your account and access to the service immediately, without prior notice, for any reason, including breach of these Terms. Upon termination, your right to use the service will cease immediately.
+                  We may suspend or close your account if you break these Terms (for example, by abusing other people in the Community or misusing the service). Where we reasonably can, we'll tell you why. If your account is closed, your right to use the service ends. A Plus subscription is billed by Google Play, so cancel it there; refunds follow Google Play's refund policy.
                 </p>
               </section>
 
               <section>
                 <h2 className="text-xl font-semibold mb-3">18. Governing Law</h2>
                 <p className="mb-3">
-                  These Terms shall be governed by and construed in accordance with applicable laws, without regard to conflict of law provisions.
+                  These Terms are governed by the laws of the State of Texas, USA, without regard to conflict of law rules, except where the law where you live gives you rights that can't be waived.
                 </p>
               </section>
 
