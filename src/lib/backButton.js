@@ -50,8 +50,6 @@ function closeTopPopup() {
   if (closeBtn) { closeBtn.click(); return true; }
   const backdrop = top.querySelector(':scope > .absolute.inset-0');
   if (backdrop) { backdrop.click(); return true; }
-  // A full-screen sheet that is its own backdrop (taps outside the card close it)
-  if (top.hasAttribute('data-back-backdrop')) { top.click(); return true; }
   top.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   return true;
 }
