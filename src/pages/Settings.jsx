@@ -413,6 +413,8 @@ export default function Settings() {
                   {updateLocationMutation.isPending ? 'Saving...' : 'Save Location'}
                 </Button>
 
+                {/* Profile privacy only matters while the Community is open */}
+                {COMMUNITY_OPEN && (<>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className={`font-medium ${getTextColor()}`}>
@@ -475,6 +477,7 @@ export default function Settings() {
                     />
                   </button>
                 </div>
+                </>)}
               </div>
             </CardContent>
           </Card>
@@ -488,6 +491,20 @@ export default function Settings() {
               </h2>
               
               <div className="space-y-4">
+                {pushPerm === 'denied' && (
+                  <div className="rounded-xl border border-amber-400/60 bg-amber-50 p-4">
+                    <p className="font-medium text-amber-900">Notifications are off on this phone</p>
+                    <p className="text-sm text-amber-800 mt-1">Turn them on so we can remind you to water.</p>
+                    <Button
+                      onClick={handleTurnOnPush}
+                      disabled={pushBusy}
+                      className="mt-3 bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      {pushBusy ? 'Opening...' : 'Turn on notifications'}
+                    </Button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <div>
                     <p className={`font-medium ${getTextColor()}`}>Watering Reminders</p>
@@ -552,12 +569,12 @@ export default function Settings() {
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className={`font-medium ${getTextColor()}`}>Tips</p>
-                    <p className={`text-sm ${getSecondaryTextColor()}`}>Now and then, a short tip about something Happy Plants can do. Twice a week at most.</p>
+                    <p className={`font-medium ${getTextColor()}`}>Tips and reminders to come back</p>
+                    <p className={`text-sm ${getSecondaryTextColor()}`}>A short tip now and then, and a nudge if you haven't checked on your plants in a while.</p>
                   </div>
                   <button
                     onClick={() => handleToggleNotification('notifications_tips', !notificationsTips)}
-                    aria-label="Tips"
+                    aria-label="Tips and reminders to come back"
                     className={`w-12 h-6 shrink-0 rounded-full transition-colors ${
                       notificationsTips ? 'bg-green-600' : 'bg-gray-300'
                     }`}
@@ -589,6 +606,8 @@ export default function Settings() {
                   </button>
                 </div>
 
+                {/* Community switches: hidden while the Community is closed */}
+                {COMMUNITY_OPEN && (<>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className={`font-medium ${getTextColor()}`}>Comments</p>
@@ -645,6 +664,7 @@ export default function Settings() {
                      />
                    </button>
                  </div>
+                </>)}
 
                 <div className="flex items-center justify-between">
                   <div>
@@ -670,12 +690,17 @@ export default function Settings() {
                       <p className={`text-sm font-medium ${getTextColor()}`}>Notification Time</p>
                       <p className={`text-xs ${getSecondaryTextColor()}`}>What time should we send it?</p>
                     </div>
-                    <input
-                      type="time"
-                      value={weatherNotificationTime}
-                      onChange={(e) => handleSaveWeatherTime(e.target.value)}
+                    {/* Whole hours only: the push goes out once an hour */}
+                    <select
+                      value={weatherHour}
+                      onChange={(e) => handleSaveWeatherHour(e.target.value)}
+                      aria-label="Daily weather time"
                       className={`rounded-lg px-3 py-2 text-sm border ${getInputClasses()}`}
-                    />
+                    >
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <option key={h} value={h} className="text-gray-900">{hourLabel(h)}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
               </div>
@@ -717,10 +742,14 @@ export default function Settings() {
                 </Label>
                 <textarea
                   value={feedbackText}
-                  onChange={(e) => setFeedbackText(e.target.value)}
+                  onChange={(e) => setFeedbackText(e.target.value.slice(0, FEEDBACK_MAX))}
+                  maxLength={FEEDBACK_MAX}
                   placeholder="Share your thoughts, ideas, or report issues..."
                   className={`rounded-lg p-3 w-full min-h-[120px] resize-none ${getInputClasses()}`}
                 />
+                {feedbackText.length > FEEDBACK_MAX - 200 && (
+                  <p className={`text-xs mt-1 text-right ${getSecondaryTextColor()}`}>{feedbackText.length} / {FEEDBACK_MAX}</p>
+                )}
               </div>
               <Button
                 onClick={handleSendFeedback}
