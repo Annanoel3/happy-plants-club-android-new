@@ -5,18 +5,22 @@ import { base44 } from "@/api/base44Client";
 import { transcribe } from "@/lib/transcribe";
 import { handleAiLimit } from "@/lib/premium";
 import { useNavigate } from "react-router-dom";
-import { Send, Loader2, Sparkles, Camera, Mic, Square, PanelLeft } from "lucide-react";
+import { Send, Loader2, Sparkles, Camera, Mic, Square, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
-import { useSidebar } from "@/components/ui/sidebar";
 import PlantdokuEgg from "@/components/PlantdokuEgg";
+
+// chatWithExpert answers 200 with this apology when the AI call itself fails
+const EXPERT_FAILED = /^Sorry, I encountered an error/i;
+// Sent when someone shares a photo without typing anything
+const PHOTO_ONLY_QUESTION = 'What can you tell me about the plant in this photo?';
+const EXPERT_DOWN = "The plant expert couldn't answer just now. Please try again.";
 
 export default function PlantChat() {
   const navigate = useNavigate();
-  const { toggleSidebar } = useSidebar();
   const [user, setUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
@@ -30,11 +34,11 @@ export default function PlantChat() {
   const [uploadedImage, setUploadedImage] = useState(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [reportingIdx, setReportingIdx] = useState(null);
   const imageInputRef = useRef(null);
   const handleImageUploadRef = useRef(null);
   
   const easterEggGifs = [
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcWp5dzh5dGJ4dHFyZGRsMzZyMzJwOGJyZGRsMzZyMzJwOGJy/giphy.gif',
     'https://media.giphy.com/media/26u4cqiYI30juCOGY/giphy.gif',
     'https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif',
     'https://media.giphy.com/media/26FmQ6EOvLxp6cWyY/giphy.gif',
@@ -101,103 +105,135 @@ export default function PlantChat() {
   const handleVoiceRecord = async () => {
     if (!isRecording) {
       try {
-        console.log('🎤 Starting recording...');
         await VoiceRecorder.startRecording();
         setIsRecording(true);
-        toast.success('Recording started...');
+        toast.success('Recording... tap the button again to stop.');
       } catch (error) {
-        console.error('❌ Recording error:', error);
-        toast.error('Failed to start recording: ' + error.message);
+        console.warn('Recording did not start:', error?.message || error);
+        toast.error("Couldn't start recording. Check that Happy Plants can use your microphone.");
       }
     } else {
+      let toastId;
       try {
-        console.log('⏹️ Stopping recording...');
         const result = await VoiceRecorder.stopRecording();
         setIsRecording(false);
-        console.log('📦 Recording result:', result);
 
-        if (result.value?.recordDataBase64) {
+        if (result?.value?.recordDataBase64) {
           setIsProcessing(true);
-          toast.loading('Processing voice...');
-          const audioBlob = new Blob([Uint8Array.from(atob(result.value.recordDataBase64), c => c.charCodeAt(0))], { type: 'audio/wav' });
+          toastId = toast.loading('Processing voice...');
+          const mime = result.value.mimeType || 'audio/aac';
+          const audioBlob = new Blob([Uint8Array.from(atob(result.value.recordDataBase64), c => c.charCodeAt(0))], { type: mime });
           // Our own transcription, sent inline (Base44's upload + TranscribeAudio cost credits)
-          const transcript = await transcribe(audioBlob, 'audio/wav');
-          setInputMessage(transcript);
-          setIsProcessing(false);
-          toast.success('Voice transcribed!');
+          const transcript = await transcribe(audioBlob, mime);
+          if (transcript) {
+            setInputMessage(transcript);
+            toast.success('Got it! Check the text, then send.', { id: toastId });
+          } else {
+            toast.error("We didn't catch that. Please try again.", { id: toastId });
+          }
         } else {
-          toast.error('No audio recorded');
+          toast.error("We didn't catch any audio. Please try again.");
         }
       } catch (error) {
-        console.error('❌ Stop recording error:', error);
+        console.warn('Voice processing failed:', error?.message || error);
         setIsRecording(false);
+        // Replaces the "Processing voice..." toast so it never hangs around
+        toast.error("Couldn't turn that recording into text. Please try again.", toastId ? { id: toastId } : undefined);
+      } finally {
         setIsProcessing(false);
-        toast.error('Failed to process voice: ' + error.message);
       }
     }
   };
 
   const handleSend = async () => {
-    console.log('🔵 handleSend called, input:', inputMessage, 'isProcessing:', isProcessing);
-    if (!inputMessage.trim() || isProcessing) {
-      console.log('❌ Early return - input empty or already processing');
-      return;
-    }
+    const text = inputMessage.trim();
+    const image = uploadedImage;
+    // A photo on its own is a fine question too
+    if ((!text && !image) || isProcessing || isUploadingImage) return;
 
-    const userMessage = inputMessage.trim();
-
-    const newUserMessage = {
-      role: 'user',
-      content: userMessage,
-      image_url: uploadedImage
-    };
+    const newUserMessage = { role: 'user', content: text, image_url: image };
+    const question = text || PHOTO_ONLY_QUESTION;
 
     setMessages(prev => [...prev, newUserMessage]);
     setInputMessage("");
     setUploadedImage(null);
     setIsProcessing(true);
-    console.log('📤 Sending message:', { userMessage, image_url: uploadedImage, conversationId });
+
+    // When it doesn't go through, take the bubble back out and put the question
+    // back in the box so nothing typed is lost
+    const undo = () => {
+      setMessages(prev => prev.filter(m => m !== newUserMessage));
+      setInputMessage(text);
+      setUploadedImage(image);
+    };
 
     try {
-       console.log('🔄 Invoking chatWithExpert...');
-       const response = await base44.functions.invoke('chatWithExpert', {
-         message: userMessage,
-         image_url: newUserMessage.image_url,
-         conversation_id: conversationId
-       });
-       console.log('✅ Response received:', response);
+      const response = await base44.functions.invoke('chatWithExpert', {
+        message: question,
+        image_url: image,
+        conversation_id: conversationId
+      });
+      const data = response?.data || response;
 
-       // Extract the actual response data
-       const data = response?.data || response;
-       console.log('📦 Extracted data:', data);
+      if (data?.error) {
+        toast.error(typeof data.error === 'string' && data.error.includes(' ') ? data.error : EXPERT_DOWN);
+        undo();
+        return;
+      }
+      // Never show the server's failure apology as if the expert said it
+      if (typeof data?.message !== 'string' || !data.message.trim() || EXPERT_FAILED.test(data.message)) {
+        toast.error(EXPERT_DOWN);
+        undo();
+        return;
+      }
 
-       if (data?.error) {
-         toast.error(data.error);
-         setMessages(prev => prev.slice(0, -1));
-         return;
-       }
+      if (data.conversation_id && !conversationId) {
+        setConversationId(data.conversation_id);
+      }
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.message,
+        // kept so "Report this answer" can send what was asked
+        question,
+        question_image: image || null,
+      }]);
+    } catch (error) {
+      console.warn('Plant expert request failed:', error?.response?.status || error?.message);
+      if (!(await handleAiLimit(error, navigate))) {
+        const status = error?.response?.status;
+        const serverMsg = error?.response?.data?.error;
+        // A 4xx refusal (e.g. "Please keep it family friendly") is written for people: show it
+        const refused = status >= 400 && status < 500 && ![401, 403, 429].includes(status);
+        toast.error(refused && typeof serverMsg === 'string' && serverMsg ? serverMsg : EXPERT_DOWN);
+      }
+      undo();
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-       if (data?.message) {
-         if (data.conversation_id && !conversationId) {
-           setConversationId(data.conversation_id);
-         }
-
-         setMessages(prev => [...prev, {
-           role: 'assistant',
-           content: data.message
-         }]);
-       } else {
-         console.error('❌ No message in response:', data);
-         toast.error('No response from expert');
-         setMessages(prev => prev.slice(0, -1));
-       }
-     } catch (error) {
-       console.error('❌ Error in chat:', error);
-       if (!(await handleAiLimit(error, navigate))) toast.error(error.message || "Failed to send message");
-       setMessages(prev => prev.slice(0, -1));
-     } finally {
-       setIsProcessing(false);
-     }
+  // Google Play asks for a way to flag AI answers. Sends the reply and its question to us.
+  const handleReport = async (idx) => {
+    const msg = messages[idx];
+    if (!msg || msg.role !== 'assistant' || !msg.question || msg.reported || reportingIdx !== null) return;
+    setReportingIdx(idx);
+    try {
+      const res = await base44.functions.invoke('sendFeedback', {
+        kind: 'ai_answer',
+        question: msg.question,
+        answer: msg.content,
+        image_url: msg.question_image || undefined,
+      });
+      const data = res?.data ?? res;
+      if (!data?.success) throw new Error('not_sent');
+      setMessages(prev => prev.map((m, i) => (i === idx ? { ...m, reported: true } : m)));
+      toast.success("Thanks for flagging this. We'll take a look.");
+    } catch (error) {
+      const serverMsg = error?.response?.data?.error;
+      toast.error(typeof serverMsg === 'string' && serverMsg ? serverMsg : "Couldn't send your report. Please try again later.");
+    } finally {
+      setReportingIdx(null);
+    }
   };
 
   const handleEasterEggClick = () => {
@@ -292,13 +328,8 @@ export default function PlantChat() {
 
       <div className={`border-b theme-border p-3 flex-shrink-0 ${getThemedClasses()} relative`}>
         <div className="max-w-4xl mx-auto flex items-center justify-between">
+          {/* The app header above already has the menu button */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={toggleSidebar}
-              className={`p-2 rounded-lg transition-opacity hover:opacity-70 ${getTextColor()}`}
-            >
-              <PanelLeft className="w-5 h-5" />
-            </button>
             <div>
               <h1 className={`text-xl font-bold flex items-center gap-2 ${getTextColor()}`}>
                 <Sparkles className="w-5 h-5 text-green-600" />
@@ -328,13 +359,31 @@ export default function PlantChat() {
                   : getThemedClasses()
               }`}>
                 {msg.image_url && (
-                  <img src={msg.image_url} alt="Uploaded" className="max-w-full h-auto rounded-lg mb-2" />
+                  <img src={msg.image_url} alt="Uploaded" className={`max-w-full h-auto rounded-lg ${msg.content ? 'mb-2' : ''}`} />
                 )}
-                <p className={`text-sm whitespace-pre-wrap ${
-                  msg.role === 'user' ? 'text-white' : getTextColor()
-                }`}>
-                  {msg.content}
-                </p>
+                {msg.content && (
+                  <p className={`text-sm whitespace-pre-wrap ${
+                    msg.role === 'user' ? 'text-white' : getTextColor()
+                  }`}>
+                    {msg.content}
+                  </p>
+                )}
+                {msg.role === 'assistant' && msg.question && (
+                  <div className="mt-2 flex justify-end">
+                    {msg.reported ? (
+                      <span className={`text-[11px] opacity-70 ${getSecondaryTextColor()}`}>Reported. Thanks!</span>
+                    ) : (
+                      <button
+                        onClick={() => handleReport(idx)}
+                        disabled={reportingIdx !== null}
+                        className={`inline-flex items-center gap-1 text-[11px] opacity-70 hover:opacity-100 disabled:opacity-40 ${getSecondaryTextColor()}`}
+                      >
+                        <Flag className="w-3 h-3" />
+                        {reportingIdx === idx ? 'Sending...' : 'Report this answer'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -402,7 +451,8 @@ export default function PlantChat() {
              />
              <Button
                onClick={handleSend}
-               disabled={isProcessing || !inputMessage.trim()}
+               disabled={isProcessing || isUploadingImage || (!inputMessage.trim() && !uploadedImage)}
+               aria-label="Send"
                className={getPrimaryButtonClasses()}
              >
                <Send className="w-4 h-4" />
