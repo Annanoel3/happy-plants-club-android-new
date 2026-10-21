@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import './App.css'
 import { Toaster } from "@/components/ui/toaster"
 // Most of the app calls toast() from "sonner" (44 files), but sonner's own Toaster was never
@@ -36,7 +35,7 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   : <>{children}</>;
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
