@@ -19,6 +19,13 @@ function osAuth(key: string | undefined | null): string {
     const k = (key || '').trim();
     return k.startsWith('os_v2') ? `Key ${k}` : `Basic ${k}`;
 }
+// Why OneSignal said no, without the email addresses its errors can list
+function osWhy(detail: any): string {
+    const e = detail?.errors ?? detail;
+    if (Array.isArray(e)) return e.map(String).join('; ').slice(0, 160);
+    if (e && typeof e === 'object') return Object.keys(e).join(', ');
+    return String(e || '').slice(0, 160);
+}
 function validTz(tz: any): string {
     // No time zone saved: Central, like the weather push (undefined would mean UTC here)
     if (!tz) return 'America/Chicago';
@@ -222,7 +229,7 @@ Deno.serve(async (req) => {
             await db.User.update(u.id, { tip_push_day: day, tip_log: { ...log, [tip.key]: day } }); // claim first: never twice
             const r = await sendPush(u.email, tip, day);
             bump(r.id ? 'sent' : 'failed');
-            if (!r.id) console.warn('tip push failed', u.id, JSON.stringify(r.detail?.errors || r.detail).slice(0, 120));
+            if (!r.id) console.warn('tip push failed', u.id, osWhy(r.detail));
         }
         return Response.json({ success: true, stats, ...(body.dry ? { plan } : {}) });
     } catch (error) {
