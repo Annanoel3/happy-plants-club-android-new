@@ -63,7 +63,7 @@ const TIPS: { key: string; title: string; body: string; screen: string | ((day: 
     },
     {
         key: 'plantdoku', title: '🌱 Psst… hidden games',
-        body: "There are little plant puzzle games hiding in Happy Plants. Today the way in is on this screen: look for small text that says \"what's this?\"",
+        body: "There are little plant puzzle games hiding in Happy Plants. Today the way in is on this screen: look for a tiny egg and small text that says \"what's this?\"",
         screen: (day) => eggPath(day), skip: (c) => c.foundGame || c.plants < 3 || c.ageDays < 7,
     },
     {
