@@ -274,7 +274,9 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
       initial={false}
       animate={{ y: stackOffset }}
       transition={{ type: "tween", ease: [0.25, 0.8, 0.25, 1], duration: 0.35 }}
-      style={{ zIndex: index + 1, willChange: 'transform' }}
+      // No will-change here: it gave every card in the garden its own GPU layer, and with
+      // dozens of cards Android ran short while scrolling (stutter and blank patches)
+      style={{ zIndex: index + 1 }}
     >
       <motion.div
         style={{
@@ -282,10 +284,11 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
           boxShadow: '0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.25)',
         }}
         onClick={handleClick}
-        className={`relative rounded-[28px] overflow-hidden cursor-pointer select-none
+        // The press effect is plain CSS now. The old animated one started the moment a finger
+        // touched a card, so every scroll that began on a card made it shrink and pop back.
+        className={`relative rounded-[28px] overflow-hidden cursor-pointer select-none transition-transform duration-150 active:scale-[0.975]
           ${needsWater ? 'ring-1 ring-blue-400/50' : ''}
         `}
-        whileTap={{ scale: 0.975 }}
       >
         {/* Background */}
         {plant.image_url ? (
@@ -369,32 +372,11 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
   );
 }
 
-// Scroll-in animation wrapper
-function ScrollReveal({ children, index }) {
-  const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
-      { threshold: 0.1, rootMargin: '0px 0px -20px 0px' }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 28, scale: 0.97 }}
-      animate={visible ? { opacity: 1, y: 0, scale: 1 } : {}}
-      transition={{ type: "spring", stiffness: 260, damping: 28, delay: Math.min(index, 4) * 0.06 }}
-    >
-      {children}
-    </motion.div>
-  );
+// Used to slide each group in as it scrolled into view. That meant groups were invisible
+// until they were on screen and then moved while you were scrolling (blank gaps on a fast
+// fling, and content jumping under your finger). Groups now just sit still.
+function ScrollReveal({ children }) {
+  return <div>{children}</div>;
 }
 
 export default function PlantTypeStack({ plantType, plants, wateringRemindersEnabled, themedClasses, textColor, secondaryTextColor, selectMode, selectedIds, onToggleSelect, onSelectGroup, stackIndex = 0, viewMode = 'stack', showHeader = true }) {
