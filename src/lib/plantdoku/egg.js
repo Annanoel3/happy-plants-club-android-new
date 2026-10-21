@@ -10,7 +10,7 @@ export const EGG_PAGES = [
   { path: '/PlantChat', key: 'expert' },
 ];
 // (not "don't click": the garden already has a hidden "don't click this" for secret themes)
-const TEXTS = ["what's this?", "psst… what's this?", "ooh, what's this?", '🌱 what\'s this?'];
+const TEXTS = ["what's this?", "psst… what's this?", "ooh, what's this?", "hmm… what's this?"];
 
 // Scrambles a day number so the screens don't follow a pattern
 function mix(n) {
