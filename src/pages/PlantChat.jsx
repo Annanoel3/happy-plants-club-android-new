@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
 import PlantdokuEgg from "@/components/PlantdokuEgg";
+import confetti from "canvas-confetti";
 
 // chatWithExpert answers 200 with this apology when the AI call itself fails
 const EXPERT_FAILED = /^Sorry, I encountered an error/i;
