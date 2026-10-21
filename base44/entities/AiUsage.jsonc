@@ -6,18 +6,19 @@
       "type": "number"
     },
     "day": {
-      "description": "User's local date",
+      "description": "User's local date (for kind plantnet: the UTC date)",
       "format": "date",
       "type": "string"
     },
     "kind": {
-      "description": "identify = photo IDs used; identify_bonus = reward videos watched that day (each adds 5 photo IDs); rename = name corrections",
+      "description": "identify = photo IDs used; identify_bonus = reward videos watched that day (each adds 5 photo IDs); rename = name corrections; plantnet = Pl@ntNet calls the whole app made that UTC day (user_id 'app')",
       "enum": [
         "identify",
         "identify_bonus",
         "rename",
         "health",
-        "chat"
+        "chat",
+        "plantnet"
       ],
       "type": "string"
     },
