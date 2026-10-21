@@ -7,6 +7,7 @@ import {
 import { base44 } from "@/api/base44Client";
 import { showAdForEvent } from "@/lib/admob";
 import { logWaterings } from "@/lib/watering";
+import { refreshPlantData } from "@/lib/query-client";
 import { toast } from "sonner";
 
 // One request for the whole selection. Base44's PUT /bulk applies every change
@@ -94,15 +95,45 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
     }
   };
 
+  // Same as moving one plant: indoors/outdoors changes its watering numbers (the server
+  // skips plants with their own interval). Fire and forget; the hourly sweep is the backup.
+  const retuneMoved = (environment) => {
+    if (!environment) return;
+    const ids = selectedPlants.filter((p) => p.environment !== environment).map((p) => p.id);
+    for (let i = 0; i < ids.length; i += 50) {
+      base44.functions.invoke('plus', { action: 'retune', plant_ids: ids.slice(i, i + 50) })
+        .then(() => refreshPlantData()).catch(() => { /* the hourly sweep does it */ });
+    }
+  };
+
   const handleSetLocation = async (location, environment) => {
     setShowLocationMenu(false);
     setShowNewLocationInput(false);
-    await runBulkUpdate(environment ? { location, environment } : { location }, 'location');
+    const data = environment ? { location, environment } : { location };
+    setLoading('location');
+    try {
+      // A named plant under "Newly added" is set up once it has a place. One still waiting
+      // for its name stays there (so it still gets named) and leaves once it's named.
+      await bulkUpdatePlants(selectedPlants.map((p) => ({
+        id: p.id,
+        ...data,
+        ...(p.add_status === 'review' ? { add_status: 'done' } : {}),
+        ...(p.add_status === 'failed' ? { add_info: { ...(p.add_info || {}), place_chosen: true } } : {}),
+      })));
+      retuneMoved(environment);
+      onDone();
+    } catch (e) {
+      console.error('[bulk] move failed:', e);
+      toast.error("Couldn't move those plants. Please try again.");
+    } finally {
+      setLoading(null);
+    }
   };
 
   const handleSetEnvironment = async (environment) => {
     setShowLocationMenu(false);
     await runBulkUpdate({ environment }, 'location');
+    retuneMoved(environment);
   };
 
   const handleSetStatus = async (status) => {
@@ -111,6 +142,8 @@ export default function BulkActionBar({ selectedIds, allPlants, onDone, onCancel
   };
 
   const handleDelete = async () => {
+    if (!count) return;
+    if (!window.confirm(`Delete ${count} plant${count === 1 ? '' : 's'}? This can't be undone.`)) return;
     setLoading('delete');
     try {
       await Promise.all(selectedIds.map(id => base44.entities.Plant.delete(id)));
