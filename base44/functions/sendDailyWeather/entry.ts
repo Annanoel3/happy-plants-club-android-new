@@ -20,8 +20,41 @@ function localParts(tz: string, d = new Date()) {
 
 const DEFAULT_LOCAL_HOUR = 8; // 8 AM in the user's own time zone
 
+// Every user, a page at a time, oldest first (a single list() call only returns the newest 1,000)
+async function allUsers(db: any): Promise<any[]> {
+    const out: any[] = [];
+    const PAGE = 500;
+    for (let skip = 0; skip < 100000; skip += PAGE) {
+        const page = (await db.User.list('created_date', PAGE, skip)) || [];
+        out.push(...page);
+        if (page.length < PAGE) break;
+    }
+    return out;
+}
+
+// Why OneSignal said no, without the email addresses its errors can list
+function osWhy(detail: any): string {
+    const e = detail?.errors ?? detail;
+    if (Array.isArray(e)) return e.map(String).join('; ').slice(0, 160);
+    if (e && typeof e === 'object') return Object.keys(e).join(', ');
+    return String(e || '').slice(0, 160);
+}
+
+// Is it this person's push hour? Settings saves weather_local_hour (0-23, their own clock),
+// which follows daylight saving. Older accounts only have weather_notification_hour, saved
+// as a UTC hour (it shifts an hour with daylight saving; kept as it was). Nothing saved: 8 AM.
+function isTheirHour(user: any, now: Date, localHour: number): boolean {
+    const lh = user.weather_local_hour;
+    if (lh !== undefined && lh !== null && lh !== '' && Number.isInteger(Number(lh)) && Number(lh) >= 0 && Number(lh) <= 23) {
+        return localHour === Number(lh);
+    }
+    const uh = user.weather_notification_hour;
+    if (uh !== undefined && uh !== null && uh !== '') return now.getUTCHours() === Number(uh);
+    return localHour === DEFAULT_LOCAL_HOUR;
+}
+
 // Runs every hour. Each user gets ONE weather push a day, at their chosen hour
-// (legacy setting is stored as a UTC hour) or 8 AM their time by default.
+// (see isTheirHour) or 8 AM their time by default.
 // Previously this ran for every user every hour, generated an AI weather message
 // each time (24/day/user), then threw it away because it read the reply wrong —
 // so nobody ever received a weather push.
@@ -33,20 +66,17 @@ Deno.serve(async (req) => {
         if (!appId || !restKey) return Response.json({ error: 'Missing OneSignal credentials' }, { status: 500 });
 
         const now = new Date();
-        const allUsers = await base44.asServiceRole.entities.User.list('-created_date', 1000);
+        const users = await allUsers(base44.asServiceRole.entities);
         let sent = 0, skipped = 0, failed = 0;
 
-        for (const user of allUsers) {
+        for (const user of users) {
             try {
                 if (user.notifications_weather === false || !user.location || !user.email) { skipped++; continue; }
 
                 const tz = user.timezone || 'America/Chicago';
                 const { date: localDate, hour: localHour } = localParts(tz, now);
 
-                const isTheirHour = (user.weather_notification_hour !== undefined && user.weather_notification_hour !== null)
-                    ? now.getUTCHours() === Number(user.weather_notification_hour)
-                    : localHour === DEFAULT_LOCAL_HOUR;
-                if (!isTheirHour) { skipped++; continue; }
+                if (!isTheirHour(user, now, localHour)) { skipped++; continue; }
                 if (user.last_weather_push_date === localDate) { skipped++; continue; } // already sent today
 
                 // Claim today's slot first so an overlapping run can't double-send.
@@ -85,13 +115,13 @@ Deno.serve(async (req) => {
                 });
                 const result = await res.json().catch(() => ({}));
                 if (!res.ok || !result.id) {
-                    console.error('OneSignal weather push failed', user.email, res.status, JSON.stringify(result.errors || result));
+                    console.error('OneSignal weather push failed', user.id, res.status, osWhy(result));
                     failed++;
                 } else {
                     sent++;
                 }
             } catch (err) {
-                console.error('Weather push error for', user.email, err?.message || err);
+                console.error('Weather push error for', user.id, err?.message || err);
                 failed++;
             }
         }
