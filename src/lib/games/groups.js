@@ -456,7 +456,7 @@ function feasible(chosen) {
   return feasibleCache.get(k);
 }
 
-const sim = { day: null, n: 0, catUsed: {}, wordUsed: {}, byDay: new Map() };
+const sim = { day: null, catUsed: {}, wordUsed: {}, byDay: new Map() };
 function remember(day, p) {
   const n = dayNum(day);
   p.groups.forEach((g) => {
@@ -468,7 +468,7 @@ function rotatedPuzzle(day) {
   const n = dayNum(day);
   const seed = dailyGroupsSeed(day);
   const rng = seededRng(`gg|${seed}`);
-  const ago = (last) => (last === undefined ? Infinity : n - last);
+  const ago = (last) => (last === undefined ? 1e6 : n - last); // never used = long ago (a number, so sorts stay exact)
   // Per level: categories longest-unused first, each with a cost (its place in line, plus a big
   // cost if it was used too recently)
   const lines = [1, 2, 3, 4].map((l) => shuffleWith(rng, BY_LEVEL[l])
