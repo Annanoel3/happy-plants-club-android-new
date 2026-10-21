@@ -353,7 +353,8 @@ export default function MiniGarden() {
 
         {/* The garden */}
         <div className="grid w-full max-w-[420px] mx-auto aspect-square rounded-xl overflow-hidden select-none"
-          style={{ gridTemplateColumns: `repeat(${SIZE}, 1fr)`, border: thick }} role="grid" aria-label="Mini Garden board">
+          // Fixed, equal rows and columns: what's in a square can never stretch or squeeze it
+          style={{ gridTemplateColumns: `repeat(${SIZE}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${SIZE}, minmax(0, 1fr))`, border: thick }} role="grid" aria-label="Mini Garden board">
           {grid.map((v, i) => {
             const r = rowOf(i), c = colOf(i), b = boxOf(i);
             const given = puzzle.givens[i] !== null;
@@ -371,7 +372,7 @@ export default function MiniGarden() {
             return (
               <button key={i} type="button" onClick={() => selectCell(i)} role="gridcell"
                 aria-label={`Row ${r + 1}, column ${c + 1}${v !== null ? `, ${PLANT_NAMES[v]}` : ', empty'}${given ? ', came planted' : ''}${bad ? ', breaks a rule' : ''}`}
-                className={`relative flex items-center justify-center ${ring} ${isSel ? 'z-10' : ''}`}
+                className={`relative block min-w-0 min-h-0 p-0 overflow-hidden ${ring} ${isSel ? 'z-10' : ''}`}
                 style={{
                   background: given ? givenBg : (checker ? bgA : bgB),
                   borderTop: r > 0 ? (r % 2 === 0 ? thick : thin) : 'none',
@@ -379,7 +380,11 @@ export default function MiniGarden() {
                 }}>
                 {peer && <span className="absolute inset-0 bg-sky-400/15 pointer-events-none" aria-hidden />}
                 {bad && <span className="absolute inset-0 bg-red-500/20 pointer-events-none" aria-hidden />}
-                {v !== null && <PlantIcon index={PLANT_ICONS[v]} className="w-[78%] h-[78%]" />}
+                {v !== null && (
+                  <span className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
+                    <PlantIcon index={PLANT_ICONS[v]} className="w-[78%] h-[78%]" />
+                  </span>
+                )}
                 {bad && (
                   <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center pointer-events-none" aria-hidden>!</span>
                 )}
