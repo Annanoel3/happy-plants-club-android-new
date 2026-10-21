@@ -346,16 +346,20 @@ export default function Plantdoku() {
     card: dark ? 'bg-black/45 border-white/15' : 'bg-white/85 border-gray-200',
     chip: dark ? 'bg-white/10 text-white border-white/15' : 'bg-white text-gray-800 border-gray-300',
   };
-  const today = localToday();
+  // The daily's date is locked when the screen opens: midnight can't swap the puzzle (or its
+  // size) mid-play, and saves, hints and the server clock all use this date. It moves to the
+  // new day via Daily / "Play it", or on a fresh visit.
+  const today = useToday();
+  const [day, setDay] = useState(localToday);
 
   const [mode, setMode] = useState('daily');
   const [level, setLevel] = useState('starter');
   const [seed, setSeed] = useState(() => `practice-${Date.now()}`);
   const puzzle = useMemo(() => (mode === 'daily'
-    ? makePuzzle(dailySeed(today), dailySize(today))
-    : makePuzzle(seed, LEVELS.find((l) => l.key === level).size)), [mode, today, seed, level]);
+    ? dailyPuzzle(day)
+    : makePuzzle(seed, LEVELS.find((l) => l.key === level).size)), [mode, day, seed, level]);
   const N = puzzle.size;
-  const storeKey = mode === 'daily' ? `hp_pd_${today}` : null;
+  const storeKey = mode === 'daily' ? `hp_pd_${day}` : null;
 
   const [marks, setMarks] = useState([]);
   const [history, setHistory] = useState([]);
@@ -372,6 +376,10 @@ export default function Plantdoku() {
   const [finishError, setFinishError] = useState(null);
   const clock = useRef({ ms: 0, at: Date.now(), running: false });
   const [, setTick] = useState(0);
+  const adHold = useRef(false); // an ad or hint video is up: the clock must not restart
+  // Latest values for timers and listeners that outlive a render
+  const live = useRef({});
+  live.current = { mode, day, seed, daily, result, tutorial };
 
   useEffect(() => { markPlantdokuFound(); }, []);
 
@@ -390,8 +398,16 @@ export default function Plantdoku() {
     setLocalHints(0);
     setFinishError(null);
     if (mode === 'practice') {
+      // A new practice puzzle: the ad check comes first, and its clock waits for the ad to close
       setResult(null);
-      clock.current = { ms: 0, at: Date.now(), running: !tutorial, paused: tutorial };
+      clock.current = { ms: 0, at: Date.now(), running: false, paused: true };
+      const s = seed;
+      adHold.current = true;
+      adBeforeNext().then(() => {
+        adHold.current = false;
+        const l = live.current;
+        if (l.mode === 'practice' && l.seed === s && !l.tutorial && !document.hidden) resumeClock();
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puzzle]);
@@ -404,21 +420,26 @@ export default function Plantdoku() {
     setDaily(d);
     clock.current = { ms: d.elapsed_ms || 0, at: Date.now(), running: !!d.started && !d.finished };
     if (d.finished) {
-      if (!getDone('plantdoku', today)) setDone('plantdoku', { seconds: d.seconds }, today);
+      if (!getDone('plantdoku', day)) setDone('plantdoku', { seconds: d.seconds }, day);
       setResult({ daily: true, seconds: d.seconds, raw: Math.round((d.elapsed_ms || 0) / 1000), hints: d.hints, board: d.board, stats: d.stats, name: d.name });
       // Solved on another phone (or this one was cleared): show the finished board
-      const sol = makePuzzle(dailySeed(today), dailySize(today));
+      const sol = dailyPuzzle(day);
       const done = new Array(sol.size * sol.size).fill(0);
       sol.solution.forEach((c, r) => { done[r * sol.size + c] = 2; });
       setMarks((m) => (isSolved(sol.size, sol.regions, m.flatMap((v, i) => (v === 2 ? [[Math.floor(i / sol.size), i % sol.size]] : []))) ? m : done));
     }
   };
-  // Starts (or resumes) the server clock
-  const startDaily = async () => {
+  // Starts (or resumes) the server clock. fresh: the Start tap on a daily not begun yet, which is
+  // a new puzzle starting, so the ad check runs first and the clock only starts once it's closed.
+  const startDaily = async (fresh = false) => {
     setDailyError(null);
     setStarting(true);
     try {
-      const d = await call('start', { date: today });
+      if (fresh) {
+        adHold.current = true;
+        try { await adBeforeNext(); } finally { adHold.current = false; }
+      }
+      const d = await call('start', { date: day });
       if (!d?.success) throw new Error(d?.error || 'failed');
       applyDaily({ ...d, started: true });
     } catch {
@@ -430,7 +451,7 @@ export default function Plantdoku() {
   const loadDaily = async () => {
     setDailyError(null);
     try {
-      const d = await call('peek', { date: today });
+      const d = await call('peek', { date: day });
       if (!d?.success) throw new Error(d?.error || 'failed');
       // Already playing today (left and came back): pick the clock back up, unless the how-to is open
       if (d.started && !d.finished && !tutorial) { await startDaily(); return; }
@@ -441,31 +462,32 @@ export default function Plantdoku() {
     }
   };
   useEffect(() => {
-    if (mode !== 'daily') return;
+    if (mode !== 'daily') return undefined;
     loadDaily();
-    return () => { if (clock.current.running) pauseKeepalive(today); };
+    return () => { if (clock.current.running) pauseKeepalive(day); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  }, [mode, day]);
 
-  // The clock stops while the app is in the background or the how-to is open
+  // The clock stops while the app is in the background, the how-to is open, or an ad is up
   const pauseClock = () => {
     const c = clock.current;
     if (!c.running) return;
     clock.current = { ms: c.ms + (Date.now() - c.at), at: Date.now(), running: false, paused: true };
-    if (mode === 'daily') pauseKeepalive(today);
+    if (live.current.mode === 'daily') pauseKeepalive(live.current.day);
   };
   const resumeClock = () => {
     const c = clock.current;
-    if (!c.paused || result) return;
-    if (mode === 'daily') { if (daily?.started && !daily?.finished) startDaily(); }
+    const l = live.current;
+    if (!c.paused || l.result || adHold.current) return;
+    if (l.mode === 'daily') { if (l.daily?.started && !l.daily?.finished) startDaily(); }
     else clock.current = { ms: c.ms, at: Date.now(), running: true };
   };
   useEffect(() => {
-    const onVis = () => { if (document.hidden) pauseClock(); else if (!tutorial) resumeClock(); };
+    const onVis = () => { if (document.hidden) pauseClock(); else if (!live.current.tutorial) resumeClock(); };
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, today, tutorial, daily, result]);
+  }, [mode, day]);
   useEffect(() => {
     const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
@@ -483,7 +505,11 @@ export default function Plantdoku() {
   const check = useMemo(() => checkBoard(N, puzzle.regions, plants), [N, puzzle, plants]);
   const solved = marks.length === N * N && isSolved(N, puzzle.regions, plants);
   const needsStart = mode === 'daily' && daily && !daily.started && !daily.finished;
-  const locked = !!result || (mode === 'daily' && (!daily || !daily.started || daily.finished));
+  // The daily board is hidden whenever its clock isn't running: before Start, while loading,
+  // offline, paused, or during an ad. Only a finished board shows without the clock.
+  const hideBoard = mode === 'daily' && !result && !daily?.finished && !clock.current.running;
+  const locked = !!result || hideBoard || (mode === 'daily' && (!daily || !daily.started || daily.finished));
+  const newDay = mode === 'daily' && today !== day;
 
   // Solved!
   const finishedRef = useRef(null);
@@ -497,12 +523,12 @@ export default function Plantdoku() {
     setFinishing(true);
     setFinishError(null);
     try {
-      const d = await call('finish', { date: today, plants });
+      const d = await call('finish', { date: day, plants });
       if (!d?.success) throw new Error(d?.error || 'failed');
       clock.current = { ms: (d.raw_seconds || elapsedSec) * 1000, at: Date.now(), running: false };
       if (!d.already) countFinish();
       setDaily((x) => ({ ...(x || {}), finished: true, hints: d.hints }));
-      setDone('plantdoku', { seconds: d.seconds }, today);
+      setDone('plantdoku', { seconds: d.seconds }, day);
       setResult({ daily: true, seconds: d.seconds, raw: d.raw_seconds, hints: d.hints, board: d.board, stats: d.stats, name: daily?.name });
     } catch (e) {
       const code = e?.response?.data?.error;
@@ -514,7 +540,7 @@ export default function Plantdoku() {
     }
   };
   useEffect(() => {
-    const key = mode === 'daily' ? `daily:${today}` : `practice:${seed}`;
+    const key = mode === 'daily' ? `daily:${day}` : `practice:${seed}`;
     if (!solved || result || finishedRef.current === key) return;
     if (mode === 'daily' && !daily?.started) return; // wait for the server clock
     finishedRef.current = key;
@@ -547,14 +573,24 @@ export default function Plantdoku() {
     if (needVideo) {
       if (!rewardedAvailable()) { toast("No video is ready right now, so no hint yet. Try again in a little while."); return; }
       setHintBusy(true);
+      // Stop the clock for the video (on the server too, and wait for it) so ad time never counts
+      const wasRunning = clock.current.running;
+      adHold.current = true;
+      pauseClock();
+      if (mode === 'daily' && wasRunning) { try { await call('pause', { date: day }); } catch { /* the keepalive pause already went */ } }
       const r = await showRewardedAd();
+      adHold.current = false;
+      if (wasRunning) {
+        if (mode === 'daily') await startDaily();
+        else resumeClock();
+      }
       setHintBusy(false);
       if (!r.ok) { toast(r.reason === 'closed' ? 'The video was closed early, so no hint this time.' : "Couldn't play the video. Try again in a little while."); return; }
     }
     if (mode === 'daily') {
       setHintBusy(true);
       try {
-        const d = await call('hint', { date: today, plants });
+        const d = await call('hint', { date: day, plants });
         setDaily((x) => ({ ...x, hints: d.hints }));
         showHint(d.hint);
       } catch {
@@ -568,8 +604,8 @@ export default function Plantdoku() {
     }
   };
 
+  // (The ad check for a new puzzle runs when it starts: the practice puzzle effect, or Start on the daily)
   const newPractice = (lv = level) => {
-    adBeforeNext();
     if (mode === 'daily') pauseClock();
     setLevel(lv);
     setMode('practice');
@@ -577,17 +613,18 @@ export default function Plantdoku() {
     setResult(null);
   };
   const backToDaily = () => {
-    adBeforeNext();
+    pauseClock(); // stops yesterday's server clock too, if we're moving to the new day
     setResult(null);
     clock.current = { ms: 0, at: Date.now(), running: false };
     setDaily(null);
+    setDay(localToday());
     setMode('daily');
   };
   const newName = async () => {
     try {
       const d = await call('new_name');
       if (!d?.success) throw new Error();
-      const b = await call('board', { date: today });
+      const b = await call('board', { date: day });
       setResult((r) => (r ? { ...r, name: d.name, board: b?.board || r.board } : r));
       setDaily((x) => ({ ...(x || {}), name: d.name }));
     } catch {
@@ -595,8 +632,8 @@ export default function Plantdoku() {
     }
   };
   const share = async () => {
-    const day = new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const text = `Plantdoku ${day} 🌱\nSolved in ${fmt(result.seconds)}${result.hints ? ` (${result.hints} hint${result.hints === 1 ? '' : 's'})` : ''}${result.board?.faster_than != null ? `, faster than ${result.board.faster_than}% of players` : ''}\nhappyplants.club`;
+    const dayLabel = new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const text = `Plantdoku ${dayLabel} 🌱\nSolved in ${fmt(result.seconds)}${result.hints ? ` (${result.hints} hint${result.hints === 1 ? '' : 's'})` : ''}${result.board?.faster_than != null ? `, faster than ${result.board.faster_than}% of players` : ''}\nhappyplants.club`;
     if (Capacitor.isNativePlatform()) {
       try { await registerPlugin('NotifyBridge').shareText({ text, title: 'Plantdoku' }); return; } catch { /* older build */ }
     }
@@ -604,7 +641,7 @@ export default function Plantdoku() {
     try { await navigator.clipboard.writeText(text); toast.success('Copied! Paste it anywhere.'); } catch { toast.error("Couldn't share."); }
   };
 
-  const dateLabel = new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const dateLabel = new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   const btn = `flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold border active:scale-95 disabled:opacity-50 ${ui.chip}`;
 
   return (
