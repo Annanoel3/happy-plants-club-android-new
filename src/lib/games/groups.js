@@ -111,7 +111,7 @@ W('CYPRESS', 'tree', 'treeS');
 W('SYCAMORE', 'tree', 'treeS');
 W('WILLOW', 'tree girl', 'treeS color');
 W('ASPEN', 'tree', 'treeS girl boy animal');
-W('OLIVE', 'tree girl color', 'treeS');
+W('OLIVE', 'tree girl color', 'treeS fruitveg');
 W('MAGNOLIA', 'tree girl', 'treeS color');
 W('ASH', 'tree boy', 'treeS color');
 W('ROWAN', 'tree boy', 'treeS girl berryP'); // rowanberry
@@ -181,7 +181,7 @@ W('SPELT', 'grain');
 W('ALMOND', 'nut', 'tree treeS color');
 W('WALNUT', 'nut tree', 'treeS color');
 W('PECAN', 'nut tree', 'treeS color');
-W('CHESTNUT', 'nut tree color', 'treeS');
+W('CHESTNUT', 'nut tree color', 'treeS xmas'); // roasting at Christmas
 W('CASHEW', 'nut', 'tree treeS');
 W('HAZELNUT', 'nut', 'tree color treeS');
 W('PISTACHIO', 'nut color', 'tree treeS');
@@ -241,12 +241,12 @@ W('SOIL', 'need', 'potting');
 W('AIR', 'need');
 W('SUNLIGHT', 'need');
 W('WARMTH', 'need');
-W('NUTRIENTS', 'need');
+W('NUTRIENTS', 'need', 'potting'); // mixes come "with added nutrients"
 W('APHID', 'pest', 'animal');
 W('MEALYBUG', 'pest', 'animal');
 W('SPIDER MITE', 'pest', 'animal');
 W('THRIPS', 'pest', 'animal');
-W('SCALE', 'pest', 'animal');
+W('SCALE', 'pest', 'animal part'); // bud and bulb scales
 W('WHITEFLY', 'pest', 'animal');
 W('FUNGUS GNAT', 'pest', 'animal');
 
@@ -280,7 +280,7 @@ W('IRIS', 'bulb girl', 'color');
 W('IVY', 'vine girl', 'color xmas house');
 W('WISTERIA', 'vine', 'color');
 W('CLEMATIS', 'vine');
-W('JASMINE', 'vine girl', 'color');
+W('JASMINE', 'vine girl', 'color house');
 W('HONEYSUCKLE', 'vine', 'color');
 W('GRAPE', 'vine berry', 'color');
 W('HOPS', 'vine');
@@ -320,7 +320,7 @@ W('TOMATO', 'fruitveg berry night color', 'vine');
 W('EGGPLANT', 'fruitveg berry night color');
 W('BELL PEPPER', 'fruitveg berry night');
 W('CUCUMBER', 'fruitveg', 'berry vine');
-W('ZUCCHINI', 'fruitveg', 'berry');
+W('ZUCCHINI', 'fruitveg', 'berry vine');
 W('PUMPKIN', 'fruitveg color', 'berry vine');
 W('OKRA', 'fruitveg');
 W('SQUASH', 'fruitveg', 'berry vine');
@@ -357,7 +357,7 @@ W('MOON', 'flowerS');
 W('CONE', 'flowerS', 'part');
 W('WILD', 'flowerS');
 W('BELL', 'flowerS');
-W('STAR', 'flowerS');
+W('STAR', 'flowerS', 'xmas'); // "Christmas star" is a poinsettia
 W('BOSTON', 'fernP', 'house boy');
 W('STAGHORN', 'fernP animal', 'house');
 W('MAIDENHAIR', 'fernP', 'tree treeS house');
