@@ -3,8 +3,12 @@ import { jsPDF } from 'npm:jspdf@2.5.1';
 
 // Vacation plan for the plant sitter.
 //   { action: 'plan', vacation_id, visit_every }  → the plan (for the preview in the app)
-//   { action: 'pdf',  vacation_id, visit_every }  → saves the plan, makes the PDF, returns a
-//                                                   private link that works for 15 minutes
+//   { action: 'pdf',  vacation_id, visit_every }  → saves the plan, makes the PDF and returns it
+//                                                   as base64 (the app shares or downloads it;
+//                                                   no upload, so no Base44 credits)
+//     + deliver: 'link'                            → older app builds that can't share a file:
+//                                                   uploads it privately and returns a link that
+//                                                   works for 15 minutes (2 Base44 credits)
 //   { action: 'confirm', vacation_id }            → "the sitter followed the plan": log those waterings
 //   { action: 'dismiss', vacation_id }            → don't ask again
 // visit_every: 0 = come only on days a plant needs water; 2 / 3 = every 2 or 3 days;
@@ -68,6 +72,12 @@ function howText(p: any, plus: boolean): string {
         }
     }
     return `Water until a little drains out the bottom${oz}`;
+}
+
+function toBase64(bytes: Uint8Array): string {
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(s);
 }
 
 function onPlantVacation(p: any, day: string): boolean {
@@ -349,14 +359,19 @@ Deno.serve(async (req) => {
             ...(vac.status ? {} : { status: 'planned' }),
         });
         const bytes = new Uint8Array(buildPdf(plan, vac));
-        const file = new File([bytes], `plant-care-${plan.start}-to-${plan.end}.pdf`, { type: 'application/pdf' });
-        // A private file and a link that works for 15 minutes: the PDF can hold alarm codes
-        // and other house notes, so it's never left at a public address.
+        const fileName = `plant-care-${plan.start}-to-${plan.end}.pdf`;
+        if (body.deliver !== 'link') {
+            // Straight back to the phone: nothing is stored anywhere (the PDF can hold alarm
+            // codes and other house notes) and no Base44 credits are used
+            return Response.json({ success: true, pdf_base64: toBase64(bytes), file_name: fileName, plan });
+        }
+        // Older builds only: a private file and a link that works for 15 minutes
+        const file = new File([bytes], fileName, { type: 'application/pdf' });
         const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file });
         const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({ file_uri, expires_in: 900 });
         return Response.json({ success: true, url: signed_url, plan });
     } catch (error) {
         console.error('[vacation] error', (error as Error)?.message);
-        return Response.json({ success: false, error: (error as Error)?.message || 'Unknown error' }, { status: 500 });
+        return Response.json({ success: false, error: "Couldn't make the sitter plan" }, { status: 500 });
     }
 });
