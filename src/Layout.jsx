@@ -35,6 +35,7 @@ import AdManager from './components/shared/AdManager';
 import UpdatePrompt from '@/components/UpdatePrompt';
 import UpgradeNudge from '@/components/UpgradeNudge';
 import StatusBarStrip from '@/components/StatusBarStrip';
+import { themeEggFound } from '@/lib/themeEgg';
 import PushRouter from '@/components/PushRouter';
 
 function LayoutContent({ children, currentPageName }) {
@@ -146,8 +147,15 @@ function LayoutContent({ children, currentPageName }) {
     return [...new Set(themes)];
   };
 
+  // Kawaii + the seasonal theme join the button once the garden's hidden "don't click this" was found
+  const [themeEgg, setThemeEgg] = useState(() => themeEggFound());
+  useEffect(() => {
+    const on = () => setThemeEgg(true);
+    window.addEventListener('hp-theme-egg-found', on);
+    return () => window.removeEventListener('hp-theme-egg-found', on);
+  }, []);
   const cycleTheme = () => {
-    const themes = ['light', 'dark', 'botanical']; // Modified to only cycle these three
+    const themes = (themeEgg || themeEggFound(user)) ? getSeasonalThemes() : ['light', 'dark', 'botanical'];
     const currentIndex = themes.indexOf(theme);
     const nextIndex = (currentIndex + 1) % themes.length;
     setTheme(themes[nextIndex]);
