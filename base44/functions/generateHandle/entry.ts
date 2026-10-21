@@ -1,54 +1,35 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+
+// Gives the signed-in person a unique starter handle (like plantlover482) if they don't have
+// one yet, and returns it. Uniqueness is checked against every account on the server (the
+// phone can't see other accounts). The community function does the same for older accounts
+// that never got one.
+const PREFIXES = [
+    'plantlover', 'greenthumb', 'iloveplants', 'plantparent', 'gardenlover',
+    'botanist', 'plantwhisperer', 'gardenmaster', 'plantfanatic', 'greenguru',
+    'plantaddict', 'leaflover', 'bloombuddy', 'gardengeek', 'plantpro',
+];
 
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
+        if (!user) return Response.json({ error: 'unauthorized', message: 'Please sign in.' }, { status: 401 });
+        if (user.handle) return Response.json({ handle: user.handle });
 
-        if (!user) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // If user already has a handle, return it
-        if (user.handle) {
-            return Response.json({ handle: user.handle });
-        }
-
-        const prefixes = [
-            'plantlover', 'greenthumb', 'iloveplants', 'plantparent', 'gardenlover',
-            'botanist', 'plantwhisperer', 'gardenmaster', 'plantfanatic', 'greenguru',
-            'plantaddict', 'leaflover', 'bloombuddy', 'gardengeek', 'plantpro'
-        ];
-
-        // Generate a unique handle
+        const db = base44.asServiceRole.entities;
         let handle = '';
-        let isUnique = false;
-        let attempts = 0;
-
-        while (!isUnique && attempts < 10) {
-            const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-            const number = Math.floor(Math.random() * 1000);
-            handle = `${prefix}${number}`;
-
-            // Check if handle already exists
-            const existing = await base44.asServiceRole.entities.User.filter({ handle });
-            if (existing.length === 0) {
-                isUnique = true;
-            }
-            attempts++;
+        for (let i = 0; i < 10 && !handle; i++) {
+            const h = `${PREFIXES[Math.floor(Math.random() * PREFIXES.length)]}${Math.floor(100 + Math.random() * 9900)}`;
+            const existing = await db.User.filter({ handle: h });
+            if (!existing?.length) handle = h;
         }
+        if (!handle) handle = `plantlover${Date.now().toString().slice(-8)}`;
 
-        if (!isUnique) {
-            // Fallback to timestamp
-            handle = `plantlover${Date.now()}`;
-        }
-
-        // Update user with the handle
         await base44.auth.updateMe({ handle });
-
         return Response.json({ handle });
     } catch (error) {
-        console.error('Error generating handle:', error);
-        return Response.json({ error: error.message }, { status: 500 });
+        console.error('[generateHandle] error:', (error as Error)?.message);
+        return Response.json({ error: 'server', message: 'Couldn’t make a handle right now.' }, { status: 500 });
     }
 });
