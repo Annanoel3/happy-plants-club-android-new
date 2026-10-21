@@ -1,7 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 // Happy Plants Plus status for the signed-in user.
-//   { action: 'status' }  → plan + today's AI usage and limits (no network to RevenueCat)
+//   { action: 'status' }  → plan + today's AI usage and limits (asks RevenueCat only when a
+//                           saved store subscription is at or past its end date: see shouldRecheck)
 //   { action: 'refresh' } → ask RevenueCat (source of truth) and save the result.
 //                           Called right after a purchase/restore, since webhooks can lag.
 //   { action: 'reserve_ids', plant_ids } → before naming new photos: approves as many as the
@@ -9,8 +10,10 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 //   { action: 'reward_ids' } → after a finished reward video: +5 photo IDs today (3 a day max).
 // RevenueCat app user id = Base44 user id (not the email).
 
+// Photo IDs aren't counted here (see ID_RULES below). rename = typing a plant's name.
+// Same numbers as functions/identifyPlantWithExpert.
 const AI_LIMITS: Record<string, { free: number; plus: number }> = {
-    identify: { free: 10, plus: 200 }, // adding plants uses this; a whole shelf in one go must fit
+    rename: { free: 30, plus: 100 },
     health: { free: 3, plus: 25 },
     chat: { free: 20, plus: 200 },
 };
@@ -66,6 +69,7 @@ async function fetchRevenueCat(appUserId: string) {
     if (!key) return { configured: false as const };
     const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}`, {
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000), // a slow RevenueCat mustn't hang the app's status check
     });
     if (!res.ok) throw new Error(`RevenueCat ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const j = await res.json();
@@ -117,6 +121,20 @@ async function saveSubscription(db: any, userId: string, email: string | null, i
     return row;
 }
 
+// Renewals normally reach us through the RevenueCat webhook. If one is missed, the saved end
+// date passes while the person is still paying, so from a few hours before that date we ask
+// RevenueCat again (same path as Restore) before deciding. Free Plus we gave by hand
+// (store "promotional") is left alone.
+const RECHECK_WITHIN_MS = 3 * 3600e3; // starting 3 hours before the saved end date
+const RECHECK_EVERY_MS = 15 * 60e3;   // at most every 15 minutes per person
+function shouldRecheck(sub: any): boolean {
+    if (!sub || sub.store === 'promotional' || !sub.expires_at) return false;
+    const exp = Date.parse(sub.expires_at);
+    if (!Number.isFinite(exp) || exp - Date.now() > RECHECK_WITHIN_MS) return false;
+    const last = Date.parse(sub.last_synced_at || '') || 0;
+    return Date.now() - last > RECHECK_EVERY_MS;
+}
+
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
@@ -130,12 +148,20 @@ Deno.serve(async (req) => {
         let refreshed = false;
         let rcConfigured = !!(Deno.env.get('REVENUECAT_SECRET_KEY') || '').trim();
 
-        if (body.action === 'refresh') {
+        // Ask RevenueCat and save what it says (Restore / after a purchase, and the renewal re-check)
+        const syncFromRevenueCat = async (event: string) => {
             const info = await fetchRevenueCat(user.id);
             if (info.configured) {
-                sub = await saveSubscription(db, user.id, user.email, info, 'app_refresh');
+                sub = await saveSubscription(db, user.id, user.email, info, event);
                 refreshed = true;
             } else rcConfigured = false;
+        };
+
+        if (body.action === 'refresh') {
+            await syncFromRevenueCat('app_refresh');
+        } else if (rcConfigured && shouldRecheck(sub)) {
+            // If RevenueCat can't be reached, fall back to what's saved rather than failing
+            try { await syncFromRevenueCat('renewal_check'); } catch (e) { console.warn('premium renewal check', (e as Error).message); }
         }
 
         const plus = !!(sub && sub.active && (!sub.expires_at || Date.parse(sub.expires_at) > Date.now()));
@@ -199,7 +225,13 @@ Deno.serve(async (req) => {
                 store: sub.store, sandbox: sub.sandbox,
             } : null,
             usage,
-            limits: AI_LIMITS,
+            // identify: only for app pages loaded before this change, which read limits.identify
+            limits: { ...AI_LIMITS, identify: { free: ID_RULES.daily, plus: ID_RULES.plus } },
+            // Photo ID rules, so the Plus page never hard-codes them
+            id_rules: {
+                intro: ID_RULES.intro, intro_hours: ID_RULES.introHours, daily: ID_RULES.daily,
+                per_ad: ID_RULES.perAd, max_ads: ID_RULES.maxAds, plus: ID_RULES.plus,
+            },
             ids: publicIds(await idStatus(db, user, idPlus)),
         });
     } catch (error) {
