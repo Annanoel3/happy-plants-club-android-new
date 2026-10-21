@@ -234,9 +234,10 @@ Deno.serve(async (req) => {
             
             osResult = await osResponse.json();
             } catch (sendErr) {
-                console.error('OneSignal send failed for', userEmail, sendErr);
+                console.error('OneSignal send failed for', targetUser.id, (sendErr as Error)?.message || sendErr);
             }
-            console.log(`Sent morning digest for ${userEmail}: id=${osResult.id}, errors=${JSON.stringify(osResult.errors)}`);
+            // No email or OneSignal error body here: those can list the person's email
+            console.log(`Sent morning digest for ${targetUser.id}: id=${osResult.id}, errors=${osResult.errors ? 'yes' : 'no'}`);
             
             if (osResult.id) {
                 notificationIds.push(osResult.id);
