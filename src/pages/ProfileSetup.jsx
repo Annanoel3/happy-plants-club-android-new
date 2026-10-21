@@ -1,18 +1,25 @@
 import React, { useState, useEffect, useRef } from "react";
 import { usePhotoSource } from "@/components/PhotoSourceSheet";
-import { asChangeEvent, pickPhotos } from "@/lib/photoPicker";
+import { asChangeEvent } from "@/lib/photoPicker";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
-import { Camera, Sparkles } from "lucide-react";
+import { Camera, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { community } from "@/lib/community";
+
+// Profile setup after sign-up, and the profile editor (/ProfileSetup?edit=1, from "Edit
+// Profile"). Saving goes through the community function, which checks the handle is free
+// and runs the handle, bio and photo through moderateContent before saving.
+const BIO_MAX = 300;
 
 export default function ProfileSetup() {
   const navigate = useNavigate();
+  const editing = new URLSearchParams(window.location.search).get('edit') === '1';
   const [user, setUser] = useState(null);
   const [handle, setHandle] = useState("");
   const [bio, setBio] = useState("");
@@ -20,7 +27,6 @@ export default function ProfileSetup() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef(null);
   const avatarPhoto = usePhotoSource((files) => handleProfilePictureUploadRef.current?.(asChangeEvent(files)), { title: 'Profile picture' });
   const handleProfilePictureUploadRef = useRef(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
@@ -46,15 +52,11 @@ export default function ProfileSetup() {
   }, []);
 
   // --- Theme-related helper functions ---
-  // These functions define the styling for different theme elements
-  // based on the selected 'theme' state.
-
   const getBackgroundColor = () => {
-    // Defines the background for the main screen container.
     if (theme === 'botanical') return 'bg-gradient-to-br from-green-50 to-emerald-100';
     if (theme === 'kawaii') return 'bg-pink-50';
     if (theme === 'dark') return 'bg-gray-900';
-    return 'bg-gray-50'; // Default light theme background
+    return 'bg-gray-50';
   };
 
   const getThemedClasses = () => {
@@ -76,67 +78,62 @@ export default function ProfileSetup() {
   };
 
   const getInputClasses = () => {
-      // Defines full styling for input fields (background, border, text, placeholder, focus).
       if (theme === 'dark') return 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-green-500 focus:border-green-500';
       if (theme === 'botanical') return 'bg-green-50 border-green-200 text-green-900 placeholder-green-400 focus:ring-emerald-500 focus:border-emerald-500';
       if (theme === 'kawaii') return 'bg-pink-50 border-pink-200 text-pink-800 placeholder-pink-400 focus:ring-pink-400 focus:border-pink-400';
-      return 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-blue-500 focus:border-blue-500'; // Default light theme input style
+      return 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-blue-500 focus:border-blue-500';
   };
   // --- End of Theme-related helper functions ---
 
+  const leave = () => {
+    if (editing) {
+      if (window.history.length > 1) navigate(-1);
+      else navigate('/MyProfile');
+    } else {
+      navigate('/Dashboard');
+    }
+  };
 
   const loadUser = async () => {
     try {
       const isAuth = await base44.auth.isAuthenticated();
-      
       if (!isAuth) {
-        console.log('❌ User not authenticated, redirecting to login');
-        base44.auth.redirectToLogin(window.location.pathname);
+        base44.auth.redirectToLogin(window.location.pathname + window.location.search);
         return;
       }
 
       const currentUser = await base44.auth.me();
-      setUser(currentUser);
-      
-      console.log('✅ User authenticated:', currentUser.email);
-      console.log('📍 User location:', currentUser.location);
-      console.log('✅ Profile setup complete:', currentUser.profile_setup_complete);
-      
-      // If they don't have a location yet, send them to Welcome first
-      if (!currentUser.location) {
-        console.log('⚠️ No location set, redirecting to Welcome');
-        navigate('/Welcome');
-        return;
-      }
-      
-      // If profile setup is already complete, redirect to Dashboard
-      if (currentUser.profile_setup_complete) {
-        console.log('✅ Profile already complete, redirecting to Dashboard');
-        navigate('/Dashboard');
-        return;
-      }
-      
-      // Generate handle if they don't have one
-      if (!currentUser.handle) {
-        try {
-          const { data } = await base44.functions.invoke('generateHandle');
-          setHandle(data.handle);
-        } catch (error) {
-          console.error('Error generating handle:', error);
-          // Generate a simple fallback handle
-          const randomNum = Math.floor(Math.random() * 10000);
-          setHandle(`user${randomNum}`);
+
+      if (!editing) {
+        // New accounts set their location first (Welcome), then come here once
+        if (!currentUser.location) {
+          navigate('/Welcome');
+          return;
         }
-      } else {
-        setHandle(currentUser.handle);
+        if (currentUser.profile_setup_complete) {
+          navigate('/Dashboard');
+          return;
+        }
       }
 
+      // A starter handle, unique across all accounts (checked on the server)
+      let startHandle = currentUser.handle || '';
+      if (!startHandle) {
+        try {
+          const { data } = await base44.functions.invoke('generateHandle');
+          startHandle = data?.handle || '';
+        } catch {
+          startHandle = '';
+        }
+      }
+
+      setUser(currentUser);
+      setHandle(startHandle);
       setBio(currentUser.bio || "");
       setProfilePicture(currentUser.profile_picture || "");
-      setIsPrivate(currentUser.profile_private || false);
-    } catch (error) {
-      console.error('❌ Error loading user:', error);
-      base44.auth.redirectToLogin(window.location.pathname);
+      setIsPrivate(currentUser.profile_private === true);
+    } catch {
+      base44.auth.redirectToLogin(window.location.pathname + window.location.search);
     }
   };
 
@@ -148,9 +145,8 @@ export default function ProfileSetup() {
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setProfilePicture(file_url);
-      toast.success('Profile picture uploaded!');
-    } catch (error) {
-      toast.error('Failed to upload profile picture');
+    } catch {
+      toast.error("That photo didn't upload. Please try again.");
     } finally {
       setIsUploading(false);
     }
@@ -158,75 +154,45 @@ export default function ProfileSetup() {
   handleProfilePictureUploadRef.current = handleProfilePictureUpload;
 
   const handleSave = async () => {
-    if (!handle.trim()) {
-      toast.error('Please enter a handle');
+    const clean = handle.trim().toLowerCase();
+    if (clean.length < 3) {
+      toast.error('Pick a handle with at least 3 letters or numbers.');
       return;
     }
 
     setIsSaving(true);
     try {
-      console.log('💾 Saving profile setup...');
-      
-      // Check if handle is taken (if changed)
-      if (handle !== user.handle) {
-        try {
-          const existing = await base44.entities.User.filter({ handle });
-          if (existing.length > 0 && existing[0].email !== user.email) {
-            toast.error('Handle already taken');
-            setIsSaving(false);
-            return;
-          }
-        } catch (error) {
-          console.log('Could not check handle uniqueness:', error);
-        }
-      }
-
-      await base44.auth.updateMe({
-        handle,
-        bio,
-        profile_picture: profilePicture,
-        profile_private: isPrivate,
-        profile_setup_complete: true
+      await community('save_profile', {
+        handle: clean,
+        bio: bio.trim(),
+        photo: profilePicture || '',
+        private: isPrivate,
+        finish: true,
       });
-
-      console.log('✅ Profile saved successfully');
-      toast.success('Profile setup complete! 🌿');
-      
-      // Wait a moment for the update to propagate
-      setTimeout(() => {
-        navigate('/Dashboard');
-      }, 500);
+      toast.success(editing ? 'Profile saved! 🌿' : 'Profile setup complete! 🌿');
+      // Give the account a moment to update before the next screen reads it
+      setTimeout(leave, 400);
     } catch (error) {
-      console.error('❌ Error saving profile:', error);
-      toast.error('Error saving profile: ' + (error.message || 'Unknown error'));
+      // Friendly reasons from the server: handle taken, rules, or "try again"
+      toast.error(error.message || "Your profile didn't save. Please try again.");
       setIsSaving(false);
     }
   };
 
   const handleSkip = async () => {
+    if (editing) {
+      leave();
+      return;
+    }
     try {
-      console.log('⏭️ Skipping profile setup...');
-      
-      // Generate a random handle if they don't have one
-      let finalHandle = handle;
-      if (!finalHandle || !finalHandle.trim()) {
-        const randomNum = Math.floor(Math.random() * 10000);
-        finalHandle = `user${randomNum}`;
+      // Keep the starter handle (it was made unique on the server)
+      if (!user?.handle) {
+        try { await base44.functions.invoke('generateHandle'); } catch { /* they can set one later */ }
       }
-      
-      await base44.auth.updateMe({ 
-        handle: finalHandle,
-        profile_setup_complete: true 
-      });
-      
-      console.log('✅ Profile setup skipped');
-      
-      setTimeout(() => {
-        navigate('/Dashboard');
-      }, 300);
-    } catch (error) {
-      console.error('❌ Error skipping setup:', error);
-      toast.error('Error completing setup');
+      await base44.auth.updateMe({ profile_setup_complete: true });
+      setTimeout(() => navigate('/Dashboard'), 300);
+    } catch {
+      toast.error("That didn't go through. Please try again.");
     }
   };
 
@@ -247,8 +213,8 @@ export default function ProfileSetup() {
             <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <Sparkles className="w-8 h-8 text-white" />
             </div>
-            <h1 className={`text-3xl font-bold mb-2 ${getTextColor()}`}>Setup Your Profile</h1>
-            <p className={getSecondaryTextColor()}>Let's personalize your plant journey</p>
+            <h1 className={`text-3xl font-bold mb-2 ${getTextColor()}`}>{editing ? 'Edit Your Profile' : 'Setup Your Profile'}</h1>
+            <p className={getSecondaryTextColor()}>{editing ? 'Your photo, handle and bio are what other plant people see' : "Let's personalize your plant journey"}</p>
           </div>
 
           <div className="space-y-6">
@@ -263,6 +229,7 @@ export default function ProfileSetup() {
                 <button
                   onClick={avatarPhoto.openPicker}
                   aria-label="Change profile picture"
+                  disabled={isUploading}
                   className="absolute bottom-0 right-0 bg-green-600 text-white p-2 rounded-full shadow-lg ring-2 ring-white hover:bg-green-700"
                 >
                   {isUploading ? (
@@ -274,6 +241,11 @@ export default function ProfileSetup() {
                 {avatarPhoto.sheet}
               </div>
             </div>
+            {profilePicture && (
+              <div className="text-center -mt-3">
+                <button onClick={() => setProfilePicture('')} className={`text-xs underline ${getSecondaryTextColor()}`}>Remove photo</button>
+              </div>
+            )}
 
             <div>
               <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Handle</label>
@@ -281,22 +253,27 @@ export default function ProfileSetup() {
                 <span className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${getSecondaryTextColor()}`}>@</span>
                 <Input
                   value={handle}
-                  onChange={(e) => setHandle(e.target.value.replace(/[^a-z0-9]/g, ''))}
+                  // Capital letters become lowercase instead of disappearing
+                  onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30))}
                   placeholder="yourhandle"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   className={`pl-8 ${getInputClasses()}`}
                 />
               </div>
+              <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>Letters and numbers, 3 to 30 long.</p>
             </div>
 
             <div>
               <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Bio (optional)</label>
               <Textarea
                 value={bio}
-                onChange={(e) => setBio(e.target.value)}
+                onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX))}
                 placeholder="Tell us about your plant journey..."
                 className={getInputClasses()}
                 rows={3}
               />
+              <p className={`text-xs mt-1 text-right ${getSecondaryTextColor()}`}>{bio.length}/{BIO_MAX}</p>
             </div>
 
             <div className={`flex items-center justify-between p-4 rounded-xl ${getThemedClasses()}`}>
@@ -306,6 +283,8 @@ export default function ProfileSetup() {
               </div>
               <button
                 onClick={() => setIsPrivate(!isPrivate)}
+                aria-label="Private profile"
+                aria-pressed={isPrivate}
                 className={`w-12 h-6 rounded-full transition-colors ${isPrivate ? 'bg-green-600' : 'bg-gray-300'}`}
               >
                 <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${isPrivate ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -316,16 +295,17 @@ export default function ProfileSetup() {
               <Button
                 variant="outline"
                 onClick={handleSkip}
+                disabled={isSaving}
                 className="flex-1"
               >
-                Skip for Now
+                {editing ? 'Cancel' : 'Skip for Now'}
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || isUploading}
                 className="flex-1 bg-green-600 hover:bg-green-700"
               >
-                {isSaving ? 'Saving...' : 'Complete Setup'}
+                {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : editing ? 'Save' : 'Complete Setup'}
               </Button>
             </div>
           </div>
