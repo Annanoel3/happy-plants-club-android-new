@@ -285,7 +285,7 @@ function VideoSheet({ photos, plantName, onClose }) {
       const r = kind === 'share' ? await shareVideo(video, plantName) : await saveVideo(video, plantName);
       if (r === 'saved') toast.success('Saved to your phone in Movies › Happy Plants 🎬');
       else if (r === 'downloaded') toast.success('Video downloaded');
-      else if (r === 'update_needed') toast("Update Happy Plants from the Play Store to share and save videos.", { duration: 6000 });
+      else if (r === 'update_needed') toast("Update Happy Plants to use this.", { duration: 6000 });
       else if (r === 'unsupported') toast('Your phone can’t save it directly. Tap Share and pick a place to save it instead.', { duration: 6000 });
     } catch (e) {
       console.error('video share/save failed', e);
