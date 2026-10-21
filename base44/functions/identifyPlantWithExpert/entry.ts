@@ -1119,7 +1119,11 @@ Deno.serve(async (req) => {
                 // Numbers for where it lives NOW (the owner may have just said)
                 const n = c.ai?.numbers?.[spotOf(fresh.environment)] || null;
                 const every = n ? (restNow(today, user?.location_lat, c.ai.rest_season) ? (n.rest || n.grow) : n.grow) : d.water_frequency_days;
-                const last = String(fresh.last_watered || '').slice(0, 10) || today;
+                // A new plant has no watering logged on purpose (it's due today). Don't mark it
+                // "watered today" just because its care sheet landed; never set a due date in the past.
+                const lastRaw = String(fresh.last_watered || '').slice(0, 10);
+                const last = /^\d{4}-\d{2}-\d{2}$/.test(lastRaw) ? lastRaw : null;
+                const nextDue = last && addDays(last, every) > today ? addDays(last, every) : today;
                 const own = !!fresh.care_profile?.user_interval;
                 const patch: any = {
                     care_instructions: d.care_instructions,
@@ -1129,14 +1133,15 @@ Deno.serve(async (req) => {
                     // what they typed was the scientific name itself.
                     ...(ident.typed ? { scientific_name: d.scientific_name,
                         ...(d.name && [d.scientific_name, ident.scientific_name].some((x) => String(fresh.name || '').trim().toLowerCase() === String(x || '').trim().toLowerCase()) ? { name: d.name } : {}) } : {}),
-                    ...(own ? {} : { ...clearSeasons(fresh), water_frequency_days: every, next_watering_due: addDays(last, every) }),
-                    last_watered: last,
+                    ...(own ? {} : { ...clearSeasons(fresh), water_frequency_days: every, next_watering_due: nextDue }),
                     care_profile: pendingProfile(fresh, c.ai, every),
                     add_info: { ...fi, ...extraInfo, care_pending: false, care_done: true, care_error: null, done_at: new Date().toISOString(),
                         care_run: { early, searches: c.meta?.searches ?? null, ms: Date.now() - t0 },
                         ...(ident.meter ? { cost: { usd: meterUsd(ident.meter), calls: ident.meter.calls } } : {}) },
                 };
-                if (fresh.add_status === 'identifying') patch.add_status = fi.final_status === 'done' ? 'done' : 'review';
+                // The owner already picked where it lives (the app marks place_chosen): nothing left to check
+                const placed = !!fi.place_chosen && !!String(fresh.location || '').trim();
+                if (fresh.add_status === 'identifying') patch.add_status = fi.final_status === 'done' || placed ? 'done' : 'review';
                 await db.Plant.update(plant.id, patch);
                 if (!svc) await profileNow(base44, plant.id);
                 return (await db.Plant.filter({ id: plant.id }))?.[0] || { ...fresh, ...patch };
@@ -1341,9 +1346,15 @@ Deno.serve(async (req) => {
             }
             const judged = r.plantData;
             const size = PLANT_SIZES.includes(judged.plant_size) ? judged.plant_size : null;
-            // Added in bulk with the area already picked, and a sure name: nothing left to
-            // ask, so it skips "Newly added". Otherwise the owner checks it.
-            const settled = info.bulk && String(plant.location || '').trim() && r.identification?.confidence === 'high';
+            // Re-read: the owner may have set the plant up while it was being named (where it
+            // lives, place_chosen); keep what the app wrote instead of the copy from the start.
+            const now0: any = (await db.Plant.filter({ id: plant.id }).catch(() => []))?.[0] || plant;
+            const info0 = { ...info, ...(now0.add_info || {}) };
+            const loc0 = String(now0.location || '').trim();
+            // Added in bulk with the area already picked, and a sure name, or the owner already
+            // picked where it lives: nothing left to ask, so it skips "Newly added". Otherwise
+            // the owner checks it.
+            const settled = (info0.bulk && loc0 && r.identification?.confidence === 'high') || (info0.place_chosen && loc0);
             // Photos for "Is it one of these?" (only shown when the name isn't certain)
             const choices = r.identification?.confidence === 'high' ? [] : await buildChoices(judged, r.identification?.alternatives || [], r.pn, cache).catch(() => []);
             const named = {
@@ -1351,7 +1362,7 @@ Deno.serve(async (req) => {
                 scientific_name: judged.scientific_name ? String(judged.scientific_name).slice(0, 120) : null,
                 ...(size ? { plant_size: size } : {}),
                 add_status: settled ? 'done' : 'review',
-                add_info: { ...info, ...r.identification, choices, care_pending: true, named_at: new Date().toISOString(),
+                add_info: { ...info0, ...r.identification, choices, care_pending: true, named_at: new Date().toISOString(),
                     named_ms: Date.now() - Date.parse(info.started_at) },
             };
             await db.Plant.update(plant.id, named);
