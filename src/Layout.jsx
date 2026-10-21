@@ -211,9 +211,22 @@ function LayoutContent({ children, currentPageName }) {
     refetchInterval: 120000,
   });
 
-  // Community is "Coming Soon" (no posts, likes or comments exist yet), so the
-  // like/comment badge poll is off until it launches. Re-enable with the feature.
-  const feedNotifications = [];
+  // Community is open again (Oct 20, 2026): the menu badge counts new likes and comments.
+  // (The Feed page marks them seen when it opens.)
+  const { data: feedNotifications = [] } = useQuery({
+    queryKey: ['feedNotifications', user?.email],
+    queryFn: async () => {
+      if (!user) return [];
+      return base44.entities.Notification.filter({
+        user_email: user.email,
+        type: ['like', 'comment'],
+        dismissed: false,
+      });
+    },
+    enabled: !!user,
+    // Badge count only; refetches on app focus and every 2 min
+    refetchInterval: 120000,
+  });
 
   // Garden Games (the hidden games) join the menu once someone has found them
   const [pdFound, setPdFound] = useState(() => plantdokuFound());
@@ -228,6 +241,8 @@ function LayoutContent({ children, currentPageName }) {
     { title: "My Garden", url: "/Dashboard", icon: Home },
     { title: "Schedule", url: "/Schedule", icon: Calendar },
     { title: "Community", url: "/Feed", icon: MessageCircle, badge: user?.notifications_enabled !== false ? feedNotifications.length : 0 },
+    // Back with Community (it was taken out with it on June 24, 2026)
+    { title: "Find Friends", url: "/Search", icon: Search, badge: pendingRequests.length },
     { title: "Plant Expert", url: "/PlantChat", icon: MessageCircle },
     ...(showPd ? [{ title: "Garden Games", url: "/Games", icon: Puzzle }] : []),
     // Admins only: review Community reports
