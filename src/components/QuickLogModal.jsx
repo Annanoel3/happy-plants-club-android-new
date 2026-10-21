@@ -9,6 +9,9 @@ import { motion } from "framer-motion";
 import { Capacitor } from "@capacitor/core";
 import { setMicActive, showAdForEvent } from "@/lib/admob";
 
+// Same cap as the server (functions/processPlantCareLog)
+const MAX_TEXT = 1000;
+
 export default function QuickLogModal({ isOpen, onClose, theme }) {
   const queryClient = useQueryClient();
   const [inputMessage, setInputMessage] = useState("");
@@ -55,9 +58,9 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
       } catch (error) {
         console.error("Recording error:", error);
         if (error.name === 'NotAllowedError') {
-          toast.error('Microphone permission denied');
+          toast.error("The microphone is off for Happy Plants. Turn it on in your phone's settings.");
         } else {
-          toast.error("Failed to start recording: " + error.message);
+          toast.error("Couldn't start recording. Try again, or type it instead.");
         }
       }
     } else {
@@ -74,14 +77,18 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
     setInputMessage("🎙️ Transcribing...");
     try {
       // Sent inline to our own transcription (no upload: saves a Base44 credit)
-      const transcript = await transcribe(audioBlob, mimeType);
+      const transcript = String(await transcribe(audioBlob, mimeType) || '').slice(0, MAX_TEXT);
+      if (!transcript.trim()) {
+        setInputMessage("");
+        toast.error("We couldn't hear that. Try again, a little closer to the phone.");
+        return;
+      }
       // Optimistic: show transcript immediately before processing
       setInputMessage(transcript);
       await submitTranscript(transcript);
     } catch (error) {
       console.error("Error processing audio:", error);
-      setInputMessage("");
-      toast.error("Failed to process audio: " + error.message);
+      toast.error("Couldn't log that. Check your signal and try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -89,22 +96,27 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
 
   const submitTranscript = async (transcript) => {
     const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const { data } = await base44.functions.invoke("processPlantCareLog", { transcript, userTimezone });
+    const { data } = await base44.functions.invoke("processPlantCareLog", { transcript: String(transcript).slice(0, MAX_TEXT), userTimezone });
     refreshPlantData();
-    console.log('[QuickLogModal] processPlantCareLog result:', JSON.stringify(data || 'no data').substring(0, 200));
 
     if (data?.needs_clarification) {
       // AI needs to ask for a time
       setClarificationMode({ prompt: data.clarification_prompt, partial_result: data.partial_result, original_transcript: transcript });
       setInputMessage("");
+      return;
+    }
+    // The message says what was actually saved ("Logged watering for Pothos and Fern")
+    if (data?.logged) {
+      toast.success(data.message || 'Saved');
+      queryClient.invalidateQueries({ queryKey: ['plants'] });
+      setInputMessage("");
+      onClose();
+      // One ad per watering event (any number of plants in one log = one ad)
+      if ((data?.watered_count || 0) > 0) showAdForEvent('water');
     } else {
-       toast.success(data?.summary || "Log saved!");
-       queryClient.invalidateQueries({ queryKey: ['plants'] });
-       setInputMessage("");
-       onClose();
-       // One ad per watering event (any number of plants in one log = one ad)
-       if ((data?.watered_count || 0) > 0) showAdForEvent('water');
-     }
+      // Nothing saved: keep the text so it can be fixed
+      toast(data?.message || "I couldn't match that to a plant in your garden.", { duration: 6000 });
+    }
   };
 
   const handleSubmit = async () => {
@@ -114,7 +126,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
       await submitTranscript(inputMessage);
     } catch (error) {
       console.error("Error saving log:", error);
-      toast.error("Failed to save log");
+      toast.error("Couldn't log that. Check your signal and try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -131,7 +143,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
       setClarificationAnswer("");
     } catch (error) {
       console.error("Clarification error:", error);
-      toast.error("Failed to process: " + error.message);
+      toast.error("Couldn't set that reminder. Check your signal and try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -172,6 +184,10 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={handleClose}
+      // A dialog, so Android Back closes it (lib/backButton) instead of leaving the page
+      role="dialog"
+      aria-modal="true"
+      aria-label="Quick Log"
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
     >
       <motion.div
@@ -185,7 +201,7 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
           <h2 className={`text-xl font-bold ${getTextColor()}`}>
             {clarificationMode ? "One more thing..." : "Quick Log"}
           </h2>
-          <button onClick={handleClose} className={`p-1 rounded-lg transition-opacity hover:opacity-70 ${getTextColor()}`}>
+          <button onClick={handleClose} aria-label="Close" className={`p-1 rounded-lg transition-opacity hover:opacity-70 ${getTextColor()}`}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -214,10 +230,14 @@ export default function QuickLogModal({ isOpen, onClose, theme }) {
           <>
             <textarea
               value={inputMessage}
-              onChange={e => setInputMessage(e.target.value)}
+              onChange={e => setInputMessage(e.target.value.slice(0, MAX_TEXT))}
+              maxLength={MAX_TEXT}
               placeholder="What would you like to log? (e.g. 'I watered the tulips', 'Remind me to fertilize at 5pm', or 'Remind me to check soil moisture every 2 hours')"
-              className={`w-full h-32 rounded-xl p-3 border text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500 mb-4 ${getInputClasses()}`}
+              className={`w-full h-32 rounded-xl p-3 border text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500 ${inputMessage.length > MAX_TEXT - 100 ? 'mb-1' : 'mb-4'} ${getInputClasses()}`}
             />
+            {inputMessage.length > MAX_TEXT - 100 && (
+              <p className={`text-xs text-right mb-3 opacity-70 ${getTextColor()}`}>{inputMessage.length}/{MAX_TEXT}</p>
+            )}
 
             <div className="flex gap-2">
               <button
