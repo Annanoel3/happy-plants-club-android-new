@@ -49,7 +49,8 @@ Deno.serve(async (req) => {
         });
 
         const data = await response.json();
-        console.log('OneSignal identity response:', JSON.stringify(data));
+        // Status only: the response echoes the external id (the person's email)
+        console.log('OneSignal identity response status:', response.status);
 
         if (!response.ok) {
             // Fallback: try the old players API with external_user_id
@@ -66,7 +67,7 @@ Deno.serve(async (req) => {
                 })
             });
             const legacyData = await legacyResp.json();
-            console.log('Legacy players API response:', JSON.stringify(legacyData));
+            console.log('Legacy players API response status:', legacyResp.status);
             return Response.json({ success: legacyResp.ok, data: legacyData });
         }
 
