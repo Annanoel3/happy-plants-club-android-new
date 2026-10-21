@@ -18,7 +18,7 @@ import {
 // outlines) gets one of each of the 6 plants. Tap a square, then tap a plant.
 // Daily puzzle (medium, same for everyone by local date) + practice Easy/Medium/Hard.
 // Ads: one full-screen ad per two finished puzzles (any game), when the next one starts.
-// Hints: 1 free per puzzle, more with a reward video. Plus: no ads, unlimited hints.
+// Hints: each one costs a reward video. Plus: no ads, unlimited hints.
 
 const TUTORIAL_KEY = 'hp_mg_tutorial_v1';
 const LEVEL_LIST = [
@@ -261,11 +261,11 @@ export default function MiniGarden() {
   });
 
   // Hints
-  const needVideo = !plus && hints >= 1;
+  const needVideo = !plus; // hints are never free: one video each (Plus: unlimited, no video)
   const askHint = async () => {
     if (hintBusy || result) return;
     if (needVideo) {
-      if (!rewardedAvailable()) { toast("That's your free hint for this puzzle."); return; }
+      if (!rewardedAvailable()) { toast("No video is ready right now, so no hint yet. Try again in a little while."); return; }
       setHintBusy(true);
       const r = await showRewardedAd();
       setHintBusy(false);

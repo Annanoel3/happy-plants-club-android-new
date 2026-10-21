@@ -17,7 +17,7 @@ import { setDone, getDone } from '@/lib/games/common';
 // finished board shows one of each.
 // Daily puzzle (same for everyone, timed on the server from the Start tap, leaderboard)
 // + practice puzzles from a 5x5 starter up. Ads: one full-screen ad per two finished
-// puzzles, when the next one starts. Hints: 1 free per puzzle, more with a reward video.
+// puzzles, when the next one starts. Hints: each one costs a reward video (Plus: unlimited).
 // Plus: no ads, unlimited hints.
 
 const DARK_THEMES = new Set(['dark', 'botanical', 'halloween', 'christmas', 'newyears', 'fourthofjuly', 'valentines', 'stpatricks', 'fall']);
@@ -544,7 +544,7 @@ export default function Plantdoku() {
 
   // Hints
   const usedHints = mode === 'daily' ? (daily?.hints || 0) : localHints;
-  const needVideo = !plus && usedHints >= 1;
+  const needVideo = !plus; // hints are never free: one video each (Plus: unlimited, no video)
   const showHint = (h) => {
     if (!h) { toast('No hint needed. Fix the squares marked in red.'); return; }
     setHint(h);
@@ -554,7 +554,7 @@ export default function Plantdoku() {
   const askHint = async () => {
     if (hintBusy || locked) return;
     if (needVideo) {
-      if (!rewardedAvailable()) { toast("That's your free hint for this puzzle."); return; }
+      if (!rewardedAvailable()) { toast("No video is ready right now, so no hint yet. Try again in a little while."); return; }
       setHintBusy(true);
       const r = await showRewardedAd();
       setHintBusy(false);
