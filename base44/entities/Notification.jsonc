@@ -1,15 +1,23 @@
 {
   "name": "Notification",
   "properties": {
+    "comment_id": {
+      "description": "Comment it's about (removed with the comment)",
+      "type": "string"
+    },
     "dismissed": {
       "default": false,
       "type": "boolean"
     },
     "from_user_email": {
-      "description": "Email of user who triggered the notification",
+      "description": "Old rows only. New rows store from_user_id so nobody's email reaches someone else's phone",
       "type": "string"
     },
     "from_user_handle": {
+      "type": "string"
+    },
+    "from_user_id": {
+      "description": "User id of who triggered the notification",
       "type": "string"
     },
     "from_user_name": {
@@ -17,6 +25,10 @@
     },
     "message": {
       "description": "Notification message",
+      "type": "string"
+    },
+    "post_id": {
+      "description": "Post it's about (removed with the post)",
       "type": "string"
     },
     "read": {
@@ -28,6 +40,7 @@
       "enum": [
         "follow_approved",
         "follow_request",
+        "new_follower",
         "like",
         "comment"
       ],
@@ -45,7 +58,9 @@
   ],
   "rls": {
     "create": {
-      "data.from_user_email": "{{user.email}}"
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "delete": {
       "data.user_email": "{{user.email}}"
