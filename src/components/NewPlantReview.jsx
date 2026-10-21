@@ -182,6 +182,8 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
       refreshPlantData();
     } catch (e) {
       if (aiLimitInfo(e)) { await handleAiLimit(e, navigate); return; }
+      // 409: it's already being named (another tap or the background retry)
+      if ((e?.status ?? e?.response?.status) === 409) { toast("It's being named right now. Give it a minute."); return; }
       toast.error("Still couldn't name it. You can type its name instead.");
     } finally {
       setRetrying(false);
@@ -261,7 +263,10 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
                 <p className={`text-xs ${ui.sub}`}>
                   {waitingForId
                     ? "You were out of photo IDs for the day. It gets named on its own when they're back, or type its name below. Typing a plant's name doesn't use a photo ID."
-                    : 'Try again, or type its name below.'}
+                    : local?.add_info?.error === 'retries_used'
+                      // The free retries for this photo are used up (server rule), so another try costs one
+                      ? 'Trying again uses 1 photo ID. Or type its name below.'
+                      : 'Try again, or type its name below.'}
                 </p>
                 <button onClick={retry} disabled={retrying} className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-green-600">
                   {retrying ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} {waitingForId ? 'Name it now' : 'Try again'}
