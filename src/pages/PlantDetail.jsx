@@ -52,6 +52,11 @@ import { lightMeterAvailable } from "@/lib/lightMeter";
 import { carePendingNow } from "@/lib/plantIds";
 import { nudgeUpgrade } from '@/lib/upgradeNudge';
 import ProgressiveImage from '@/components/ProgressiveImage';
+import NotificationsOffNote from '@/components/NotificationsOffNote';
+import { addDays } from '@/lib/vacation';
+
+// The garden's categories: the same list the care sheet and Auto-fix use
+const PLANT_TYPES = ['Houseplants', 'Succulents & Cacti', 'Flowers', 'Herbs', 'Vegetables', 'Trees & Shrubs', 'Perennials', 'Annuals', 'Seedlings'];
 
 export default function PlantDetail() {
   const navigate = useNavigate();
@@ -83,6 +88,13 @@ export default function PlantDetail() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [isProcessingChat, setIsProcessingChat] = useState(false);
+  // The first reply starts a conversation; later messages go to the same one
+  const [chatConvId, setChatConvId] = useState(null);
+
+  // Edit > "Change what plant this is"
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameText, setRenameText] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const imageInputRef = useRef(null);
@@ -101,12 +113,8 @@ export default function PlantDetail() {
   const [showTagDialog, setShowTagDialog] = useState(false);
   const [newTag, setNewTag] = useState("");
 
-  const [showVacationModeDialog, setShowVacationModeDialog] = useState(false); // Dialog for setting vacation dates
+  // Old per-plant vacation switch (vacations cover the whole garden now): can only be turned off
   const [vacationModeEnabled, setVacationModeEnabled] = useState(false);
-  const [vacationStartDate, setVacationStartDate] = useState("");
-  const [vacationEndDate, setVacationEndDate] = useState("");
-
-  const PLANT_TYPES = ["Orchid", "Succulent", "Cactus", "Tropical", "Tree", "Shrub", "Herb", "Vegetable", "Fruit", "Fern", "Vine", "Grass", "Aquatic", "Bulb", "Other"];
 
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'light';
@@ -259,17 +267,19 @@ export default function PlantDetail() {
         pot_diameter_in: (plant.pot_diameter_in === 0 || plant.pot_diameter_in) ? String(plant.pot_diameter_in) : "",
         substrate_type: plant.substrate_type || "",
         notes: plant.notes || "",
-        water_frequency_days: plant.water_frequency_days || 7,
-        plant_type: plant.plant_type || "Other",
+        // A string while typing, so the box can be empty for a moment
+        water_frequency_days: plant.water_frequency_days ? String(plant.water_frequency_days) : "",
+        // Unset (or an old name that isn't one of the garden's categories): left as it is
+        plant_type: PLANT_TYPES.includes(plant.plant_type) ? plant.plant_type : "",
         water_method: waterMethod(plant),
         water_strict: !!plant.water_strict,
         water_days_rest: plant.water_days_rest || "",
       });
       setVacationModeEnabled(plant.vacation_mode_enabled || false);
-      setVacationStartDate(plant.vacation_start_date || "");
-      setVacationEndDate(plant.vacation_end_date || "");
     }
   }, [plant]);
+  // A different plant: its own conversation
+  useEffect(() => { setChatConvId(null); }, [plantId]);
 
   const waterPlantMutation = useMutation({
     mutationFn: async () => {
@@ -311,7 +321,7 @@ export default function PlantDetail() {
     },
     onError: (error) => {
       console.error('❌ Watering failed:', error);
-      toast.error('Failed to water plant: ' + error.message);
+      toast.error("Couldn't log that watering. Check your signal and try again.");
     }
   });
 
@@ -326,7 +336,12 @@ export default function PlantDetail() {
       const prof = { ...(plant?.care_profile || {}) };
       if (clean.water_method === waterMethod(plant)) delete clean.water_method; else prof.user_method = true;
       if (!!clean.water_strict === !!plant?.water_strict) delete clean.water_strict; else prof.user_strict = true;
-      const every = Number(clean.water_frequency_days) || 7;
+      // Left empty: keep what it had
+      const typed = parseInt(String(clean.water_frequency_days ?? '').trim(), 10);
+      const every = typed >= 1 ? Math.min(365, typed) : (Number(plant?.water_frequency_days) || 7);
+      if (typed >= 1) clean.water_frequency_days = every; else delete clean.water_frequency_days;
+      // Only one of the garden's categories is saved; unset stays unset (no "Other")
+      if (!PLANT_TYPES.includes(clean.plant_type) || clean.plant_type === plant?.plant_type) delete clean.plant_type;
       const seasonal = Number(plant?.water_days_grow) > 0 && Number(plant?.water_days_rest) > 0;
       if (seasonal) {
         const rest = Number(clean.water_days_rest) || Number(plant.water_days_rest);
@@ -344,8 +359,22 @@ export default function PlantDetail() {
         if ('water_frequency_days' in clean && every !== Number(plant?.water_frequency_days)) prof.user_interval = true;
       }
       if (prof.user_method || prof.user_strict || prof.user_interval) clean.care_profile = prof;
-      // A new plant leaves "Newly added" once the owner says where it lives
-      if (['review', 'failed'].includes(plant?.add_status) && String(clean.location || '').trim()) clean.add_status = 'done';
+      // A new watering gap moves the next watering too: counted from the last one
+      if (every !== Number(plant?.water_frequency_days)) {
+        const last = String(plant?.last_watered || '').slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(last)) {
+          const today = localToday();
+          const next = addDays(last, every);
+          clean.next_watering_due = next < today ? today : next; // overdue stays due today
+        }
+      }
+      // A new plant leaves "Newly added" once the owner says where it lives, but only once it
+      // has a name: one still waiting to be named stays there so it still gets named, and
+      // leaves on its own when it is (place_chosen)
+      if (String(clean.location || '').trim()) {
+        if (plant?.add_status === 'review') clean.add_status = 'done';
+        else if (plant?.add_status === 'failed') clean.add_info = { ...(plant.add_info || {}), place_chosen: true };
+      }
       await base44.entities.Plant.update(plantId, clean);
       // Moved indoors/outdoors: use that spot's watering numbers (skipped if they set their own)
       if ('environment' in clean && clean.environment !== plant?.environment && !prof.user_interval) {
@@ -358,7 +387,30 @@ export default function PlantDetail() {
       setShowEditDialog(false);
       toast.success('Plant updated!');
     },
+    onError: () => toast.error("Couldn't save that. Check your signal and try again."),
   });
+
+  // Edit > "Change what plant this is": same path as the new-plant check's "Not right?":
+  // the new name is saved and its care sheet, watering schedule and method are redone
+  const renamePlant = async () => {
+    const value = renameText.trim();
+    if (!value || renaming) return;
+    setRenaming(true);
+    try {
+      const { data } = await base44.functions.invoke('identifyPlantWithExpert', { plant_id: plantId, scientific_name: value });
+      if (!data?.success || !data.plant) throw new Error('failed');
+      refreshPlantData();
+      setRenameOpen(false);
+      setRenameText("");
+      setShowEditDialog(false);
+      toast.success(`Updated care for ${data.plant.name || value}`);
+    } catch (e) {
+      if (await handleAiLimit(e, navigate)) return;
+      toast.error("Couldn't update that. Check the spelling and try again.");
+    } finally {
+      setRenaming(false);
+    }
+  };
 
   const deletePlantMutation = useMutation({
     mutationFn: async () => {
@@ -402,7 +454,7 @@ export default function PlantDetail() {
       refreshPlantData();
       if (data?.result === 'advanced' && data?.next_due) toast.success(`Done! Next one: ${format(parseISO(data.next_due), 'MMM d')}`);
     },
-    onError: (err) => toast.error('Could not update reminder: ' + err.message),
+    onError: () => toast.error("Couldn't update that reminder. Try again in a moment."),
   });
 
   const uploadProgressPhotoMutation = useMutation({
@@ -461,24 +513,22 @@ export default function PlantDetail() {
     },
   });
 
-  const toggleVacationModeMutation = useMutation({
-    mutationFn: async ({ enabled, startDate, endDate }) => {
+  const turnOffPlantVacationMutation = useMutation({
+    mutationFn: async () => {
       await base44.entities.Plant.update(plantId, {
-        vacation_mode_enabled: enabled,
-        vacation_start_date: enabled ? startDate : null,
-        vacation_end_date: enabled ? endDate : null,
+        vacation_mode_enabled: false,
+        vacation_start_date: null,
+        vacation_end_date: null,
       });
     },
-    onSuccess: (data, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['plant'] });
-      setVacationModeEnabled(variables.enabled);
-      setVacationStartDate(variables.startDate || "");
-      setVacationEndDate(variables.endDate || "");
-      toast.success(variables.enabled ? 'Vacation mode activated!' : 'Vacation mode deactivated.');
-      setShowVacationModeDialog(false); // Close dialog after action
+      queryClient.invalidateQueries({ queryKey: ['plants'] });
+      setVacationModeEnabled(false);
+      toast.success('Reminders are back on for this plant.');
     },
     onError: () => {
-      toast.error("Failed to update vacation mode.");
+      toast.error("Couldn't change that. Try again in a moment.");
     }
   });
 
@@ -494,8 +544,9 @@ export default function PlantDetail() {
       const { data } = await chatWithPlant({
         plant_id: plantId,
         message: userMessage,
-        conversation_id: conversation?.id
+        conversation_id: chatConvId || conversation?.id
       });
+      if (data?.conversation_id) setChatConvId(data.conversation_id);
 
       setChatMessages(prev => [...prev, {
         role: 'assistant',
@@ -503,10 +554,10 @@ export default function PlantDetail() {
       }]);
     } catch (error) {
       console.error('Error in plant chat:', error);
-      if (await handleAiLimit(error, navigate)) {
-        setChatMessages(prev => prev.slice(0, -1));
-        setChatInput(userMessage);
-      } else toast.error("Failed to send message");
+      // Put the question back so it can be sent again
+      setChatMessages(prev => prev.slice(0, -1));
+      setChatInput(userMessage);
+      if (!(await handleAiLimit(error, navigate))) toast.error("Couldn't send that. Check your signal and try again.");
     } finally {
       setIsProcessingChat(false);
     }
@@ -533,7 +584,7 @@ export default function PlantDetail() {
       toast.success("Plant photo updated! 📸");
     } catch (error) {
       console.error('Error uploading image:', error);
-      toast.error("Failed to upload photo");
+      toast.error("Couldn't upload the photo. Check your signal and try again.");
     } finally {
       setIsUploadingImage(false);
     }
@@ -553,7 +604,7 @@ export default function PlantDetail() {
       });
     } catch (error) {
       console.error('Error uploading progress image:', error);
-      toast.error("Failed to upload photo");
+      toast.error("Couldn't upload the photo. Check your signal and try again.");
     } finally {
       setIsUploadingProgress(false);
       if (progressImageInputRef.current) {
