@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
+// A fixed date: change it whenever these terms change (it used to show today's date).
+const LAST_UPDATED = "October 20, 2026";
+const EMAIL = "mediocreatbestdev@outlook.com";
+
 export default function TermsAndConditions() {
   const navigate = useNavigate();
 
@@ -17,7 +21,7 @@ export default function TermsAndConditions() {
         <Card className="theme-card">
           <CardContent className="p-8">
             <h1 className="text-3xl font-bold theme-text mb-2">Terms and Conditions</h1>
-            <p className="theme-text-secondary mb-6">Last updated: {new Date().toLocaleDateString()}</p>
+            <p className="theme-text-secondary mb-6">Last updated: {LAST_UPDATED}</p>
 
             <div className="space-y-6 theme-text">
               <section>
@@ -36,13 +40,29 @@ export default function TermsAndConditions() {
                   <li>Plant identification and care tracking</li>
                   <li>Watering schedules and reminders</li>
                   <li>AI-powered plant care advice</li>
-                  <li>Social features for connecting with other plant enthusiasts</li>
-                  <li>Community feed and messaging</li>
+                  <li>Sharing your garden with a link</li>
+                  <li>A Community feed for plant lovers, if available</li>
+                  <li>Happy Plants Plus, an optional paid subscription (see section 3)</li>
                 </ul>
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">3. User Accounts</h2>
+                <h2 className="text-xl font-semibold mb-3">3. Happy Plants Plus</h2>
+                <p className="mb-3">
+                  Happy Plants Plus is an optional subscription. It removes ads and adds extra features and higher daily limits. The Plus page in the app shows what's included. Everything else in Happy Plants stays free.
+                </p>
+                <ul className="list-disc pl-6 space-y-2">
+                  <li>Prices are shown in the app before you buy.</li>
+                  <li>You pay through Google Play, and Google Play handles the billing.</li>
+                  <li>Your subscription renews automatically each month or year until you cancel.</li>
+                  <li>You can cancel any time in Google Play (Payments &amp; subscriptions → Subscriptions). Cancelling stops future renewals. You keep Plus until the end of the period you've already paid for.</li>
+                  <li>Refunds are handled by Google Play under its refund policy.</li>
+                  <li>We may change the price. If we do, you'll be told ahead of time, as Google Play requires, and you can cancel before the new price starts.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2 className="text-xl font-semibold mb-3">4. User Accounts</h2>
                 <p className="mb-3">
                   To use certain features of Happy Plants, you must create an account. You agree to:
                 </p>
@@ -55,7 +75,7 @@ export default function TermsAndConditions() {
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">4. User Content</h2>
+                <h2 className="text-xl font-semibold mb-3">5. User Content</h2>
                 <p className="mb-3">
                   Users may post content including photos, comments, and plant information. By posting content, you grant Happy Plants a worldwide, non-exclusive, royalty-free license to use, display, and distribute your content within the service.
                 </p>
@@ -70,7 +90,7 @@ export default function TermsAndConditions() {
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">5. AI-Generated Content</h2>
+                <h2 className="text-xl font-semibold mb-3">6. AI-Generated Content</h2>
                 <p className="mb-3">
                   Happy Plants uses AI to provide plant care advice and information. While we strive for accuracy:
                 </p>
@@ -83,16 +103,16 @@ export default function TermsAndConditions() {
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">6. Privacy and Data</h2>
+                <h2 className="text-xl font-semibold mb-3">7. Privacy and Data</h2>
                 <p className="mb-3">
                   Your use of Happy Plants is also governed by our Privacy Policy. By using our service, you consent to our collection and use of personal data as outlined in the Privacy Policy.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">7. Social Features</h2>
+                <h2 className="text-xl font-semibold mb-3">8. Community</h2>
                 <p className="mb-3">
-                  Happy Plants includes social features such as following users, commenting, and direct messaging. You agree to:
+                  When the Community is available, you can post, comment on posts, and follow other users. When you use it, you agree to:
                 </p>
                 <ul className="list-disc pl-6 space-y-2">
                   <li>Respect other users and their privacy</li>
@@ -103,7 +123,7 @@ export default function TermsAndConditions() {
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">8. Prohibited Activities</h2>
+                <h2 className="text-xl font-semibold mb-3">9. Prohibited Activities</h2>
                 <p className="mb-3">You may not:</p>
                 <ul className="list-disc pl-6 space-y-2">
                   <li>Attempt to gain unauthorized access to our systems</li>
@@ -116,21 +136,21 @@ export default function TermsAndConditions() {
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">9. Intellectual Property</h2>
+                <h2 className="text-xl font-semibold mb-3">10. Intellectual Property</h2>
                 <p className="mb-3">
                   Happy Plants and its original content, features, and functionality are owned by Happy Plants and are protected by international copyright, trademark, and other intellectual property laws.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">10. Gamification Features</h2>
+                <h2 className="text-xl font-semibold mb-3">11. Gamification Features</h2>
                 <p className="mb-3">
                   Happy Plants includes gamification elements such as tiers, achievements, and plant growth stages. These are for entertainment purposes only and hold no real-world value. We reserve the right to modify or remove these features at any time.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">11. Disclaimer of Warranties</h2>
+                <h2 className="text-xl font-semibold mb-3">12. Disclaimer of Warranties</h2>
                 <p className="mb-3">
                   Happy Plants is provided "as is" and "as available" without any warranties of any kind, either express or implied. We do not warrant that:
                 </p>
@@ -142,51 +162,52 @@ export default function TermsAndConditions() {
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">12. Limitation of Liability</h2>
+                <h2 className="text-xl font-semibold mb-3">13. Limitation of Liability</h2>
                 <p className="mb-3">
                   To the maximum extent permitted by law, Happy Plants shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of or inability to use the service.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">13. Content Moderation</h2>
+                <h2 className="text-xl font-semibold mb-3">14. Content Moderation</h2>
                 <p className="mb-3">
                   We reserve the right to review, moderate, or remove any user content that violates these terms or is otherwise objectionable. We may also suspend or terminate accounts that repeatedly violate our terms.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">14. Third-Party Services</h2>
+                <h2 className="text-xl font-semibold mb-3">15. Third-Party Services</h2>
                 <p className="mb-3">
                   Happy Plants may contain links to third-party websites or services. We are not responsible for the content, privacy policies, or practices of any third-party sites.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">15. Changes to Terms</h2>
+                <h2 className="text-xl font-semibold mb-3">16. Changes to Terms</h2>
                 <p className="mb-3">
                   We reserve the right to modify these terms at any time. We will notify users of any material changes by updating the "Last updated" date. Your continued use of the service after changes constitutes acceptance of the new terms.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">16. Termination</h2>
+                <h2 className="text-xl font-semibold mb-3">17. Termination</h2>
                 <p className="mb-3">
                   We may terminate or suspend your account and access to the service immediately, without prior notice, for any reason, including breach of these Terms. Upon termination, your right to use the service will cease immediately.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">17. Governing Law</h2>
+                <h2 className="text-xl font-semibold mb-3">18. Governing Law</h2>
                 <p className="mb-3">
                   These Terms shall be governed by and construed in accordance with applicable laws, without regard to conflict of law provisions.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-xl font-semibold mb-3">18. Contact Us</h2>
+                <h2 className="text-xl font-semibold mb-3">19. Contact Us</h2>
                 <p className="mb-3">
-                  If you have any questions about these Terms and Conditions, please contact us through the app's support features.
+                  If you have any questions about these Terms and Conditions, use Send Feedback in Settings or email{" "}
+                  <a href={`mailto:${EMAIL}`} className="underline hover:opacity-80">{EMAIL}</a>.
                 </p>
               </section>
 
