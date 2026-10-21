@@ -4,6 +4,14 @@
     "content": {
       "type": "string"
     },
+    "hidden": {
+      "description": "Hidden after reports or by an admin",
+      "type": "boolean"
+    },
+    "push_sent": {
+      "description": "The new-message push went out (so it's only sent once)",
+      "type": "boolean"
+    },
     "read": {
       "default": false,
       "type": "boolean"
@@ -60,16 +68,9 @@
       ]
     },
     "update": {
-      "$or": [
-        {
-          "data.receiver_email": "{{user.email}}"
-        },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
+      "user_condition": {
+        "role": "admin"
+      }
     }
   },
   "type": "object"
