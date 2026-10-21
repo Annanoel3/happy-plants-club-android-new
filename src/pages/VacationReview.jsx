@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Download, Loader2, Calendar, FileText, Home, Info, ExternalLink } from "lucide-react";
+import { ArrowLeft, Download, Loader2, Calendar, FileText, Home, Info, ExternalLink, Share2 } from "lucide-react";
+import { registerPlugin } from "@capacitor/core";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +23,36 @@ const VISIT_OPTIONS = [
 
 const tz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } };
 const isNative = () => { try { return !!window.Capacitor?.isNativePlatform?.(); } catch { return false; } };
+
+// The PDF comes back from the server as base64: on the phone it goes to Android's share sheet
+// (NotifyBridge.shareFile) so it can be sent to the sitter; on the web it downloads. Builds
+// without shareFile get the old private link instead.
+// true / false when the app says which native methods it has, null when it can't tell
+function nativeCanShareFile() {
+  try {
+    const headers = window.Capacitor?.PluginHeaders;
+    if (!Array.isArray(headers)) return null;
+    const h = headers.find((x) => x?.name === 'NotifyBridge');
+    return !!h?.methods?.some?.((m) => m?.name === 'shareFile');
+  } catch { return null; }
+}
+const notImplemented = (e) => e?.code === 'UNIMPLEMENTED' || /not implemented|not available|unimplemented/i.test(String(e?.message || e));
+function pdfBlob(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: 'application/pdf' });
+}
+function downloadPdf(b64, fileName) {
+  const url = URL.createObjectURL(pdfBlob(b64));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+}
 function daysBetween(a, b) {
   return Math.round((Date.parse(String(b).slice(0, 10) + 'T12:00:00Z') - Date.parse(String(a).slice(0, 10) + 'T12:00:00Z')) / 86400000);
 }
@@ -39,7 +70,8 @@ export default function VacationReview() {
   const [generalNotes, setGeneralNotes] = useState("");
   const [visitEvery, setVisitEvery] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [pdfLink, setPdfLink] = useState(null); // { url, at }
+  const [pdfLink, setPdfLink] = useState(null); // { url, at } (older builds only)
+  const [pdfFile, setPdfFile] = useState(null); // { b64, name }: the last PDF, to send again
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   useEffect(() => {
@@ -127,25 +159,56 @@ export default function VacationReview() {
     }
   };
 
+  // Phone: the share sheet (Messages, email, WhatsApp…). Web: a download.
+  const sendPdf = async ({ b64, name }) => {
+    if (isNative()) {
+      await registerPlugin('NotifyBridge').shareFile({ base64: b64, fileName: name, mimeType: 'application/pdf', title: 'Send the plan to your sitter' });
+      return 'shared';
+    }
+    downloadPdf(b64, name);
+    return 'downloaded';
+  };
+
+  // Older builds: a private link (works for 15 minutes) the phone opens in its browser
+  const linkFlow = async () => {
+    const { data } = await base44.functions.invoke('generateVacationPDF', { action: 'pdf', vacation_id: vacationId, visit_every: visitEvery ?? 0, tz: tz(), deliver: 'link' });
+    if (!data?.url) throw new Error('no link');
+    setPdfLink({ url: data.url, at: Date.now() });
+    openPdf(data.url, null);
+  };
+
   const handleGeneratePDF = async () => {
-    // On the web, open the tab right away (browsers block tabs opened after a wait)
-    let win = null;
-    if (!isNative()) { try { win = window.open('', '_blank'); } catch { win = null; } }
     setIsGenerating(true);
     try {
       await updateVacationMutation.mutateAsync(formData());
-      const { data } = await base44.functions.invoke('generateVacationPDF', { action: 'pdf', vacation_id: vacationId, visit_every: visitEvery ?? 0, tz: tz() });
-      if (!data?.url) throw new Error(data?.error || 'No link came back');
-      setPdfLink({ url: data.url, at: Date.now() });
+      if (isNative() && nativeCanShareFile() === false) {
+        await linkFlow();
+      } else {
+        const { data } = await base44.functions.invoke('generateVacationPDF', { action: 'pdf', vacation_id: vacationId, visit_every: visitEvery ?? 0, tz: tz() });
+        if (!data?.pdf_base64) throw new Error('no pdf');
+        const file = { b64: data.pdf_base64, name: data.file_name || 'plant-care-plan.pdf' };
+        setPdfFile(file);
+        try {
+          const how = await sendPdf(file);
+          toast.success(how === 'shared' ? 'Your sitter plan is ready. Pick how to send it.' : 'Your sitter plan downloaded');
+        } catch (e) {
+          if (!(isNative() && notImplemented(e))) throw e;
+          setPdfFile(null);
+          await linkFlow();
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ['vacations'] });
-      openPdf(data.url, win);
-      toast.success('Your sitter plan is ready');
     } catch (error) {
-      try { win?.close(); } catch { /* ignore */ }
+      console.error('sitter PDF failed', error);
       toast.error("Couldn't make the PDF. Check your connection and try again.");
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const sendAgain = async () => {
+    if (!pdfFile) return;
+    try { await sendPdf(pdfFile); } catch { toast.error("Couldn't open that. Try making the PDF again."); }
   };
 
   const light = !['dark', 'botanical', 'halloween', 'christmas', 'newyears', 'fourthofjuly', 'valentines', 'stpatricks', 'fall'].includes(theme);
@@ -386,7 +449,12 @@ export default function VacationReview() {
           </p>
         </div>
 
-        {linkFresh && (
+        {pdfFile ? (
+          <button onClick={sendAgain}
+            className={`mb-3 w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold ${light ? 'text-green-800 bg-green-100' : 'text-green-200 bg-green-500/15'}`}>
+            <Share2 className="w-4 h-4" /> {isNative() ? 'Send the PDF again' : 'Download the PDF again'}
+          </button>
+        ) : linkFresh && (
           <a href={pdfLink.url} target="_blank" rel="noopener noreferrer"
             className={`mb-3 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold ${light ? 'text-green-800 bg-green-100' : 'text-green-200 bg-green-500/15'}`}>
             <ExternalLink className="w-4 h-4" /> Open the PDF again (link works for 15 minutes)
