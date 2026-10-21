@@ -36,6 +36,7 @@ import UpdatePrompt from '@/components/UpdatePrompt';
 import UpgradeNudge from '@/components/UpgradeNudge';
 import StatusBarStrip from '@/components/StatusBarStrip';
 import { COMMUNITY_OPEN } from '@/pages/Feed';
+import { community } from '@/lib/community';
 import { themeEggFound } from '@/lib/themeEgg';
 import PushRouter from '@/components/PushRouter';
 
@@ -201,13 +202,12 @@ function LayoutContent({ children, currentPageName }) {
     queryKey: ['pendingRequests', user?.email],
     queryFn: async () => {
       if (!user || !user.profile_private) return [];
-      const requests = await base44.entities.FollowRequest.filter({
-        target_email: user.email,
-        status: 'pending'
-      });
-      return requests;
+      // Follow requests can only be read through the community function now (they hold
+      // both people's emails), so ask it for the count
+      const { count } = await community('request_count');
+      return Array.from({ length: count || 0 });
     },
-    enabled: !!user,
+    enabled: !!user && COMMUNITY_OPEN,
     // Was every 30s. Follow requests are rare; refetch on app focus + every 2 min is plenty.
     refetchInterval: 120000,
   });
@@ -244,7 +244,7 @@ function LayoutContent({ children, currentPageName }) {
     { title: "Community", url: "/Feed", icon: MessageCircle, badge: user?.notifications_enabled !== false ? feedNotifications.length : 0 },
     // Back with Community (it was taken out with it on June 24, 2026). Shown only while
     // Community is open (see COMMUNITY_OPEN in pages/Feed.jsx)
-    ...(COMMUNITY_OPEN ? [{ title: "Find Friends", url: "/Search", icon: Search, badge: pendingRequests.length }] : []),
+    ...(COMMUNITY_OPEN ? [{ title: "Find Friends", url: pendingRequests.length ? "/Search?tab=requests" : "/Search", icon: Search, badge: pendingRequests.length }] : []),
     { title: "Plant Expert", url: "/PlantChat", icon: MessageCircle },
     ...(showPd ? [{ title: "Garden Games", url: "/Games", icon: Puzzle }] : []),
     // Admins only: review Community reports
