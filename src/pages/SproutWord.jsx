@@ -202,7 +202,7 @@ export default function SproutWord() {
           subtitle={mode === 'daily' ? `Daily word · ${new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}` : 'Practice word'}
           right={streak > 0 ? <span className={`flex items-center gap-1 rounded-xl px-3 py-2 border font-bold ${ui.card} ${ui.text}`}><Flame className="w-4 h-4 text-orange-500" />{streak}</span> : null} />
 
-        <p className={`text-sm mb-3 ${ui.sub}`}>Guess the <b className={ui.text}>5-letter plant word</b>. 🟩 right spot · 🟨 wrong spot · ⬜ not in it.</p>
+        <p className={`text-sm mb-3 ${ui.sub}`}>Guess the <b className={ui.text}>5-letter plant word</b>. 🟩 right spot · 🟨 in the word, wrong spot · ⬜ not in the word.</p>
 
         <div className="grid gap-1.5 max-w-[300px] mx-auto" role="grid" aria-label="Guesses">
           {rows.map((row, r) => (
