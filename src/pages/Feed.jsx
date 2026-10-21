@@ -13,8 +13,8 @@ import { useGameTheme } from "@/lib/games/common";
 // comment and message is checked by moderateContent on the server (functions/community).
 // The like/comment badge in the menu is on again (Layout.jsx, feedNotifications).
 // Closed again the same night: the readiness check found members' emails visible to everyone,
-// other people's gardens never loading, and test posts in the feed. Reopen (true, plus
-// COMMUNITY_OPEN in Layout.jsx) once those are fixed.
+// other people's gardens never loading, and test posts in the feed. Reopen (true; the menu's
+// Find Friends and like/comment badge follow this flag) once those are fixed.
 export const COMMUNITY_OPEN = false;
 
 export default function Feed() {
