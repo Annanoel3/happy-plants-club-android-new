@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import QuietNote from "@/components/community/QuietNote";
 
 export default function SearchPage() {
   const navigate = useNavigate();
