@@ -4,10 +4,11 @@ import { base44 } from "@/api/base44Client";
 import { syncWateringPopups } from "@/lib/wateringPopups";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Droplets, AlertCircle, Sparkles, Mic, Bell, BellOff, Search, X, CheckSquare, LayoutGrid, Layers, Wand2 } from "lucide-react";
+import { Plus, Droplets, Sparkles, Mic, Bell, BellOff, Search, X, CheckSquare, LayoutGrid, Layers, Wand2, MapPin, WifiOff } from "lucide-react";
 import { categorizePlants } from "@/functions/categorizePlants";
 import SortFilterBar from "@/components/SortFilterBar";
-import AddCategoryModal from "@/components/AddCategoryModal";
+import LocationDialog from "@/components/plus/LocationDialog";
+import { registerBackHandler } from "@/lib/backButton";
 
 import DailyWeatherPopup from "@/components/DailyWeatherPopup";
 import LocationPrompt from "@/components/plus/LocationPrompt";
@@ -23,7 +24,7 @@ import PhotoIdsBar from "@/components/PhotoIdsBar";
 import IdsWelcome from "@/components/IdsWelcome";
 import PlantdokuEgg from "@/components/PlantdokuEgg";
 import { themeEggFound, markThemeEggFound } from "@/lib/themeEgg";
-import { getIdStatus, isWaitingForId, nameWaitingPlants, carePending, carePendingNow } from "@/lib/plantIds";
+import { getIdStatus, isWaitingForId, nameWaitingPlants, carePending, carePendingNow, finishPlacedPlants } from "@/lib/plantIds";
 import { fetchTrips, tripCovering, welcomeBackTrip, niceDay, addDays } from "@/lib/vacation";
 import { whenPopupFree, releasePopup, popupBusy } from "@/lib/popupGate";
 import { toast } from "sonner";
@@ -33,11 +34,19 @@ import { refreshPlantData } from "@/lib/query-client";
 import { withPendingWaterings } from "@/lib/outbox";
 import { AnimatePresence } from "framer-motion";
 
+// Categories a plant can be sorted into (same list as Auto-fix, functions/categorizePlants)
+const CATEGORIES = ['Needs Attention', 'Flowers', 'Vegetables', 'Herbs', 'Trees & Shrubs', 'Houseplants', 'Succulents & Cacti', 'Seedlings', 'Perennials', 'Annuals'];
+const NEW_STATUSES = ['identifying', 'review', 'failed'];
+// SDK errors carry the HTTP status as .status
+const httpStatus = (e) => e?.status ?? e?.response?.status;
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [authError, setAuthError] = useState(false); // couldn't reach the server (not signed out)
+  const [cityOpen, setCityOpen] = useState(false);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'light';
   });
@@ -69,7 +78,6 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('garden_sortBy') || null);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('garden_viewMode') || 'stack');
   const [showQuickLog, setShowQuickLog] = useState(false);
-  const [showAddCategory, setShowAddCategory] = useState(false);
 
   useEffect(() => {
     checkAuthentication();
@@ -125,8 +133,12 @@ export default function Dashboard() {
   const handleAutoCategorize = async () => {
     setCategorizing(true);
     try {
-      await categorizePlants({});
+      const res = await categorizePlants({});
+      const n = Number((res?.data ?? res)?.updated) || 0;
+      if (n) toast.success(`Sorted ${n} plant${n === 1 ? '' : 's'}`);
       queryClient.invalidateQueries({ queryKey: ['plants'] });
+    } catch {
+      toast.error("Couldn't sort your plants right now. Try again in a moment.");
     } finally {
       setCategorizing(false);
     }
@@ -146,30 +158,33 @@ export default function Dashboard() {
   };
 
   const checkAuthentication = async () => {
+    setAuthError(false);
     try {
-      const isAuth = await base44.auth.isAuthenticated();
-      
-      if (isAuth) {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-        setWateringRemindersEnabled(currentUser?.notifications_watering !== false);
-        
-        if (!currentUser?.location) {
+      const currentUser = await base44.auth.me();
+      // Brand-new account: finish signing up first. Anyone already set up (profile done, or
+      // plants in the garden) stays here even without a city; a small prompt asks for it.
+      if (!currentUser?.location && !currentUser?.profile_complete) {
+        let hasPlants = false;
+        try { hasPlants = ((await base44.entities.Plant.filter({ created_by: currentUser.email }, undefined, 1)) || []).length > 0; } catch { /* treat as new */ }
+        if (!hasPlants) {
           navigate('/Welcome');
           return;
         }
-      } else {
-        setUser(null);
       }
+      setUser(currentUser);
+      setWateringRemindersEnabled(currentUser?.notifications_watering !== false);
     } catch (error) {
       console.error('Auth error:', error);
-      setUser(null);
+      const status = httpStatus(error);
+      // Only a real "not signed in" answer means signed out; no signal is just no signal
+      if (status === 401 || status === 403) setUser(null);
+      else setAuthError(true);
     } finally {
       setAuthChecked(true);
     }
   };
 
-  const { data: plants, isLoading, error, refetch } = useQuery({
+  const { data: plants, isLoading, error, refetch, isPlaceholderData, isFetching } = useQuery({
     queryKey: ['plants', user?.email],
     queryFn: async () => {
       try {
@@ -184,7 +199,7 @@ export default function Dashboard() {
       }
     },
     placeholderData: [], // (was initialData; that would count as fresh under the 30s staleTime and hide the real data)
-    enabled: authChecked && !!user && !!user.location,
+    enabled: authChecked && !!user,
     // While a new plant is being named on the server, check back every few seconds
     // (and while a named plant's care sheet is still being written)
     refetchInterval: (q) => (Array.isArray(q.state.data) && q.state.data.some((p) => p?.add_status === 'identifying' || carePendingNow(p)) ? 4000 : false),
@@ -218,22 +233,6 @@ export default function Dashboard() {
       }
     })();
   }, [plants]);
-
-  const { data: activeEvents = [] } = useQuery({
-    queryKey: ['activeEvents', user?.email],
-    queryFn: async () => {
-      try {
-        const result = await base44.entities.GameEvent.filter({ resolved: false });
-        return Array.isArray(result) ? result : [];
-      } catch (err) {
-        console.error("Error fetching events:", err);
-        return [];
-      }
-    },
-    placeholderData: [], // (was initialData; that would count as fresh under the 30s staleTime and hide the real data)
-    enabled: authChecked && !!user && !!user.location,
-    retry: 1,
-  });
 
   // Trips (Schedule > Vacations): away = garden-wide pause on watering reminders
   const { data: trips = [] } = useQuery({
@@ -270,27 +269,20 @@ export default function Dashboard() {
     refetchInterval: 300000, // was every minute; the daily reminder is created once a day by a scheduled job
   });
 
-  const dismissWateringReminder = async (status) => {
+  const dismissWateringReminder = async () => {
     if (!todayReminder) return;
-    
-    await base44.entities.DailyWateringReminder.update(todayReminder.id, {
-      dismissed: true
-    });
-    
-    // Refetch to update UI
-    refetchTodayReminder(); // Use specific refetch for the reminder
-    
-    if (status === 'done') {
-      // Optional: Show a nice message
-      const event = new CustomEvent('showToast', { 
-        detail: { message: '🌱 Great job watering your plants!', type: 'success' } 
-      });
-      window.dispatchEvent(event);
-    }
+    try {
+      await base44.entities.DailyWateringReminder.update(todayReminder.id, { dismissed: true });
+    } catch { /* it shows again next visit; nothing lost */ }
+    refetchTodayReminder();
   };
 
   const plantsList = useMemo(() => (Array.isArray(plants) ? plants : []), [plants]);
-  const hasUncategorized = plantsList.some(p => !p.plant_type || p.plant_type === 'Other');
+  // Couldn't load the garden and there's no saved copy to show: say so (not "Start your garden")
+  const plantsFailed = !!error && isPlaceholderData;
+  const plantsLoading = isPlaceholderData && !error && (isFetching || isLoading);
+  // Plants still being added get their category with their care sheet: not "uncategorized"
+  const hasUncategorized = plantsList.some(p => !NEW_STATUSES.includes(p.add_status) && !carePending(p) && !CATEGORIES.includes(p.plant_type));
 
   // Group by plant type, filtered by search, with sort support
   const groupedPlants = useMemo(() => {
@@ -299,7 +291,8 @@ export default function Dashboard() {
       ? plantsList.filter(p =>
           (p.plant_type || '').toLowerCase().includes(q) ||
           (p.name || '').toLowerCase().includes(q) ||
-          (p.nickname || '').toLowerCase().includes(q)
+          (p.nickname || '').toLowerCase().includes(q) ||
+          (Array.isArray(p.tags) && p.tags.some((t) => String(t).toLowerCase().includes(q)))
         )
       : plantsList;
 
@@ -510,7 +503,7 @@ export default function Dashboard() {
   // with "Later": no popup per plant; they wait under "Newly added" until the owner opens
   // each one and says where it lives.
   const reviewQueue = plantsList
-    .filter((p) => (p.add_status === 'review' || p.add_status === 'failed') && !isWaitingForId(p) && !reviewSkip.has(p.id) && !p.add_info?.bulk && !p.add_info?.later)
+    .filter((p) => (p.add_status === 'review' || p.add_status === 'failed') && !isWaitingForId(p) && !reviewSkip.has(p.id) && !p.add_info?.bulk && !p.add_info?.later && !p.add_info?.place_chosen)
     .sort((a, b) => String(a.created_date).localeCompare(String(b.created_date)));
   const reviewPlant = reviewQueue[0] || null;
 
@@ -523,8 +516,15 @@ export default function Dashboard() {
 
   // "Newly added": everything not set up yet, newest first
   const newPlants = plantsList
-    .filter((p) => ['identifying', 'review', 'failed'].includes(p.add_status))
+    .filter((p) => NEW_STATUSES.includes(p.add_status))
     .sort((a, b) => String(b.created_date).localeCompare(String(a.created_date)));
+
+  // Spot picked while it was waiting for its name, and now it's named: it's set up
+  const placedKey = plantsList.filter((p) => p.add_status === 'review' && p.add_info?.place_chosen).map((p) => p.id).join(',');
+  useEffect(() => {
+    if (placedKey) finishPlacedPlants(plantsList).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placedKey]);
 
   // Photos saved but out of photo IDs: they wait here and get named when IDs are back
   const waitingPlants = newPlants.filter(isWaitingForId);
