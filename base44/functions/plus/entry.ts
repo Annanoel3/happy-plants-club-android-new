@@ -131,13 +131,75 @@ async function isPlus(db: any, userId: string): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------- place search (Nominatim)
+// Nominatim bans apps that send more than 1 request a second, so:
+//  - the same text is never looked up twice: the person's own saved answer, or another
+//    person who typed the exact same text, is reused;
+//  - the 1-a-second gap holds across every running copy of this function (one shared row:
+//    AiUsage user 'app', kind 'geocode', data.last_ms), not just inside one copy;
+//  - each person gets at most GEO_PER_DAY new lookups a day (counted in AiUsage 'geocode').
+const GEO_GAP_MS = 1100;
+const GEO_PER_DAY = 10;
+const GEO_DONE = ['ok', 'too_broad', 'not_found'];
 let lastNominatim = 0;
-async function geocode(text: string) {
+// Wait for our turn to call Nominatim. false = too busy right now (try again later).
+async function nominatimTurn(db: any): Promise<boolean> {
+    const token = Math.random().toString(36).slice(2);
+    for (let i = 0; i < 8; i++) {
+        let row: any = null;
+        try { row = (await db.AiUsage.filter({ user_id: 'app', kind: 'geocode' }))?.[0] || null; } catch { row = null; }
+        const last = Math.max(lastNominatim, Number(row?.data?.last_ms) || 0);
+        const wait = last + GEO_GAP_MS - Date.now();
+        if (wait > 0) { await sleep(wait + Math.floor(Math.random() * 250)); continue; }
+        const mine = Date.now();
+        lastNominatim = mine;
+        const day = new Date(mine).toISOString().slice(0, 10);
+        try {
+            const patch = { day, count: row?.day === day ? (Number(row.count) || 0) + 1 : 1, data: { last_ms: mine, by: token } };
+            if (row) await db.AiUsage.update(row.id, patch);
+            else await db.AiUsage.create({ user_id: 'app', kind: 'geocode', ...patch });
+            // Two copies at the same moment: the last one to write goes; the other waits its turn
+            await sleep(150);
+            const again = (await db.AiUsage.filter({ user_id: 'app', kind: 'geocode' }))?.[0];
+            if (again?.data?.by && again.data.by !== token) continue;
+        } catch { /* can't share the gap right now: the gap inside this copy still holds */ }
+        return true;
+    }
+    return false;
+}
+// Someone already looked this exact text up: reuse their answer (it only depends on the text)
+async function knownPlace(db: any, q: string) {
+    const rows = (await db.User.filter({ location_geocoded_for: q }, '-updated_date', 5).catch(() => [])) || [];
+    const hit = rows.find((u: any) => GEO_DONE.includes(u.location_status));
+    if (!hit) return null;
+    if (hit.location_status === 'not_found') return { status: 'not_found' as const };
+    if (typeof hit.location_lat !== 'number' || typeof hit.location_lon !== 'number') return null;
+    return { status: hit.location_status as 'ok' | 'too_broad', lat: hit.location_lat, lon: hit.location_lon, label: hit.location_label || q, type: 'reused' };
+}
+// user: who it's for (their own saved answer, their daily cap); null = no cap
+async function geocode(db: any, user: any, text: string): Promise<any> {
     const q = String(text || '').trim().slice(0, 120);
     if (!q) return { status: 'missing' as const };
-    const wait = lastNominatim + 1100 - Date.now();
-    if (wait > 0) await sleep(wait);
-    lastNominatim = Date.now();
+    if (user && user.location_geocoded_for === q && GEO_DONE.includes(user.location_status)) {
+        if (user.location_status === 'not_found') return { status: 'not_found' as const };
+        if (typeof user.location_lat === 'number' && typeof user.location_lon === 'number') {
+            return { status: user.location_status, lat: user.location_lat, lon: user.location_lon, label: user.location_label || q, type: 'saved' };
+        }
+    }
+    const known = await knownPlace(db, q);
+    if (known) return known;
+    if (user?.id) {
+        const day = dayOf(Date.now(), validTz(user.timezone));
+        try {
+            const row = (await db.AiUsage.filter({ user_id: user.id, kind: 'geocode', day }))?.[0];
+            if ((Number(row?.count) || 0) >= GEO_PER_DAY) return { status: 'error' as const, detail: 'limit' };
+            if (row) await db.AiUsage.update(row.id, { count: (Number(row.count) || 0) + 1 });
+            else await db.AiUsage.create({ user_id: user.id, user_email: user.email, kind: 'geocode', day, count: 1 });
+        } catch { /* count unavailable: the shared 1-a-second gap still protects Nominatim */ }
+    }
+    if (!(await nominatimTurn(db))) return { status: 'error' as const, detail: 'busy' };
+    return nominatim(q);
+}
+async function nominatim(q: string) {
     const zip = q.match(/^(\d{5})(?:-\d{4})?$/);
     const params = zip ? `postalcode=${zip[1]}&countrycodes=us` : `q=${encodeURIComponent(q)}`;
     let res: Response;
