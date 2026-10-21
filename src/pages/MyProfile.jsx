@@ -66,7 +66,7 @@ export default function MyProfile() {
   const { data: myCounts } = useQuery({
     queryKey: ['myCommunityCounts', user?.email],
     queryFn: async () => {
-      const r = await community('profile', {});
+      const r = await community('profile', { counts_only: true });
       if (r?.person?.handle && !user?.handle) setUser((u) => (u ? { ...u, handle: r.person.handle } : u));
       return r?.counts || null;
     },
