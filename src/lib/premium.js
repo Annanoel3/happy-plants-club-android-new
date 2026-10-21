@@ -106,6 +106,8 @@ export async function buyPlan(packageId) {
     throw e;
   }
   if (r?.cancelled) return { cancelled: true };
+  // Builds after 13 say { pending: true } for a payment Google Play hasn't confirmed yet
+  if (r?.pending) { checkPlusSoon(); return { pending: true }; }
   const status = await getPremiumStatus({ refresh: true }).catch(() => null);
   const plus = !!(status?.plus ?? r?.active);
   if (!plus) checkPlusSoon();
