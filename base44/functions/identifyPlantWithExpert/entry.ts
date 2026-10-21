@@ -934,6 +934,7 @@ Deno.serve(async (req) => {
     const rid = Math.random().toString(36).slice(2, 7);
     try {
         const base44 = createClientFromRequest(req);
+        pnDb = base44.asServiceRole.entities; // for the Pl@ntNet daily count
         const body = await req.json().catch(() => ({}));
         // The hourly sweep retries plants that got stuck mid-add (app closed, no signal):
         // it calls with the sweep key and works as the plant's owner.
