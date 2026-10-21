@@ -3,10 +3,11 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Shuffle, Share2, PlayCircle, Flame } from 'lucide-react';
 import { toast } from 'sonner';
 import { localToday } from '@/lib/dates';
-import { useGameTheme, setDone, getDone, streakFor, countFinish, adBeforeNext } from '@/lib/games/common';
+import { useGameTheme, useToday, setDone, getDone, streakFor, countFinish, adBeforeNext } from '@/lib/games/common';
 import GameHeader from '@/components/games/GameHeader';
 import GameTutorial from '@/components/games/GameTutorial';
-import { makeGroupsPuzzle, dailyGroupsSeed } from '@/lib/games/groups';
+import NewDailyBar from '@/components/games/NewDailyBar';
+import { makeGroupsPuzzle, dailyGroupsPuzzle } from '@/lib/games/groups';
 
 // Garden Groups: 16 plant words, 4 hidden groups of 4. Tap 4, Submit. 4 tries.
 // Group colors are our own (mint, peach, sky, lilac), easiest to trickiest.
@@ -62,23 +63,28 @@ function MiniTile({ word, selected, dark }) {
     </span>
   );
 }
-function Bar({ group, dark, small }) {
+// row: fills exactly one row of tiles on the board (fixed height, text can't make it grow)
+function Bar({ group, dark, small, row }) {
   const lv = LEVELS[group.level];
   return (
-    <div className={`rounded-xl text-center ${small ? 'p-2' : 'p-3'}`} style={{ background: dark ? lv.dark : lv.light }}>
-      <p className={`font-bold ${small ? 'text-xs' : 'text-sm'} ${dark ? 'text-white' : 'text-gray-900'}`}>{group.name}</p>
-      <p className={`${small ? 'text-[11px]' : 'text-xs'} uppercase ${dark ? 'text-white/85' : 'text-gray-800'}`}>{group.words.join(', ')}</p>
+    <div className={`rounded-xl text-center ${row ? 'h-full px-2 py-1 flex flex-col justify-center overflow-hidden' : small ? 'p-2' : 'p-3'}`} style={{ background: dark ? lv.dark : lv.light }}>
+      <p className={`font-bold ${small ? 'text-xs' : 'text-sm'} ${row ? 'leading-5 truncate' : ''} ${dark ? 'text-white' : 'text-gray-900'}`}>{group.name}</p>
+      <p className={`${small || row ? 'text-[11px]' : 'text-xs'} ${row ? 'leading-[14px] line-clamp-2' : ''} uppercase ${dark ? 'text-white/85' : 'text-gray-800'}`}>{group.words.join(', ')}</p>
     </div>
   );
 }
 
 export default function GardenGroups() {
   const { dark, ui } = useGameTheme();
-  const today = localToday();
+  // The daily's date is locked when the screen opens, so midnight can't save yesterday's board
+  // under today's date or mark today done. It moves on via Daily / "Play it" or a fresh visit.
+  const today = useToday();
+  const [day, setDay] = useState(localToday);
   const [mode, setMode] = useState('daily');
-  const [seed, setSeed] = useState(() => dailyGroupsSeed(today));
-  const puzzle = useMemo(() => makeGroupsPuzzle(seed), [seed]);
-  const stateKey = mode === 'daily' ? `hp_gg_state_${today}` : null;
+  const [seed, setSeed] = useState(null); // practice only
+  const puzzle = useMemo(() => (mode === 'daily' ? dailyGroupsPuzzle(day) : makeGroupsPuzzle(seed)), [mode, day, seed]);
+  const stateKey = mode === 'daily' ? `hp_gg_state_${day}` : null;
+  const ending = useRef(false); // set the moment a game ends, so a quick second tap can't finish it twice
 
   const fresh = () => ({ seed: puzzle.seed, order: puzzle.tiles, solved: [], mistakes: 0, guesses: [], tried: [], over: false, won: false });
   const [game, setGame] = useState(fresh);
@@ -86,7 +92,8 @@ export default function GardenGroups() {
   const [shake, setShake] = useState(false);
   const [tutorial, setTutorial] = useState(() => { try { return !localStorage.getItem(TUTORIAL_KEY); } catch { return true; } });
 
-  // New puzzle: pick up where today's left off, or start fresh
+  // New puzzle: pick up where the daily left off, or start fresh. A fresh one is a new puzzle
+  // starting, so it's when the "one ad per two finished puzzles" check runs.
   useEffect(() => {
     let g = null;
     if (stateKey) {
@@ -97,8 +104,10 @@ export default function GardenGroups() {
           && s.order.every((w) => puzzle.tiles.includes(w)) && s.solved.every((k) => keys.includes(k))) g = s;
       } catch { /* ignore */ }
     }
+    ending.current = !!g?.over;
     setGame(g || fresh());
     setSelected([]);
+    if (!g?.guesses?.length && !(mode === 'daily' && getDone('gardengroups', day))) adBeforeNext();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puzzle]);
   useEffect(() => {
@@ -109,18 +118,19 @@ export default function GardenGroups() {
   const groupOf = (w) => puzzle.groups.find((g) => g.words.includes(w));
   const solvedGroups = game.solved.map((k) => puzzle.groups.find((g) => g.key === k)).filter(Boolean);
 
+  // Losses get a done mark too (no replaying the daily); only wins keep the streak going
   const finished = (g) => {
     countFinish();
-    if (mode === 'daily') setDone('gardengroups', { mistakes: g.mistakes, solved: g.won });
+    if (mode === 'daily') setDone('gardengroups', { mistakes: g.mistakes, solved: g.won, won: g.won }, day);
   };
 
   const toggle = (w) => {
-    if (game.over) return;
+    if (game.over || ending.current) return;
     setSelected((s) => (s.includes(w) ? s.filter((x) => x !== w) : s.length >= 4 ? s : [...s, w]));
   };
 
   const submit = () => {
-    if (selected.length !== 4 || game.over) return;
+    if (selected.length !== 4 || game.over || ending.current) return;
     const key = [...selected].sort().join('|');
     if (game.tried.includes(key)) { toast('You already tried those 4.'); return; }
     const levels = selected.map((w) => groupOf(w).level);
@@ -129,6 +139,7 @@ export default function GardenGroups() {
       const solved = [...game.solved, hit.key];
       const won = solved.length === 4;
       const next = { ...game, solved, order: game.order.filter((w) => !hit.words.includes(w)), guesses: [...game.guesses, levels], tried: [...game.tried, key], over: won, won };
+      if (won) ending.current = true;
       setGame(next);
       setSelected([]);
       if (won) finished(next);
@@ -139,9 +150,13 @@ export default function GardenGroups() {
     setShake(true);
     setTimeout(() => setShake(false), 450);
     if (mistakes >= MAX_MISTAKES) {
+      // Over right away (not after the shake), so a second tap on Submit can't finish it twice
+      ending.current = true;
       const rest = puzzle.groups.filter((g) => !game.solved.includes(g.key)).sort((a, b) => a.level - b.level).map((g) => g.key);
       const next = { ...game, mistakes, guesses: [...game.guesses, levels], tried: [...game.tried, key], solved: [...game.solved, ...rest], order: [], over: true, won: false };
-      setTimeout(() => { setGame(next); setSelected([]); finished(next); }, 500);
+      setGame(next);
+      setSelected([]);
+      finished(next);
       toast("Out of tries. Here's how they group.");
     } else {
       setGame({ ...game, mistakes, guesses: [...game.guesses, levels], tried: [...game.tried, key] });
@@ -156,14 +171,12 @@ export default function GardenGroups() {
   };
 
   const playAnother = () => {
-    adBeforeNext();
     setMode('practice');
     setSeed(`gg-practice-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
   };
   const backToDaily = () => {
-    adBeforeNext();
+    setDay(localToday());
     setMode('daily');
-    setSeed(dailyGroupsSeed(today));
   };
   const closeTutorial = () => {
     try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch { /* ignore */ }
@@ -171,12 +184,12 @@ export default function GardenGroups() {
   };
 
   const share = async () => {
-    const day = new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const dayLabel = new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const head = game.won
       ? `solved with ${game.mistakes} mistake${game.mistakes === 1 ? '' : 's'}`
       : 'ran out of tries';
     const grid = game.guesses.map((row) => row.map((l) => LEVELS[l].emoji).join('')).join('\n');
-    const text = `Garden Groups ${day} 🧺 ${head}\n${grid}\nhappyplants.club`;
+    const text = `Garden Groups ${dayLabel} 🧺 ${head}\n${grid}\nhappyplants.club`;
     if (Capacitor.isNativePlatform()) {
       try { await registerPlugin('NotifyBridge').shareText({ text, title: 'Garden Groups' }); return; } catch { /* older build */ }
     }
@@ -184,10 +197,11 @@ export default function GardenGroups() {
     try { await navigator.clipboard.writeText(text); toast.success('Copied! Paste it anywhere.'); } catch { toast.error("Couldn't share."); }
   };
 
-  const dateLabel = new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const dateLabel = new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   const btn = `flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold border active:scale-95 disabled:opacity-50 ${ui.chip}`;
-  const streak = mode === 'daily' ? streakFor('gardengroups', today) : 0;
-  const doneToday = !!getDone('gardengroups', today);
+  const streak = mode === 'daily' ? streakFor('gardengroups', day) : 0;
+  const doneToday = !!getDone('gardengroups', day);
+  const newDay = mode === 'daily' && today !== day;
 
   const tutorialSteps = [
     {
@@ -241,8 +255,10 @@ export default function GardenGroups() {
         <GameHeader title="Garden Groups" emoji="🧺" ui={ui} onHelp={() => setTutorial(true)}
           subtitle={mode === 'daily' ? `Daily puzzle · ${dateLabel}` : 'Practice puzzle'} />
 
+        {newDay && <NewDailyBar ui={ui} onGo={backToDaily} />}
+
         <div className="flex gap-2 mb-3">
-          <button onClick={() => mode !== 'daily' && backToDaily()}
+          <button onClick={() => (mode !== 'daily' || newDay) && backToDaily()}
             className={`rounded-full px-3 py-1.5 text-sm font-semibold border ${mode === 'daily' ? 'bg-green-600 border-green-600 text-white' : ui.chip}`}>
             Daily{doneToday ? ' ✓' : ''}
           </button>
@@ -256,27 +272,24 @@ export default function GardenGroups() {
           <p className={`text-sm mb-3 ${ui.sub}`}>Find <b className={ui.text}>4 groups of 4</b>. Tap 4 words, then Submit.</p>
         )}
 
-        {/* Solved groups */}
-        <div className="space-y-2 mb-2">
-          {solvedGroups.map((g) => <Bar key={g.key} group={g} dark={dark} />)}
+        {/* Solved groups and tiles share one grid: a solved group's bar takes exactly the row
+            its 4 tiles left, so the board stays the same height and nothing below moves */}
+        <div className="grid grid-cols-4 gap-2" role="group" aria-label="Words">
+          {solvedGroups.map((g) => (
+            <div key={g.key} className="col-span-4 h-16"><Bar group={g} dark={dark} row /></div>
+          ))}
+          {game.order.map((w) => {
+            const on = selected.includes(w);
+            return (
+              <button key={w} onClick={() => toggle(w)} aria-pressed={on}
+                className={`h-16 min-w-0 overflow-hidden break-words rounded-xl px-1 font-bold uppercase leading-tight text-center transition active:scale-95 ${
+                  on ? 'bg-green-700 text-white shadow-inner' : dark ? 'bg-white/10 text-white' : 'bg-[#f3ede1] text-gray-900 shadow-sm'}`}
+                style={on && shake ? { animation: 'ggshake .45s' } : undefined}>
+                <FitWord word={w} />
+              </button>
+            );
+          })}
         </div>
-
-        {/* Tiles */}
-        {game.order.length > 0 && (
-          <div className="grid grid-cols-4 gap-2" role="group" aria-label="Words">
-            {game.order.map((w) => {
-              const on = selected.includes(w);
-              return (
-                <button key={w} onClick={() => toggle(w)} aria-pressed={on}
-                  className={`h-16 min-w-0 overflow-hidden break-words rounded-xl px-1 font-bold uppercase leading-tight text-center transition active:scale-95 ${
-                    on ? 'bg-green-700 text-white shadow-inner' : dark ? 'bg-white/10 text-white' : 'bg-[#f3ede1] text-gray-900 shadow-sm'}`}
-                  style={on && shake ? { animation: 'ggshake .45s' } : undefined}>
-                  <FitWord word={w} />
-                </button>
-              );
-            })}
-          </div>
-        )}
 
         {!game.over && (
           <>
@@ -302,7 +315,7 @@ export default function GardenGroups() {
             <p className="text-3xl" aria-hidden>{game.won ? '🎉' : '🍂'}</p>
             <p className={`text-2xl font-bold mt-1 ${ui.text}`}>{game.won ? 'You found all 4 groups!' : 'Out of tries'}</p>
             <p className={`text-sm mt-1 ${ui.sub}`}>
-              {game.won ? `${game.mistakes} mistake${game.mistakes === 1 ? '' : 's'}.` : 'The answers are above. A new puzzle comes tomorrow.'}
+              {game.won ? `${game.mistakes} mistake${game.mistakes === 1 ? '' : 's'}.` : `The answers are above.${mode === 'daily' && !newDay ? ' A new puzzle comes tomorrow.' : ''}`}
               {mode === 'daily' && streak > 0 && <span> <Flame className="w-4 h-4 inline text-orange-500" /> {streak} day streak</span>}
             </p>
             <div className="mt-3 space-y-1 text-lg leading-none" aria-label="Your guesses">
