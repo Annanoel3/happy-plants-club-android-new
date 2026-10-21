@@ -96,6 +96,7 @@ async function readyToAsk(pathname) {
 export default function OneSignalSetup({ user }) {
   const { pathname } = useLocation();
   const [showAsk, setShowAsk] = useState(false);
+  const showing = useRef(false);
   const lastCheck = useRef(0);
   const cancelWait = useRef(null);
 
@@ -114,7 +115,7 @@ export default function OneSignalSetup({ user }) {
     if (!user || askedBefore() || !bridge()) return undefined;
     let stopped = false;
     const check = async (force) => {
-      if (stopped || showAsk || cancelWait.current || askedBefore()) return;
+      if (stopped || showing.current || cancelWait.current || askedBefore()) return;
       // Plain screen changes check at most every 20 s (each check reads one plant)
       if (!force && Date.now() - lastCheck.current < 20000) return;
       lastCheck.current = Date.now();
@@ -126,6 +127,7 @@ export default function OneSignalSetup({ user }) {
           releasePopup('push-ask');
           return;
         }
+        showing.current = true;
         setShowAsk(true);
       }, { firstDelay: 2500 });
     };
@@ -143,6 +145,7 @@ export default function OneSignalSetup({ user }) {
 
   const close = () => {
     markAsked();
+    showing.current = false;
     setShowAsk(false);
     releasePopup('push-ask');
   };
