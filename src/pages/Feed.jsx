@@ -12,7 +12,10 @@ import { useGameTheme } from "@/lib/games/common";
 // it. Report and Block are in (posts, comments, profiles, messages), and every post,
 // comment and message is checked by moderateContent on the server (functions/community).
 // The like/comment badge in the menu is on again (Layout.jsx, feedNotifications).
-const COMMUNITY_OPEN = true;
+// Closed again the same night: the readiness check found members' emails visible to everyone,
+// other people's gardens never loading, and test posts in the feed. Reopen (true, plus
+// COMMUNITY_OPEN in Layout.jsx) once those are fixed.
+export const COMMUNITY_OPEN = false;
 
 export default function Feed() {
   return COMMUNITY_OPEN ? <CommunityGate /> : <ComingSoon />;
