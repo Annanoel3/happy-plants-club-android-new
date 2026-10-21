@@ -211,15 +211,14 @@ Return ONLY valid JSON:
         for (const plantNote of result.plant_notes || []) {
             const plant = plantNote?.plant_name ? findPlant(plantNote.plant_name) : null;
             if (!plant || !plantNote?.note) continue;
-            {
-                const currentNotes = plant.notes || '';
-                const timestamp = new Date().toLocaleDateString();
-                const updatedNotes = currentNotes
-                    ? `${currentNotes}\n\n[${timestamp}] ${plantNote.note}`
-                    : `[${timestamp}] ${plantNote.note}`;
-                await base44.entities.Plant.update(plant.id, { notes: updatedNotes });
-                notedNames.push(label(plant));
-            }
+            const currentNotes = plant.notes || '';
+            const timestamp = new Date().toLocaleDateString();
+            const updatedNotes = currentNotes
+                ? `${currentNotes}\n\n[${timestamp}] ${plantNote.note}`
+                : `[${timestamp}] ${plantNote.note}`;
+            await base44.entities.Plant.update(plant.id, { notes: updatedNotes });
+            plant.notes = updatedNotes; // a second note for the same plant keeps the first
+            notedNames.push(label(plant));
         }
 
         // Reminders: the LLM resolves the phrase to a local date+time in the user's timezone,
