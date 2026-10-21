@@ -343,7 +343,10 @@ export default function PlantDetail() {
       const typed = parseInt(String(clean.water_frequency_days ?? '').trim(), 10);
       const every = typed >= 1 ? Math.min(365, typed) : (Number(plant?.water_frequency_days) || 7);
       if (typed >= 1) clean.water_frequency_days = every; else delete clean.water_frequency_days;
-      if (!clean.environment) delete clean.environment;
+      // Pick-lists left empty aren't saved ("" isn't one of their choices)
+      for (const k of ['environment', 'sun_exposure', 'pot_type', 'pot_size', 'substrate_type']) {
+        if (k in clean && !clean[k]) delete clean[k];
+      }
       // Only one of the garden's categories is saved; unset stays unset (no "Other")
       if (!PLANT_TYPES.includes(clean.plant_type) || clean.plant_type === plant?.plant_type) delete clean.plant_type;
       const seasonal = Number(plant?.water_days_grow) > 0 && Number(plant?.water_days_rest) > 0;
