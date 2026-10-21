@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { prepareImageForUpload } from "@/lib/imageResize";
 
 export default function PlantHealthCheck({ plant, openKey = 0 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -74,12 +75,10 @@ export default function PlantHealthCheck({ plant, openKey = 0 }) {
     setCheck(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', selectedImage);
-      
-      const uploadResponse = await base44.integrations.Core.UploadFile({ 
-        file: selectedImage 
-      });
+      // Shrink it on the phone first: a full-size camera photo is several MB to upload
+      // over mobile data, and the check doesn't need more than this
+      const { main } = await prepareImageForUpload(selectedImage, { mainSide: 1280 });
+      const uploadResponse = await base44.integrations.Core.UploadFile({ file: main });
 
       if (!uploadResponse.file_url) {
         throw new Error("Failed to upload image");
@@ -108,7 +107,7 @@ export default function PlantHealthCheck({ plant, openKey = 0 }) {
         setIsOpen(false);
         await handleAiLimit(error);
       } else {
-        toast.error(error.message || "Failed to analyze plant health");
+        toast.error("Couldn't check this photo. Check your signal and try again.");
       }
     } finally {
       setIsAnalyzing(false);
@@ -142,7 +141,8 @@ export default function PlantHealthCheck({ plant, openKey = 0 }) {
             case 'christmas':
               return 'bg-red-600 text-white hover:bg-red-700 border-red-500 animate-bounce';
             case 'newyears':
-              return 'bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-300 animate-ping';
+              // (no animate-ping: it fades the button out completely)
+              return 'bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-300';
             case 'fourthofjuly':
               return 'bg-blue-600 text-white hover:bg-blue-700 border-blue-500 animate-pulse';
             default:
