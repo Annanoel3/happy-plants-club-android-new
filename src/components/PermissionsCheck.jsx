@@ -133,7 +133,7 @@ export default function PermissionsCheck({ user }) {
               </div>
               {micStatus === 'denied' && (
                 <p className="text-xs text-amber-600 mt-2 ml-14">
-                  Go to <strong>Settings → Happy Plants → Microphone</strong> to enable.
+                  To turn it on, go to <strong>your phone's Settings &gt; Apps &gt; Happy Plants &gt; Permissions</strong>.
                 </p>
               )}
             </div>
@@ -161,7 +161,7 @@ export default function PermissionsCheck({ user }) {
               </div>
               {cameraStatus === 'denied' && (
                 <p className="text-xs text-amber-600 mt-2 ml-14">
-                  Go to <strong>Settings → Happy Plants → Camera</strong> to enable.
+                  To turn it on, go to <strong>your phone's Settings &gt; Apps &gt; Happy Plants &gt; Permissions</strong>.
                 </p>
               )}
             </div>
