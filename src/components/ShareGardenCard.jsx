@@ -44,7 +44,10 @@ export default function ShareGardenCard({ cardClass, textClass, subTextClass }) 
       setDesc(data.public_description || "");
       return data;
     } catch (e) {
-      toast.error("Couldn't update your share link. Try again.");
+      // A name/description that didn't pass the content check comes back with its reason
+      const reason = e?.response?.data?.error;
+      const status = e?.response?.status;
+      toast.error(status === 422 || status === 503 ? reason : "Couldn't update your share link. Try again.");
       return null;
     } finally {
       setBusy(null);
