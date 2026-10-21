@@ -22,6 +22,15 @@ function tzOffsetMs(ms: number, tz: string) { const p = tzParts(ms, tz); return 
 function localToUtc(y: number, mo: number, d: number, h: number, mi: number, tz: string) { const g = Date.UTC(y, mo - 1, d, h, mi); let t = g - tzOffsetMs(g, tz); t = g - tzOffsetMs(t, tz); return t; }
 function localDateOf(ms: number, tz: string) { const p = tzParts(ms, tz); return `${p.y}-${String(p.mo).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`; }
 
+// "Pothos", "Pothos and Fern", "Pothos, Fern and Basil"
+function listNames(names: string[]): string {
+    const n = [...new Set(names)];
+    if (n.length <= 1) return n[0] || '';
+    if (n.length > 4) return `${n.slice(0, 3).join(', ')} and ${n.length - 3} more`;
+    return `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
+}
+const MAX_TEXT = 1000;
+
 function extractJSON(str) {
     const cleaned = str.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
     const start = cleaned.indexOf('{');
@@ -38,10 +47,13 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { transcript, userTimezone } = await req.json();
-    console.log('processPlantCareLog: transcript received, length:', transcript?.length, 'preview:', transcript?.substring(0, 60));
+    const body = await req.json().catch(() => ({}));
+    const userTimezone = body?.userTimezone;
+    // Capped: a quick log is a sentence or two, not an essay (and each character costs)
+    const transcript = typeof body?.transcript === 'string' ? body.transcript.trim().slice(0, MAX_TEXT) : '';
+    console.log('processPlantCareLog: transcript received, length:', transcript.length, 'preview:', transcript.substring(0, 60));
 
-    if (!transcript || !transcript.trim()) {
+    if (!transcript) {
         return Response.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
@@ -113,7 +125,8 @@ Return ONLY valid JSON:
     try {
         result = extractJSON(response.choices[0].message.content);
     } catch (e) {
-        return Response.json({ error: 'Failed to parse LLM response: ' + e.message }, { status: 500 });
+        console.error('processPlantCareLog: unreadable model reply', (e as Error).message);
+        return Response.json({ error: "Couldn't read that" }, { status: 500 });
     }
 
     console.log('LLM result - watered_plant_names:', result.watered_plant_names, 'reminders:', result.reminders?.length);
@@ -144,6 +157,12 @@ Return ONLY valid JSON:
     }
 
     let plantsToWater = [];
+    const wateredNames: string[] = [];
+    const alreadyNames: string[] = [];
+    const unmatched: string[] = [];
+    const notedNames: string[] = [];
+    let wateredCount = 0;
+    const label = (p: any) => p?.nickname || p?.name || 'Plant';
     try {
         const today = localDateOf(Date.now(), timezone);
 
@@ -168,43 +187,38 @@ Return ONLY valid JSON:
             } else {
                 const found = findPlant(token);
                 if (found) plantsToWater.push(found);
-                else console.warn('Plant name not matched:', token, '| available:', plants.map(p => p.name));
+                else { unmatched.push(String(token)); console.warn('Plant name not matched:', token, '| available:', plants.map(p => p.name)); }
             }
         }
         // Deduplicate
         const seenIds = new Set();
         plantsToWater = plantsToWater.filter(p => { if (seenIds.has(p.id)) return false; seenIds.add(p.id); return true; });
 
-        for (const plant of plantsToWater) {
-            if (plant) {
-                console.log('Logging watering for plant:', plant.name, plant.id);
-                await base44.entities.WateringLog.create({
-                    plant_id: plant.id,
-                    plant_name: plant.name,
-                    watered_date: today,
-                    method: 'voice',
-                    created_by: user.email
-                });
-                const nextWatering = new Date(today + 'T12:00:00Z');
-                nextWatering.setDate(nextWatering.getDate() + (plant.water_frequency_days || 7));
-                await base44.entities.Plant.update(plant.id, {
-                    last_watered: today,
-                    next_watering_due: nextWatering.toISOString().split('T')[0],
-                    status: 'healthy'
-                });
-                console.log('Plant updated:', plant.name, 'next watering:', nextWatering.toISOString().split('T')[0]);
+        // Same path as the card's Water button (wateringReminder 'water'): one watering per
+        // plant per day, the watering count and growth stage go up, wilted becomes healthy
+        const byId = new Map(plantsToWater.map((p: any) => [p.id, p]));
+        const items = plantsToWater.map((p: any) => ({ plant_id: p.id, date: today, method: 'quick log' }));
+        for (let i = 0; i < items.length; i += 150) {
+            const { data } = await base44.functions.invoke('wateringReminder', { action: 'water', items: items.slice(i, i + 150), tz: timezone });
+            if (!data?.success) throw new Error('Could not log the waterings');
+            for (const r of data.results || []) {
+                const p = byId.get(r.plant_id);
+                if (r.status === 'watered') { wateredCount++; wateredNames.push(label(p)); }
+                else if (r.status === 'already') alreadyNames.push(label(p));
             }
         }
 
         for (const plantNote of result.plant_notes || []) {
-            const plant = findPlant(plantNote.plant_name);
-            if (plant) {
+            const plant = plantNote?.plant_name ? findPlant(plantNote.plant_name) : null;
+            if (!plant || !plantNote?.note) continue;
+            {
                 const currentNotes = plant.notes || '';
                 const timestamp = new Date().toLocaleDateString();
                 const updatedNotes = currentNotes
                     ? `${currentNotes}\n\n[${timestamp}] ${plantNote.note}`
                     : `[${timestamp}] ${plantNote.note}`;
                 await base44.entities.Plant.update(plant.id, { notes: updatedNotes });
+                notedNames.push(label(plant));
             }
         }
 
@@ -258,17 +272,37 @@ Return ONLY valid JSON:
         }
     } catch (dbErr) {
         console.error('processPlantCareLog DB error:', dbErr.message, dbErr.stack?.substring(0, 200));
-        return Response.json({ error: 'DB operation failed: ' + dbErr.message }, { status: 500 });
+        return Response.json({ error: "Couldn't save that" }, { status: 500 });
     }
 
-    console.log('processPlantCareLog success, summary:', result?.summary, 'watered:', result?.watered_plant_ids?.length);
+    // Say what was actually saved, not what the model thought it heard
+    const parts: string[] = [];
+    if (wateredNames.length) parts.push(`Logged watering for ${listNames(wateredNames)}`);
+    if (alreadyNames.length) parts.push(`${listNames(alreadyNames)} ${alreadyNames.length === 1 ? 'was' : 'were'} already watered today`);
+    if (notedNames.length) parts.push(`Added a note to ${listNames(notedNames)}`);
+    for (const r of createdReminders) {
+        let when = '';
+        try { when = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(r.at)); } catch { /* no time */ }
+        parts.push(`Reminder set: ${String(r.title || 'reminder').slice(0, 60)}${when ? ` (${when})` : ''}`);
+    }
+    const logged = parts.length > 0;
+    let message = logged ? parts.join('. ') + '.' : '';
+    if (unmatched.length) {
+        message += `${message ? ' ' : ''}I couldn't find ${listNames(unmatched)} in your garden.`;
+    }
+    if (!message) message = (result.watered_plant_names || []).length || (result.plant_notes || []).length
+        ? "I couldn't match that to a plant in your garden."
+        : 'I couldn\'t find anything to log in that. Try something like "I watered the pothos".';
+
+    console.log('processPlantCareLog done:', message);
     return Response.json({
         success: true,
-        transcript,
-        watered_count: plantsToWater?.length || 0,
-        notes_count: result.plant_notes?.length || 0,
+        logged,
+        message,
+        watered_count: wateredCount,
+        already_count: alreadyNames.length,
+        notes_count: notedNames.length,
         reminder_count: createdReminders.length,
         reminders: createdReminders,
-        summary: result.summary
     });
 });
