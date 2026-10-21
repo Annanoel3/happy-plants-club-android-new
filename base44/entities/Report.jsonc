@@ -81,7 +81,6 @@
     "target_type",
     "reason"
   ],
-  "type": "object",
   "rls": {
     "create": {
       "user_condition": {
@@ -94,21 +93,15 @@
       }
     },
     "read": {
-      "$or": [
-        {
-          "data.reporter_email": "{{user.email}}"
-        },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "update": {
       "user_condition": {
         "role": "admin"
       }
     }
-  }
+  },
+  "type": "object"
 }
