@@ -7,17 +7,20 @@ import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { localToday } from '@/lib/dates';
 import { usePlus } from '@/lib/plus';
-import { showAdForEvent, rewardedAvailable, showRewardedAd } from '@/lib/admob';
-import { makePuzzle, dailySeed, dailySize, isSolved, hintFor, REGION_COLORS, REGION_COLORS_DARK } from '@/lib/plantdoku/engine';
+import { rewardedAvailable, showRewardedAd } from '@/lib/admob';
+import { makePuzzle, dailyPuzzle, isSolved, hintFor, REGION_COLORS, REGION_COLORS_DARK } from '@/lib/plantdoku/engine';
 import { markPlantdokuFound } from '@/lib/plantdoku/egg';
-import { setDone, getDone } from '@/lib/games/common';
+import { setDone, getDone, countFinish, adBeforeNext, useToday } from '@/lib/games/common';
+import NewDailyBar from '@/components/games/NewDailyBar';
 
 // Plantdoku: every color is a garden bed. One plant in every bed, every row and every
 // column; plants never touch, not even at corners. Each bed has its own plant, so a
 // finished board shows one of each.
 // Daily puzzle (same for everyone, timed on the server from the Start tap, leaderboard)
 // + practice puzzles from a 5x5 starter up. Ads: one full-screen ad per two finished
-// puzzles, when the next one starts. Hints: each one costs a reward video (Plus: unlimited).
+// puzzles (adBeforeNext in lib/games/common), when the next one starts, before its clock runs.
+// Hints: each one costs a reward video (Plus: unlimited). The clock stops during any ad.
+// The daily board stays hidden until its clock is running, so nobody can study it for free.
 // Plus: no ads, unlimited hints.
 
 const DARK_THEMES = new Set(['dark', 'botanical', 'halloween', 'christmas', 'newyears', 'fourthofjuly', 'valentines', 'stpatricks', 'fall']);
@@ -67,18 +70,6 @@ function pauseKeepalive(date) {
       body: JSON.stringify({ action: 'pause', date }),
     }).catch(() => {});
   } catch { /* ignore */ }
-}
-function countFinish() {
-  try { localStorage.setItem('hp_pd_completed', String((Number(localStorage.getItem('hp_pd_completed')) || 0) + 1)); } catch { /* ignore */ }
-}
-// One full-screen ad per two finished puzzles, when the next one starts
-function adBeforeNext() {
-  let n = 0;
-  try { n = Number(localStorage.getItem('hp_pd_completed')) || 0; } catch { /* ignore */ }
-  if (n >= 2) {
-    try { localStorage.setItem('hp_pd_completed', '0'); } catch { /* ignore */ }
-    showAdForEvent('plantdoku');
-  }
 }
 function untilMidnight() {
   const now = new Date();
