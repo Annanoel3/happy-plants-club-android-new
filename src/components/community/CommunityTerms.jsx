@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 
 // Community rules people agree to the first time they open Community, before they see or
 // post anything (Google Play requires agreement before posting or viewing posts).
 // Saved on the account (community_terms_at), so it doesn't come back on a new phone.
-const TERMS_VERSION = 1;
+// The community function refuses posts, comments, likes and follows until the account has
+// this version: keep TERMS_VERSION the same in base44/functions/community.
+export const TERMS_VERSION = 1;
 const LOCAL_KEY = `hp_community_terms_v${TERMS_VERSION}`;
 
 const RULES = [
@@ -24,15 +27,39 @@ export function useCommunityTerms() {
     try { return localStorage.getItem(LOCAL_KEY) ? 'agreed' : 'checking'; } catch { return 'checking'; }
   });
   useEffect(() => {
-    if (state !== 'checking') return;
+    let gone = false;
     base44.auth.me()
-      .then((u) => setState(Number(u?.community_terms_version) >= TERMS_VERSION ? 'agreed' : 'needed'))
-      .catch(() => setState('needed'));
-  }, [state]);
+      .then((u) => {
+        if (gone) return;
+        const onAccount = Number(u?.community_terms_version) >= TERMS_VERSION;
+        if (onAccount) setState('agreed');
+        else if (state === 'agreed') {
+          // Agreed on this phone but it never reached the account (the server checks the account)
+          base44.auth.updateMe({ community_terms_at: new Date().toISOString(), community_terms_version: TERMS_VERSION }).catch(() => {});
+        } else setState('needed');
+      })
+      .catch(() => { if (!gone && state === 'checking') setState('needed'); });
+    return () => { gone = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // The server refused something because the rules aren't agreed on the account: ask again
+  useEffect(() => {
+    const ask = () => {
+      try { localStorage.removeItem(LOCAL_KEY); } catch { /* ignore */ }
+      setState('needed');
+    };
+    window.addEventListener('hp-community-terms-needed', ask);
+    return () => window.removeEventListener('hp-community-terms-needed', ask);
+  }, []);
   const agree = async () => {
+    try {
+      await base44.auth.updateMe({ community_terms_at: new Date().toISOString(), community_terms_version: TERMS_VERSION });
+    } catch {
+      toast.error('Couldn’t save that. Check your connection and try again.');
+      return;
+    }
     try { localStorage.setItem(LOCAL_KEY, '1'); } catch { /* ignore */ }
     setState('agreed');
-    try { await base44.auth.updateMe({ community_terms_at: new Date().toISOString(), community_terms_version: TERMS_VERSION }); } catch { /* saved on this phone anyway */ }
   };
   return { state, agree };
 }
