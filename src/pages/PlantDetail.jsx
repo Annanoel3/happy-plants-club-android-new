@@ -1195,7 +1195,7 @@ export default function PlantDetail() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+      <Dialog open={showEditDialog} onOpenChange={(o) => { setShowEditDialog(o); if (!o) { setRenameOpen(false); setRenameText(""); } }}>
         <DialogContent className={`${getThemedClasses()} max-h-[80vh] overflow-y-auto`}>
           <DialogHeader>
             <DialogTitle className={getTextColor()}>Edit Plant Details</DialogTitle>
