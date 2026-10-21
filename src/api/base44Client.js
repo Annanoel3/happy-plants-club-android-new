@@ -52,10 +52,28 @@ base44.auth.updateMe = async (data) => {
   return result;
 };
 
-base44.auth.logout = (...args) => {
+// Unlinks this phone from the signed-out account's pushes. Every logout goes
+// through base44.auth.logout below, so Settings, My Profile, Delete Account and
+// an expired session all do this (before, only Settings did, so a phone kept
+// getting the old account's reminders).
+export async function unlinkPushFromThisPhone() {
+  const tasks = [
+    (async () => { await window.Capacitor?.Plugins?.NotifyBridge?.logout?.(); })(),
+    (async () => { window.onNativePushLogout?.(); })(),
+    (async () => { await window.OneSignal?.logout?.(); })(),
+    // Stop this phone's watering pop-ups for the account being signed out
+    import('@/lib/wateringPopups').then((m) => m.signOutWateringPopups()),
+  ];
+  // Never let a stuck bridge call block signing out
+  await Promise.race([
+    Promise.allSettled(tasks),
+    new Promise((r) => setTimeout(r, 1500)),
+  ]);
+}
+
+base44.auth.logout = async (...args) => {
   clearUserCache();
-  // Stop this phone's watering pop-ups for the account being signed out
-  import('@/lib/wateringPopups').then((m) => m.signOutWateringPopups()).catch(() => {});
+  try { await unlinkPushFromThisPhone(); } catch { /* best effort */ }
   return rawLogout(...args);
 };
 
