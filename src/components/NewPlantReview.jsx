@@ -9,16 +9,32 @@ import { refreshPlantData } from '@/lib/query-client';
 import { aiLimitInfo, handleAiLimit } from '@/lib/premium';
 import { AREA_OPTIONS, ENVIRONMENTS, myAreas } from '@/lib/areas';
 import { WATER_METHODS, POT_SIZES, waterMethod } from '@/lib/waterAmount';
+import { localToday } from '@/lib/dates';
 
 // "Check your new plant": after a plant is added (photo, typed or spoken), ask where it
 // lives, how it's watered, the pot width (for plants you water normally), and show the
 // scientific name with a way to correct it. A corrected name redoes the plant's care.
 // The plant is already saved; this only fills in the rest, so closing the app loses nothing.
 // inline: the same questions as a card at the top of the plant's own page (plants added in
-// bulk, or put off with "Later"). Saving it, with a place picked, takes the plant out of
-// "Newly added".
+// bulk, or put off with "Later"). Saving it, with a place picked, takes a named plant out of
+// "Newly added". A plant still waiting for its name keeps its place there (and keeps getting
+// named: the photo-ID retry and the hourly sweep only look at unnamed plants).
+// Also asks once when it was last watered (not for plants added several at once): until
+// it's answered, or "Not sure", the plant is due today.
 
 const name = (p) => p?.nickname || p?.name || 'New plant';
+
+const LAST_WATER = [
+  { id: 'today', label: 'Today', ago: 0 },
+  { id: 'few', label: 'A few days ago', ago: 3 },
+  { id: 'week', label: 'Over a week ago', ago: 8 },
+  { id: 'unsure', label: 'Not sure', ago: null },
+];
+function addDays(day, n) {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
 
 export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, navigate, inline = false }) {
   const [local, setLocal] = useState(plant);
@@ -34,6 +50,7 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
   const [renaming, setRenaming] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lastWater, setLastWater] = useState(null); // LAST_WATER id
 
   // New plant shown: start from what we know
   useEffect(() => {
@@ -48,6 +65,7 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
     setPot(plant?.pot_diameter_in === 0 || plant?.pot_diameter_in ? plant.pot_diameter_in : null);
     setSciEdit(false);
     setSciText(plant?.scientific_name || '');
+    setLastWater(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plant?.id]);
 
@@ -113,6 +131,8 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
   const canAddPhoto = !failed && !!local?.image_url && info.confidence !== 'high' && (Number(info.extra_tries) || 0) < 3;
   const isCurrent = (c) => String(c.scientific_name).toLowerCase() === String(local?.scientific_name || '').toLowerCase();
   const pours = (method || 'pour') === 'pour';
+  // Several added at once: no setup questions per plant (they stay due today)
+  const askWater = !info.bulk && !(Number(local?.total_waterings) > 0);
 
   const chip = (active) => `px-3 py-2 rounded-xl text-sm font-medium border active:scale-95 transition ${
     active ? 'bg-green-600 border-green-600 text-white' : ui.light ? 'bg-white border-gray-300 text-gray-800' : 'bg-white/10 border-white/20 text-white'}`;
@@ -173,18 +193,37 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
     if (!loc) { toast.error('Pick where it lives first'); return; }
     setSaving(true);
     try {
-      const patch = { location: loc, add_status: 'done' };
+      // The care sheet (or a watering) can land while this screen is open: build on the saved
+      // plant, not the copy this screen started with
+      let fresh = null;
+      try { [fresh] = await base44.entities.Plant.filter({ id: plant.id }); } catch { /* use what we have */ }
+      const cur = fresh || local || {};
+      const patch = { location: loc };
+      // Out of "Newly added" only once it's named too. Still waiting for a name (out of photo
+      // IDs, or naming failed): it stays, so it still gets named.
+      if (cur.add_status === 'review') patch.add_status = 'done';
       if (env) patch.environment = env;
-      const chosen = method || waterMethod(local);
-      if (chosen !== waterMethod(local)) {
+      const chosen = method || waterMethod(cur);
+      if (chosen !== waterMethod(cur)) {
         patch.water_method = chosen;
-        // The care sheet can land while this screen is open: build on the saved profile, not
-        // the copy this screen started with, so its watering numbers aren't overwritten
-        let cur = local?.care_profile || {};
-        try { const [fresh] = await base44.entities.Plant.filter({ id: plant.id }); if (fresh?.care_profile) cur = fresh.care_profile; } catch { /* use what we have */ }
-        patch.care_profile = { ...cur, user_method: true };
+        patch.care_profile = { ...(cur.care_profile || {}), user_method: true };
       }
       if (chosen === 'pour' && pot !== null && pot !== 'unsure') patch.pot_diameter_in = Number(pot);
+      // When it was last watered. Not answered or "Not sure": due today. Skipped once a
+      // watering has been logged for it (that's the real date).
+      if (!info.bulk && !(Number(cur.total_waterings) > 0)) {
+        const today = localToday();
+        const ago = LAST_WATER.find((o) => o.id === lastWater)?.ago ?? null;
+        if (ago === null) {
+          patch.last_watered = null;
+          patch.next_watering_due = today;
+        } else {
+          const last = addDays(today, -ago);
+          const next = addDays(last, Number(cur.water_frequency_days) || 7);
+          patch.last_watered = last;
+          patch.next_watering_due = next < today ? today : next;
+        }
+      }
       await base44.entities.Plant.update(plant.id, patch);
       // Now we know if it lives indoors or outdoors: use that spot's watering numbers
       if (env && env !== local?.environment) {
@@ -192,7 +231,7 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
           .then(() => refreshPlantData()).catch(() => { /* the hourly sweep does it */ });
       }
       refreshPlantData();
-      onDone({ ...local, ...patch });
+      onDone({ ...cur, ...patch });
     } catch {
       toast.error("Couldn't save. Check your signal and try again.");
     } finally {
@@ -219,7 +258,7 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
                 <p className={`font-bold ${ui.text}`}>{waitingForId ? 'Waiting for a photo ID' : "We couldn't name this one"}</p>
                 <p className={`text-xs ${ui.sub}`}>
                   {waitingForId
-                    ? "You were out of photo IDs for the day. It gets named on its own when they're back, or type its name below (always free)."
+                    ? "You were out of photo IDs for the day. It gets named on its own when they're back, or type its name below. Typing a plant's name doesn't use a photo ID."
                     : 'Try again, or type its name below.'}
                 </p>
                 <button onClick={retry} disabled={retrying} className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-green-600">
@@ -246,13 +285,13 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
 
         {(sciEdit || failed) && (
           <div>
-            <p className={sectionTitle}>{failed ? 'What is it?' : 'Scientific name'}</p>
+            <p className={sectionTitle}>{failed ? 'What is it?' : 'Plant name'}</p>
             <div className="flex gap-2">
               <input
                 value={sciText}
                 onChange={(e) => setSciText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') rename(sciText); }}
-                placeholder={failed ? 'e.g. African violet or Saintpaulia ionantha' : 'e.g. Saintpaulia ionantha'}
+                placeholder={failed ? 'e.g. African violet or Saintpaulia ionantha' : 'e.g. Snake plant'}
                 className={`flex-1 min-w-0 rounded-xl border px-3 py-2.5 text-base ${ui.light ? 'bg-white border-gray-300 text-gray-900' : 'bg-white/10 border-white/20 text-white'}`}
                 autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="done"
               />
@@ -376,6 +415,19 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
             <p className={`text-xs mt-1 ${ui.sub}`}>Used to work out how many ounces to give. You can change it later.</p>
           </div>
         )}
+
+        {/* When it was last watered (so the first reminder is right) */}
+        {askWater && (
+          <div>
+            <p className={sectionTitle}>When did you last water it?</p>
+            <div className="flex flex-wrap gap-1.5">
+              {LAST_WATER.map((o) => (
+                <button key={o.id} onClick={() => setLastWater(o.id)} className={chip(lastWater === o.id)}>{o.label}</button>
+              ))}
+            </div>
+            <p className={`text-xs mt-1 ${ui.sub}`}>If you're not sure, we'll say it's due today.</p>
+          </div>
+        )}
       </div>
   );
 
@@ -390,7 +442,11 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
       <section className={`rounded-2xl border-2 border-green-500/60 overflow-hidden ${ui.card}`} aria-label="Finish setting up this plant">
         <div className="px-4 pt-4 pb-3">
           <p className={`text-lg font-bold ${ui.text}`}>🌱 New plant: finish setting it up</p>
-          <p className={`text-sm ${ui.sub}`}>Pick where it lives and check how it's watered. It stays under Newly added until you save.</p>
+          <p className={`text-sm ${ui.sub}`}>
+            {failed
+              ? "Pick where it lives and check how it's watered. It stays under Newly added until it has a name."
+              : "Pick where it lives and check how it's watered. It stays under Newly added until you save."}
+          </p>
         </div>
         {body}
         <div className="px-4 pb-4 flex">{saveButton}</div>
@@ -403,7 +459,7 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <div className={`px-4 py-3 border-b flex items-center justify-between ${border}`}>
         <p className={`text-lg font-bold ${ui.text}`}>🌱 Check your new plant</p>
-        <button onClick={onLater} aria-label="Later" className={`p-2 -mr-2 rounded-full ${ui.text}`}><X className="w-6 h-6" /></button>
+        <button onClick={onLater} aria-label="Later" data-back-close className={`p-2 -mr-2 rounded-full ${ui.text}`}><X className="w-6 h-6" /></button>
       </div>
       {body}
       <div className={`px-4 pt-3 pb-4 border-t flex gap-3 ${border}`}>
