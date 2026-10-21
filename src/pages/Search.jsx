@@ -1,9 +1,8 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search as SearchIcon, User, UserPlus, UserCheck, UserX, Users } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Search as SearchIcon, User, UserPlus, UserCheck, UserX, Users, Clock, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +10,11 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import QuietNote from "@/components/community/QuietNote";
+import { community, communityToast, displayName, profilePath } from "@/lib/community";
 
+// Find Friends: search, follow requests and followers. Everything goes through the community
+// function (and searchUsers), so people show up by name, @handle and photo, never by email.
+// Opens on the Requests tab when there are requests waiting (or with ?tab=requests).
 export default function SearchPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -19,11 +22,15 @@ export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [activeTab, setActiveTab] = useState('search');
+  const [searched, setSearched] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+  const urlTab = new URLSearchParams(window.location.search).get('tab');
+  const [activeTab, setActiveTab] = useState(['search', 'requests', 'followers'].includes(urlTab) ? urlTab : 'search');
+  const pickedTab = useRef(!!urlTab);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   useEffect(() => {
-    loadUser();
+    base44.auth.me().then(setUser).catch(() => navigate('/'));
   }, []);
 
   useEffect(() => {
@@ -42,45 +49,31 @@ export default function SearchPage() {
     };
   }, []);
 
-  const loadUser = async () => {
-    try {
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-    } catch (error) {
-      navigate('/');
-    }
-  };
-
   const { data: followRequests = [] } = useQuery({
     queryKey: ['followRequests', user?.email],
-    queryFn: async () => {
-      if (!user) return [];
-      return await base44.entities.FollowRequest.filter({ 
-        target_email: user.email,
-        status: 'pending'
-      });
-    },
+    queryFn: async () => (await community('people', { list: 'requests' }))?.people || [],
     enabled: !!user,
-    refetchInterval: 60000, // was 10s; the list is also invalidated right after accept/decline
-  });
-
-  const { data: following = [] } = useQuery({
-    queryKey: ['following', user?.email],
-    queryFn: async () => {
-      if (!user) return [];
-      return await base44.entities.Follow.filter({ follower_email: user.email });
-    },
-    enabled: !!user,
+    refetchInterval: 60000, // the list is also refreshed right after accept/decline
   });
 
   const { data: followers = [] } = useQuery({
     queryKey: ['followers', user?.email],
-    queryFn: async () => {
-      if (!user) return [];
-      return await base44.entities.Follow.filter({ following_email: user.email });
-    },
-    enabled: !!user,
+    queryFn: async () => (await community('people', { list: 'followers' }))?.people || [],
+    enabled: !!user && activeTab === 'followers',
   });
+
+  // The menu's Find Friends badge counts requests: land on them
+  useEffect(() => {
+    if (!pickedTab.current && followRequests.length > 0) {
+      pickedTab.current = true;
+      setActiveTab('requests');
+    }
+  }, [followRequests.length]);
+
+  const pickTab = (tab) => {
+    pickedTab.current = true;
+    setActiveTab(tab);
+  };
 
   const getThemedClasses = () => {
     // Dark container themes - adjusted opacity
@@ -102,19 +95,9 @@ export default function SearchPage() {
     return 'bg-white/60 backdrop-blur-md border border-gray-300/50';
   };
 
-  const getTextColor = () => {
-    // Dark themes - white text
-    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'valentines' || theme === 'stpatricks' || theme === 'fall') return 'text-white';
-    // Light themes - dark text
-    return 'text-gray-900';
-  };
-
-  const getSecondaryTextColor = () => {
-    // Dark themes - light secondary text
-    if (theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'valentines' || theme === 'stpatricks' || theme === 'fall') return 'text-white/80';
-    // Light themes - dark secondary text
-    return 'text-gray-600';
-  };
+  const isDarkTheme = theme === 'dark' || theme === 'botanical' || theme === 'halloween' || theme === 'christmas' || theme === 'newyears' || theme === 'fourthofjuly' || theme === 'valentines' || theme === 'stpatricks' || theme === 'fall';
+  const getTextColor = () => (isDarkTheme ? 'text-white' : 'text-gray-900');
+  const getSecondaryTextColor = () => (isDarkTheme ? 'text-white/80' : 'text-gray-600');
 
   const getPrimaryButtonClasses = () => {
     if (theme === 'botanical') return 'bg-green-700 hover:bg-green-800 text-white';
@@ -134,107 +117,87 @@ export default function SearchPage() {
   };
 
   const handleSearch = async () => {
-    if (!searchQuery.trim()) {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
       setSearchResults([]);
+      setSearched(false);
+      if (q) toast('Type at least 2 letters.');
       return;
     }
-
     setIsSearching(true);
     try {
-      const { data } = await base44.functions.invoke('searchUsers', {
-        query: searchQuery
-      });
-      setSearchResults(data.users || []);
-    } catch (error) {
-      toast.error('Search failed');
+      const { data } = await base44.functions.invoke('searchUsers', { query: q });
+      setSearchResults(data?.users || []);
+    } catch {
+      toast.error("Search isn't working right now. Please try again.");
       setSearchResults([]);
     } finally {
       setIsSearching(false);
+      setSearched(true);
     }
   };
 
-  const followMutation = useMutation({
-    mutationFn: async (targetEmail) => {
-      const targetUsers = await base44.entities.User.filter({ email: targetEmail });
-      if (targetUsers.length === 0) return;
-      
-      const targetUser = targetUsers[0];
-      
-      if (targetUser.profile_private) {
-        await base44.entities.FollowRequest.create({
-          requester_email: user.email,
-          requester_name: user.full_name,
-          requester_handle: user.handle,
-          target_email: targetEmail,
-          status: 'pending'
-        });
-        toast.success('Follow request sent!');
+  // Follow, request (private profiles), unfollow or cancel a request
+  const toggleFollow = async (person) => {
+    if (busyId) return;
+    setBusyId(person.id);
+    try {
+      if (person.i_follow || person.requested) {
+        await community('unfollow', { user_id: person.id });
+        setSearchResults((rows) => rows.map((r) => (r.id === person.id ? { ...r, i_follow: false, requested: false } : r)));
+        toast.success(person.i_follow ? 'Unfollowed' : 'Request canceled');
       } else {
-        await base44.entities.Follow.create({
-          follower_email: user.email,
-          following_email: targetEmail
-        });
-        toast.success('Now following!');
+        const res = await community('follow', { user_id: person.id });
+        const requested = res?.state === 'requested';
+        setSearchResults((rows) => rows.map((r) => (r.id === person.id ? { ...r, i_follow: !requested, requested } : r)));
+        toast.success(requested ? 'Follow request sent!' : 'Now following!');
       }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['following'] });
-    },
-  });
-
-  const unfollowMutation = useMutation({
-    mutationFn: async (targetEmail) => {
-      const follows = await base44.entities.Follow.filter({
-        follower_email: user.email,
-        following_email: targetEmail
-      });
-      if (follows.length > 0) {
-        await base44.entities.Follow.delete(follows[0].id);
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['following'] });
-      toast.success('Unfollowed');
-    },
-  });
-
-  const approveRequestMutation = useMutation({
-    mutationFn: async (request) => {
-      await base44.entities.FollowRequest.update(request.id, { status: 'approved' });
-      await base44.entities.Follow.create({
-        follower_email: request.requester_email,
-        following_email: user.email
-      });
-      
-      await base44.entities.Notification.create({
-        user_email: request.requester_email,
-        type: 'follow_approved',
-        message: `${user.full_name} approved your follow request!`,
-        from_user_email: user.email,
-        from_user_name: user.full_name,
-        from_user_handle: user.handle
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['followRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['communityFeed'] });
       queryClient.invalidateQueries({ queryKey: ['followers'] });
-      toast.success('Request approved!');
-    },
-  });
-
-  const denyRequestMutation = useMutation({
-    mutationFn: async (requestId) => {
-      await base44.entities.FollowRequest.update(requestId, { status: 'denied' });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['followRequests'] });
-      toast.success('Request denied');
-    },
-  });
-
-  const isFollowing = (email) => {
-    return following.some(f => f.following_email === email);
+    } catch (e) {
+      communityToast(e, navigate);
+    } finally {
+      setBusyId(null);
+    }
   };
+
+  // Approving tells the person who asked (push + note); declining doesn't tell anyone
+  const answerRequest = async (request, approve) => {
+    if (busyId) return;
+    setBusyId(request.request_id);
+    try {
+      const res = await community(approve ? 'approve' : 'decline', { request_id: request.request_id });
+      if (approve && res?.state === 'unavailable') toast("That person isn't available anymore.");
+      else toast.success(approve ? 'Request approved!' : 'Request declined');
+      queryClient.invalidateQueries({ queryKey: ['followRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['pendingRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['followers'] });
+    } catch (e) {
+      communityToast(e, navigate);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openProfile = (person) => {
+    const path = profilePath(person?.id);
+    if (path) navigate(path);
+  };
+
+  const PersonLine = ({ person }) => (
+    <>
+      <Avatar className="w-10 h-10 flex-shrink-0">
+        <AvatarImage src={person.photo} className="object-cover" />
+        <AvatarFallback><User className="w-5 h-5" /></AvatarFallback>
+      </Avatar>
+      <div className="text-left min-w-0 flex-1">
+        <p className={`font-semibold text-sm truncate ${getTextColor()}`}>{displayName(person)}</p>
+        {person.handle && person.name !== person.handle && (
+          <p className={`text-xs truncate ${getSecondaryTextColor()}`}>@{person.handle}</p>
+        )}
+      </div>
+    </>
+  );
 
   if (!user) {
     return (
@@ -259,7 +222,7 @@ export default function SearchPage() {
 
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-3 px-3">
           <Button
-            onClick={() => setActiveTab('search')}
+            onClick={() => pickTab('search')}
             variant={activeTab === 'search' ? 'default' : 'outline'}
             size="sm"
             className={`flex-shrink-0 whitespace-nowrap ${activeTab === 'search' ? getPrimaryButtonClasses() : `${getThemedClasses()} ${getTextColor()}`}`}
@@ -268,7 +231,7 @@ export default function SearchPage() {
             <span className="text-sm">Search</span>
           </Button>
           <Button
-            onClick={() => setActiveTab('requests')}
+            onClick={() => pickTab('requests')}
             variant={activeTab === 'requests' ? 'default' : 'outline'}
             size="sm"
             className={`flex-shrink-0 whitespace-nowrap ${activeTab === 'requests' ? getPrimaryButtonClasses() : `${getThemedClasses()} ${getTextColor()}`}`}
@@ -280,7 +243,7 @@ export default function SearchPage() {
             )}
           </Button>
           <Button
-            onClick={() => setActiveTab('followers')}
+            onClick={() => pickTab('followers')}
             variant={activeTab === 'followers' ? 'default' : 'outline'}
             size="sm"
             className={`flex-shrink-0 whitespace-nowrap ${activeTab === 'followers' ? getPrimaryButtonClasses() : `${getThemedClasses()} ${getTextColor()}`}`}
@@ -294,19 +257,20 @@ export default function SearchPage() {
           <>
             <div className="mb-6 flex gap-2 w-full">
               <Input
-                placeholder="Search..."
+                placeholder="Search by name or @handle"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="theme-input flex-1 min-w-0 text-sm"
               />
               <Button
                 onClick={handleSearch}
                 disabled={isSearching}
                 size="icon"
+                aria-label="Search"
                 className={`flex-shrink-0 ${getPrimaryButtonClasses()}`}
               >
-                <SearchIcon className="w-4 h-4" />
+                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <SearchIcon className="w-4 h-4" />}
               </Button>
             </div>
 
@@ -315,45 +279,30 @@ export default function SearchPage() {
                 <Card key={result.id} className={getThemedClasses()}>
                   <CardContent className="p-3">
                     <div className="flex items-center gap-2 w-full">
-                      <button
-                        onClick={() => navigate(`/Profile?email=${result.email}`)}
-                        className="flex items-center gap-2 flex-1 min-w-0"
-                      >
-                        <Avatar className="w-10 h-10 flex-shrink-0">
-                          <AvatarImage src={result.profile_picture} className="object-cover" />
-                          <AvatarFallback><User className="w-5 h-5" /></AvatarFallback>
-                        </Avatar>
-                        <div className="text-left min-w-0 flex-1">
-                          <p className={`font-semibold text-sm truncate ${getTextColor()}`}>{result.full_name}</p>
-                          <p className={`text-xs truncate ${getSecondaryTextColor()}`}>@{result.handle}</p>
-                        </div>
+                      <button onClick={() => openProfile(result)} className="flex items-center gap-2 flex-1 min-w-0">
+                        <PersonLine person={result} />
                       </button>
-                      {isFollowing(result.email) ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => unfollowMutation.mutate(result.email)}
-                          className={`flex-shrink-0 h-8 px-2 ${getThemedClasses()} ${getTextColor()}`}
-                        >
-                          <UserCheck className="w-4 h-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => followMutation.mutate(result.email)}
-                          className={`flex-shrink-0 h-8 px-2 ${getPrimaryButtonClasses()}`}
-                        >
-                          <UserPlus className="w-4 h-4" />
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant={result.i_follow || result.requested ? 'outline' : 'default'}
+                        disabled={busyId === result.id}
+                        onClick={() => toggleFollow(result)}
+                        aria-label={result.i_follow ? 'Unfollow' : result.requested ? 'Cancel request' : result.private ? 'Request to follow' : 'Follow'}
+                        className={`flex-shrink-0 h-8 px-2 ${result.i_follow || result.requested ? `${getThemedClasses()} ${getTextColor()}` : getPrimaryButtonClasses()}`}
+                      >
+                        {busyId === result.id ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : result.i_follow ? <UserCheck className="w-4 h-4" />
+                          : result.requested ? <><Clock className="w-4 h-4 mr-1" /><span className="text-xs">Requested</span></>
+                          : <UserPlus className="w-4 h-4" />}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
               ))}
-              {!isSearching && searchQuery && searchResults.length === 0 && (
+              {!isSearching && searched && searchResults.length === 0 && (
                 <Card className={getThemedClasses()}>
                   <CardContent className="p-6 text-center">
-                    <p className={getSecondaryTextColor()}>No users found</p>
+                    <p className={getSecondaryTextColor()}>No one found by that name yet.</p>
                   </CardContent>
                 </Card>
               )}
@@ -367,27 +316,23 @@ export default function SearchPage() {
               <Card className={getThemedClasses()}>
                 <CardContent className="p-6 text-center">
                   <UserPlus className={`w-12 h-12 mx-auto mb-3 ${getSecondaryTextColor()}`} />
-                  <p className={getSecondaryTextColor()}>No pending follow requests</p>
+                  <p className={getSecondaryTextColor()}>No follow requests waiting</p>
                 </CardContent>
               </Card>
             ) : (
               followRequests.map((request) => (
-                <Card key={request.id} className={getThemedClasses()}>
+                <Card key={request.request_id} className={getThemedClasses()}>
                   <CardContent className="p-3">
                     <div className="flex items-center gap-2 w-full">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <Avatar className="w-10 h-10 flex-shrink-0">
-                          <AvatarFallback><User className="w-5 h-5" /></AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <p className={`font-semibold text-sm truncate ${getTextColor()}`}>{request.requester_name}</p>
-                          <p className={`text-xs truncate ${getSecondaryTextColor()}`}>@{request.requester_handle}</p>
-                        </div>
-                      </div>
+                      <button onClick={() => openProfile(request)} className="flex items-center gap-2 min-w-0 flex-1">
+                        <PersonLine person={request} />
+                      </button>
                       <div className="flex gap-1 flex-shrink-0">
                         <Button
                           size="sm"
-                          onClick={() => approveRequestMutation.mutate(request)}
+                          disabled={busyId === request.request_id}
+                          onClick={() => answerRequest(request, true)}
+                          aria-label="Approve"
                           className={`h-8 px-2 ${getPrimaryButtonClasses()}`}
                         >
                           <UserCheck className="w-4 h-4" />
@@ -395,7 +340,9 @@ export default function SearchPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => denyRequestMutation.mutate(request.id)}
+                          disabled={busyId === request.request_id}
+                          onClick={() => answerRequest(request, false)}
+                          aria-label="Decline"
                           className={`h-8 px-2 ${getThemedClasses()} text-red-600`}
                         >
                           <UserX className="w-4 h-4" />
@@ -422,16 +369,8 @@ export default function SearchPage() {
               followers.map((follower) => (
                 <Card key={follower.id} className={getThemedClasses()}>
                   <CardContent className="p-3">
-                    <button
-                      onClick={() => navigate(`/Profile?email=${follower.follower_email}`)}
-                      className="flex items-center gap-2 w-full text-left min-w-0"
-                    >
-                      <Avatar className="w-10 h-10 flex-shrink-0">
-                        <AvatarFallback><User className="w-5 h-5" /></AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <p className={`font-semibold text-sm truncate ${getTextColor()}`}>{follower.follower_email}</p>
-                      </div>
+                    <button onClick={() => openProfile(follower)} className="flex items-center gap-2 w-full text-left min-w-0">
+                      <PersonLine person={follower} />
                     </button>
                   </CardContent>
                 </Card>
