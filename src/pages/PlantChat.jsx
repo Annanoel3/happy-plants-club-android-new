@@ -38,10 +38,12 @@ export default function PlantChat() {
   const imageInputRef = useRef(null);
   const handleImageUploadRef = useRef(null);
   
-  const easterEggGifs = [
-    'https://media.giphy.com/media/26u4cqiYI30juCOGY/giphy.gif',
-    'https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif',
-    'https://media.giphy.com/media/26FmQ6EOvLxp6cWyY/giphy.gif',
+  // The hidden button's surprise is made on the phone now (confetti + a happy line) instead of
+  // GIFs hotlinked from Giphy (one was already broken, and none were credited)
+  const easterEggLines = [
+    '🌱 Your plants are lucky to have you!',
+    '🌿 Grow, little leaves, grow!',
+    '🪴 Plant parent of the year!',
   ];
 
   useEffect(() => {
@@ -238,8 +240,9 @@ export default function PlantChat() {
 
   const handleEasterEggClick = () => {
     setShowEasterEgg(true);
-    setCurrentGif((prev) => (prev + 1) % easterEggGifs.length);
-    setTimeout(() => setShowEasterEgg(false), 3000);
+    setCurrentGif((prev) => (prev + 1) % easterEggLines.length);
+    try { confetti({ particleCount: 90, spread: 75, origin: { y: 0.4 }, colors: ['#22c55e', '#86efac', '#facc15', '#f472b6'] }); } catch { /* just for fun */ }
+    setTimeout(() => setShowEasterEgg(false), 2500);
   };
 
   const getThemedClasses = () => {
@@ -315,13 +318,11 @@ export default function PlantChat() {
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
           >
-            <img 
-              src={easterEggGifs[currentGif]} 
-              alt="Celebration" 
-              className="max-w-md max-h-96 rounded-2xl shadow-2xl"
-            />
+            <p className="mx-6 rounded-2xl bg-white/95 px-5 py-4 text-lg font-bold text-green-700 shadow-2xl text-center">
+              {easterEggLines[currentGif]}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
