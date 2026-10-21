@@ -573,11 +573,13 @@ export default function Plantdoku() {
     if (needVideo) {
       if (!rewardedAvailable()) { toast("No video is ready right now, so no hint yet. Try again in a little while."); return; }
       setHintBusy(true);
-      // Stop the clock for the video (on the server too, and wait for it) so ad time never counts
-      const wasRunning = clock.current.running;
+      // Stop the clock for the video (on the server too, and wait for it before the video, so the
+      // resume after it can't overtake the pause) so ad time never counts
+      const c = clock.current;
+      const wasRunning = c.running;
       adHold.current = true;
-      pauseClock();
-      if (mode === 'daily' && wasRunning) { try { await call('pause', { date: day }); } catch { /* the keepalive pause already went */ } }
+      if (wasRunning) clock.current = { ms: c.ms + (Date.now() - c.at), at: Date.now(), running: false, paused: true };
+      if (mode === 'daily' && wasRunning) { try { await call('pause', { date: day }); } catch { pauseKeepalive(day); } }
       const r = await showRewardedAd();
       adHold.current = false;
       if (wasRunning) {
@@ -670,9 +672,11 @@ export default function Plantdoku() {
           </div>
         </div>
 
+        {newDay && <NewDailyBar ui={ui} onGo={backToDaily} />}
+
         {/* Daily / practice switch */}
         <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
-          <button onClick={() => mode !== 'daily' && backToDaily()}
+          <button onClick={() => (mode !== 'daily' || newDay) && backToDaily()}
             className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold border ${mode === 'daily' ? 'bg-green-600 border-green-600 text-white' : ui.chip}`}>
             Daily
           </button>
@@ -694,27 +698,40 @@ export default function Plantdoku() {
         {mode === 'daily' && dailyError && !result && (
           <div className={`rounded-2xl border p-4 mb-3 ${ui.card}`}>
             <p className={`font-semibold ${ui.text}`}>{dailyError}</p>
-            <button onClick={daily ? startDaily : loadDaily} className="mt-2 text-sm font-bold text-green-600 flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Try again</button>
+            <button onClick={daily ? () => startDaily(!daily.started) : loadDaily} className="mt-2 text-sm font-bold text-green-600 flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Try again</button>
           </div>
         )}
 
         <div className="relative">
-          <div className={needsStart ? 'blur-md pointer-events-none' : locked && !result ? 'opacity-60' : ''}>
+          {/* Hidden, not just blurred, until the daily clock runs (a blur still shows the beds'
+              shapes). The board keeps its space, so nothing moves when it appears. */}
+          <div className={hideBoard ? 'invisible' : locked && !result ? 'opacity-60' : ''} aria-hidden={hideBoard || undefined}>
             <Board puzzle={puzzle} marks={marks} check={check} hint={hint} dark={dark} locked={locked}
               hideX={solved || !!result} onTap={tap} onStroke={push} onDragX={dragX} />
           </div>
-          {mode === 'daily' && !daily && !dailyError && (
-            <div className="absolute inset-0 flex items-center justify-center"><Loader2 className={`w-8 h-8 animate-spin ${ui.text}`} /></div>
-          )}
-          {needsStart && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
-              <p className={`text-lg font-bold ${ui.text}`}>Today's puzzle is ready</p>
-              <p className={`text-sm ${ui.sub}`}>The clock starts when you tap Start, and pauses if you leave.</p>
-              <button onClick={startDaily} disabled={starting}
-                className="flex items-center gap-2 rounded-2xl px-8 py-3.5 font-bold bg-green-600 text-white text-lg active:scale-95 disabled:opacity-60">
-                {starting ? <Loader2 className="w-5 h-5 animate-spin" /> : <PlayCircle className="w-5 h-5" />} Start
-              </button>
-              <button onClick={openTutorial} className={`text-sm font-semibold underline ${ui.text}`}>How to play</button>
+          {hideBoard && (
+            <div className={`absolute inset-0 w-full max-w-[440px] mx-auto rounded-xl border flex flex-col items-center justify-center gap-3 px-6 text-center ${ui.card}`}>
+              {needsStart ? (
+                <>
+                  <p className={`text-lg font-bold ${ui.text}`}>{newDay ? "Yesterday's puzzle is ready" : "Today's puzzle is ready"}</p>
+                  <p className={`text-sm ${ui.sub}`}>The clock starts when you tap Start, and pauses if you leave.</p>
+                  <button onClick={() => startDaily(true)} disabled={starting}
+                    className="flex items-center gap-2 rounded-2xl px-8 py-3.5 font-bold bg-green-600 text-white text-lg active:scale-95 disabled:opacity-60">
+                    {starting ? <Loader2 className="w-5 h-5 animate-spin" /> : <PlayCircle className="w-5 h-5" />} Start
+                  </button>
+                  <button onClick={openTutorial} className={`text-sm font-semibold underline ${ui.text}`}>How to play</button>
+                </>
+              ) : daily?.started && !dailyError && !starting && !hintBusy ? (
+                <>
+                  <p className={`text-lg font-bold ${ui.text}`}>Paused</p>
+                  <button onClick={() => startDaily()}
+                    className="flex items-center gap-2 rounded-2xl px-8 py-3.5 font-bold bg-green-600 text-white text-lg active:scale-95">
+                    <PlayCircle className="w-5 h-5" /> Keep going
+                  </button>
+                </>
+              ) : !dailyError ? (
+                <Loader2 className={`w-8 h-8 animate-spin ${ui.text}`} />
+              ) : null}
             </div>
           )}
         </div>
@@ -807,7 +824,7 @@ export default function Plantdoku() {
                     </div>
                   </div>
                 )}
-                <p className={`text-xs mt-3 ${ui.sub}`}>New daily puzzle in {untilMidnight()}.</p>
+                {!newDay && <p className={`text-xs mt-3 ${ui.sub}`}>New daily puzzle in {untilMidnight()}.</p>}
               </>
             )}
 
