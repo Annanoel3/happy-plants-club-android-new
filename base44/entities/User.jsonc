@@ -10,6 +10,11 @@
       ],
       "default": "user"
     },
+    "last_app_open": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last time this person opened the app (updated at most once a day)"
+    },
     "quiet_hours_enabled": {
       "type": "boolean",
       "default": false,
