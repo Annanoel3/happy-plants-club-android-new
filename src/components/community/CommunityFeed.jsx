@@ -712,6 +712,7 @@ export default function CommunityFeed() {
               ))
             )}
           </div>
+          <PlantdokuEgg page="community" className="mt-6" />
         </div>
       </div>
     </div>
