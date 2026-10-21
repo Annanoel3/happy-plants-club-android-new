@@ -1,7 +1,24 @@
 {
   "name": "Like",
   "properties": {
+    "active": {
+      "default": true,
+      "description": "false after an unlike (the row stays so liking again doesn't notify the owner again)",
+      "type": "boolean"
+    },
+    "notified": {
+      "description": "The post's owner was already told about this person's like",
+      "type": "boolean"
+    },
     "post_id": {
+      "type": "string"
+    },
+    "toggles": {
+      "description": "Like/unlike taps on this post since toggles_since (capped per hour)",
+      "type": "number"
+    },
+    "toggles_since": {
+      "description": "Start of the current hour window for toggles (ISO time)",
       "type": "string"
     },
     "user_email": {
@@ -19,6 +36,11 @@
       }
     },
     "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
       "user_condition": {
         "role": "admin"
       }
