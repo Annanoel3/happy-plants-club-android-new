@@ -144,6 +144,11 @@ Deno.serve(async (req) => {
             console.error('❌ No user authenticated');
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        // Old ID function: the app uses identifyPlantWithExpert now. This one has no daily
+        // limits and uses the expensive model, so only admins can call it.
+        if (user.role !== 'admin') {
+            return Response.json({ error: 'This feature moved. Please update the app.' }, { status: 410 });
+        }
 
         const { image_url, user_location, environment, sun_exposure, pot_type, pot_size, substrate_type } = await req.json();
         console.log('📸 Image URL:', image_url);
