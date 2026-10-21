@@ -57,6 +57,8 @@ import { addDays } from '@/lib/vacation';
 
 // The garden's categories: the same list the care sheet and Auto-fix use
 const PLANT_TYPES = ['Houseplants', 'Succulents & Cacti', 'Flowers', 'Herbs', 'Vegetables', 'Trees & Shrubs', 'Perennials', 'Annuals', 'Seedlings'];
+// Auto-fix can also file a plant under this one; kept when a plant already has it
+const typeOptions = (current) => (current === 'Needs Attention' ? [...PLANT_TYPES, current] : PLANT_TYPES);
 
 export default function PlantDetail() {
   const navigate = useNavigate();
@@ -270,7 +272,7 @@ export default function PlantDetail() {
         // A string while typing, so the box can be empty for a moment
         water_frequency_days: plant.water_frequency_days ? String(plant.water_frequency_days) : "",
         // Unset (or an old name that isn't one of the garden's categories): left as it is
-        plant_type: PLANT_TYPES.includes(plant.plant_type) ? plant.plant_type : "",
+        plant_type: typeOptions(plant.plant_type).includes(plant.plant_type) ? plant.plant_type : "",
         water_method: waterMethod(plant),
         water_strict: !!plant.water_strict,
         water_days_rest: plant.water_days_rest || "",
@@ -1437,7 +1439,7 @@ export default function PlantDetail() {
                   <SelectValue placeholder="Not set" />
                 </SelectTrigger>
                 <SelectContent>
-                  {PLANT_TYPES.map(type => (
+                  {typeOptions(plant.plant_type).map(type => (
                     <SelectItem key={type} value={type}>{type}</SelectItem>
                   ))}
                 </SelectContent>
