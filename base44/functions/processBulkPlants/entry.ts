@@ -16,12 +16,6 @@ function todayFor(body: any): string {
     const d = body?.localDate;
     return (typeof d === 'string' && __DATE_RE.test(d)) ? d : new Date().toISOString().split('T')[0];
 }
-function addDays(day: string, n: number): string {
-    const d = new Date(day + 'T12:00:00Z');
-    d.setUTCDate(d.getUTCDate() + n);
-    return d.toISOString().slice(0, 10);
-}
-
 const openai = new OpenAI({
     apiKey: Deno.env.get("OPENAI_API_KEY"),
 });
@@ -83,8 +77,9 @@ Return ONLY JSON: {"plants":[{"name":"the plant's common name, spelled correctly
                 scientific_name: typeof p.scientific_name === 'string' && p.scientific_name.trim() ? p.scientific_name.trim().slice(0, 120) : null,
                 // Placeholder until its care sheet is written (a minute or less)
                 water_frequency_days: 7,
-                last_watered: today,
-                next_watering_due: addDays(today, 7),
+                // Never watered in the app: due today (no made-up "watered today"). One plant:
+                // the new-plant check asks when it was last watered. Several: not asked.
+                next_watering_due: today,
                 ...(location ? { location } : {}),
                 ...(environment ? { environment } : {}),
                 // One plant: the app asks right away where it is, the pot and the name.
