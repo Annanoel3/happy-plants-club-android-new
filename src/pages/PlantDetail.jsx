@@ -367,7 +367,7 @@ export default function PlantDetail() {
       }
       if (prof.user_method || prof.user_strict || prof.user_interval) clean.care_profile = prof;
       // A new watering gap moves the next watering too: counted from the last one
-      if (every !== Number(plant?.water_frequency_days)) {
+      if (typed >= 1 && every !== Number(plant?.water_frequency_days)) {
         const last = String(plant?.last_watered || '').slice(0, 10);
         if (/^\d{4}-\d{2}-\d{2}$/.test(last)) {
           const today = localToday();
