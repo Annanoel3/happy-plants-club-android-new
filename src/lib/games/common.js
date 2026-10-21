@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { localToday } from '@/lib/dates';
 import { initAdMob, showInterstitialAd } from '@/lib/admob';
 import { isPlusCached } from '@/lib/premium';
-import { claimPopup, releasePopup } from '@/lib/popupGate';
+import { claimPopup, releasePopup, popupBusy } from '@/lib/popupGate';
 
 export const DARK_THEMES = new Set(['dark', 'botanical', 'halloween', 'christmas', 'newyears', 'fourthofjuly', 'valentines', 'stpatricks', 'fall']);
 
@@ -92,7 +92,8 @@ let adRun = null;
  * showAdForEvent() in admob.js returns nothing and quietly skips (45 s gap, no ad loaded), so the
  * count used to be reset for ads that never showed. This shows the interstitial itself and only
  * resets the count when one really showed; otherwise the next puzzle tries again.
- * Resolves (true if an ad showed) once the ad is closed, so a timed game can hold its clock.
+ * Resolves (true if an ad showed) once the ad is closed, and the "Tired of ads?" popup that can
+ * follow it, so a timed game can hold its clock until the player is really back.
  */
 export function adBeforeNext() {
   if (adRun) return adRun;
@@ -111,15 +112,20 @@ export function adBeforeNext() {
       await initAdMob();
       const plugin = Capacitor.Plugins?.AdMob;
       let closed = () => {};
+      let failed = false;
       const gone = new Promise((r) => { closed = r; });
       // showInterstitial() settles as soon as the ad opens, so wait for it to be closed
-      for (const ev of ['interstitialAdDismissed', 'interstitialAdFailedToShow']) {
-        try { subs.push(await plugin.addListener(ev, () => closed())); } catch { /* ignore */ }
-      }
+      try { subs.push(await plugin.addListener('interstitialAdDismissed', () => closed())); } catch { /* ignore */ }
+      try { subs.push(await plugin.addListener('interstitialAdFailedToShow', () => { failed = true; closed(); })); } catch { /* ignore */ }
       const shown = await showInterstitialAd();
       if (!shown) return false;
-      try { localStorage.setItem(FINISHED_KEY, '0'); } catch { /* ignore */ }
       if (subs.length) await Promise.race([gone, sleep(120000)]);
+      if (failed) return false;
+      try { localStorage.setItem(FINISHED_KEY, '0'); } catch { /* ignore */ }
+      // Every 3rd ad, admob.js follows it with a "Tired of ads?" popup (it waits for this slot)
+      releasePopup('game-ad');
+      await sleep(900);
+      for (let i = 0; i < 200 && popupBusy(); i++) await sleep(300);
       return true;
     } catch {
       return false;
