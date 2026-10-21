@@ -5,7 +5,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 // left out.
 
 // Anna's test account (handle @admintestaccount) stays out of search results
-const HIDDEN_EMAILS = new Set(['mediocreatbestdev@outlook.com']);
+// adhdone.space@gmail.com (@plantwhisperer239) is another of Anna's test accounts (it wrote "News feed test")
+const HIDDEN_EMAILS = new Set(['mediocreatbestdev@outlook.com', 'adhdone.space@gmail.com']);
 const HIDDEN_HANDLES = new Set(['admintestaccount']);
 
 // A name that's just the start of someone's email would give the email away: show the handle instead
