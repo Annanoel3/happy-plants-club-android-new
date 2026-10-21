@@ -26,6 +26,8 @@ import { localToday } from "@/lib/dates";
 import CareTaskList, { careTasks, BulkCareSetup } from "@/components/plus/CareTaskList";
 import WateringRound from "@/components/WateringRound";
 import PlantdokuEgg from "@/components/PlantdokuEgg";
+import NotificationsOffNote from "@/components/NotificationsOffNote";
+import { withPendingWaterings } from "@/lib/outbox";
 
 export default function Schedule() {
   const navigate = useNavigate();
@@ -73,18 +75,19 @@ export default function Schedule() {
     }
   };
 
-  // Filter plants by current user
-  const { data: plants = [] } = useQuery({
+  // Same list (and shared cache) as the garden. A failed load throws instead of returning [],
+  // so the saved garden is kept rather than replaced by an empty one.
+  const { data: plantsData, isError: plantsError, refetch: refetchPlants, isFetching: plantsFetching } = useQuery({
     queryKey: ['plants', user?.email],
     queryFn: async () => {
-      try {
-        return await base44.entities.Plant.filter({ created_by: user.email }, "-created_date", 1000);
-      } catch (err) {
-        return [];
-      }
+      const result = await base44.entities.Plant.filter({ created_by: user.email }, "-created_date", 1000);
+      // Waterings still waiting on this phone (no signal) show as done
+      return withPendingWaterings(Array.isArray(result) ? result : []);
     },
     enabled: !!user && !!user.email, // Ensure user and user.email are available before fetching
   });
+  const plants = Array.isArray(plantsData) ? plantsData : [];
+  const plantsFailed = plantsError && !Array.isArray(plantsData);
 
   // Filter reminders by current user
   const { data: reminders = [] } = useQuery({
@@ -250,7 +253,7 @@ export default function Schedule() {
       refreshPlantData();
       if (data?.result === 'advanced' && data?.next_due) toast.success(`Done! Next one: ${format(parseISO(data.next_due), 'MMM d')}`);
     },
-    onError: (err) => toast.error('Could not update reminder: ' + err.message),
+    onError: () => toast.error("Couldn't update that reminder. Try again in a moment."),
   });
 
   const careAll = plus && user ? careTasks(plants, user) : [];
@@ -264,38 +267,23 @@ export default function Schedule() {
   // Care that's due on a day; today also gathers anything overdue
   const careForDate = (dateStr) => careAll.filter((t) => t.next === dateStr || (dateStr === todayStr && t.next < todayStr));
 
+  // A day's tasks. Today also gathers anything overdue (late watering stays on today until done).
+  const dayOf = (v) => String(v || '').slice(0, 10);
+  const onDay = (due, dateStr) => !!due && (due === dateStr || (dateStr === todayStr && due < todayStr));
+  const wateringOn = (dateStr) => plants.filter((p) => onDay(dayOf(p.next_watering_due), dateStr));
+  const remindersOn = (dateStr) => reminders.filter((r) => !r.completed && onDay(dayOf(r.due_date), dateStr));
+  const isLate = (due) => !!due && dayOf(due) < todayStr;
+
   const getTasksForDate = (date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-
-    const wateringTasks = plants.filter(plant => {
-      if (!plant.next_watering_due) return false;
-      // Assuming next_watering_due is already in 'yyyy-MM-dd' format or we compare only the date part
-      return plant.next_watering_due === dateStr;
-    });
-
-    const reminderTasks = reminders.filter(reminder => {
-      if (!reminder.due_date || reminder.completed) return false;
-      // Assuming due_date is already in 'yyyy-MM-dd' format or we compare only the date part
-      return reminder.due_date === dateStr;
-    });
-
-    return { wateringTasks, reminderTasks, careTasks: careForDate(dateStr) };
+    return { wateringTasks: wateringOn(dateStr), reminderTasks: remindersOn(dateStr), careTasks: careForDate(dateStr) };
   };
 
   const selectedDateTasks = getTasksForDate(selectedDate);
 
   const hasTasksOnDate = (date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-
-    const hasWatering = plants.some(plant =>
-      plant.next_watering_due === dateStr
-    );
-
-    const hasReminder = reminders.some(reminder =>
-      reminder.due_date === dateStr && !reminder.completed
-    );
-
-    return hasWatering || hasReminder || careAll.some((t) => t.next === dateStr);
+    return wateringOn(dateStr).length > 0 || remindersOn(dateStr).length > 0 || careForDate(dateStr).length > 0;
   };
 
   // Generate calendar days including days from previous/next months to complete the week view
@@ -353,6 +341,18 @@ export default function Schedule() {
             🔔 Notifications
           </Button>
         </div>
+
+        {/* Reminders are set here: say so if this phone won't show them */}
+        <NotificationsOffNote light={careUi.light} className="mb-6" />
+
+        {plantsFailed && (
+          <div role="status" className={`mb-6 rounded-2xl p-4 flex items-center justify-between gap-3 ${getThemedClasses()}`}>
+            <p className={`text-sm ${getTextColor()}`}>Can't reach Happy Plants right now.</p>
+            <Button size="sm" onClick={() => refetchPlants()} disabled={plantsFetching} className={getPrimaryButtonClasses()}>
+              {plantsFetching ? 'Trying…' : 'Try again'}
+            </Button>
+          </div>
+        )}
 
         {view === 'calendar' ? (
           <div className="grid gap-6">
@@ -434,19 +434,19 @@ export default function Schedule() {
                           </span>
                           {hasTasksOnDate(day) && (
                             <div className="flex gap-0.5 mt-0.5">
-                              {plants.some(p => p.next_watering_due === format(day, 'yyyy-MM-dd')) && (
+                              {wateringOn(format(day, 'yyyy-MM-dd')).length > 0 && (
                                 <div className={cn(
                                   'w-1 h-1 rounded-full',
                                   isSelected ? 'bg-white' : 'bg-blue-500'
                                 )}></div>
                               )}
-                              {reminders.some(r => r.due_date === format(day, 'yyyy-MM-dd') && !r.completed) && (
+                              {remindersOn(format(day, 'yyyy-MM-dd')).length > 0 && (
                                 <div className={cn(
                                   'w-1 h-1 rounded-full',
                                   isSelected ? 'bg-white' : 'bg-orange-500'
                                 )}></div>
                               )}
-                              {careAll.some(t => t.next === format(day, 'yyyy-MM-dd')) && (
+                              {careForDate(format(day, 'yyyy-MM-dd')).length > 0 && (
                                 <div className={cn(
                                   'w-1 h-1 rounded-full',
                                   isSelected ? 'bg-white' : 'bg-green-500'
@@ -489,6 +489,9 @@ export default function Schedule() {
                                 <p className={`font-medium ${getTextColor()}`}>
                                   {plant.nickname || plant.name}
                                 </p>
+                                {isLate(plant.next_watering_due) && (
+                                  <p className="text-xs font-semibold text-red-600 mt-0.5">Late: was due {format(parseISO(dayOf(plant.next_watering_due)), 'MMM d')}</p>
+                                )}
                                 {plant.location && (
                                   <p className={`text-xs ${getSecondaryTextColor()} mt-1`}>{plant.location}</p>
                                 )}
@@ -525,6 +528,9 @@ export default function Schedule() {
                                   </button>
                                   <div className="flex-1">
                                     <p className={`font-medium ${getTextColor()}`}>{reminder.title}</p>
+                                    {isLate(reminder.due_date) && (
+                                      <p className="text-xs font-semibold text-red-600 mt-0.5">Late: was due {format(parseISO(dayOf(reminder.due_date)), 'MMM d')}</p>
+                                    )}
                                     {reminder.description && (
                                       <p className={`text-sm ${getSecondaryTextColor()}`}>{reminder.description}</p>
                                     )}
@@ -574,7 +580,7 @@ export default function Schedule() {
                   <div className="space-y-3">
                     {plants
                       .filter(p => p.next_watering_due)
-                      .sort((a, b) => new Date(a.next_watering_due) - new Date(b.next_watering_due))
+                      .sort((a, b) => dayOf(a.next_watering_due).localeCompare(dayOf(b.next_watering_due)))
                       .map(plant => (
                         <button
                           key={plant.id}
@@ -586,9 +592,15 @@ export default function Schedule() {
                               <p className={`font-semibold ${getTextColor()}`}>
                                 {plant.nickname || plant.name}
                               </p>
-                              <p className={`text-sm ${getSecondaryTextColor()}`}>
-                                {format(parseISO(plant.next_watering_due), 'MMMM d, yyyy')}
-                              </p>
+                              {isLate(plant.next_watering_due) ? (
+                                <p className="text-sm font-semibold text-red-600">
+                                  Late: was due {format(parseISO(dayOf(plant.next_watering_due)), 'MMMM d')}
+                                </p>
+                              ) : (
+                                <p className={`text-sm ${getSecondaryTextColor()}`}>
+                                  {dayOf(plant.next_watering_due) === todayStr ? 'Today' : format(parseISO(dayOf(plant.next_watering_due)), 'MMMM d, yyyy')}
+                                </p>
+                              )}
                             </div>
                             <Droplets className="w-5 h-5 text-blue-500" />
                           </div>
@@ -627,9 +639,15 @@ export default function Schedule() {
                               {reminder.description && (
                                 <p className={`text-sm ${getSecondaryTextColor()} mt-1`}>{reminder.description}</p>
                               )}
-                              <p className={`text-sm ${getSecondaryTextColor()} mt-1`}>
-                                {format(parseISO(reminder.due_date), 'MMMM d, yyyy')}
-                              </p>
+                              {reminder.due_date && (isLate(reminder.due_date) ? (
+                                <p className="text-sm font-semibold text-red-600 mt-1">
+                                  Late: was due {format(parseISO(dayOf(reminder.due_date)), 'MMMM d')}
+                                </p>
+                              ) : (
+                                <p className={`text-sm ${getSecondaryTextColor()} mt-1`}>
+                                  {format(parseISO(dayOf(reminder.due_date)), 'MMMM d, yyyy')}
+                                </p>
+                              ))}
                             </div>
                           </div>
                         </div>
