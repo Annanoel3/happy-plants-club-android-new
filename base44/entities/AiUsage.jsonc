@@ -5,20 +5,27 @@
       "default": 0,
       "type": "number"
     },
+    "data": {
+      "description": "Extra state for some kinds (weather_note: the note; geocode 'app' row: last_ms)",
+      "type": "object"
+    },
     "day": {
-      "description": "User's local date (for kind plantnet: the UTC date)",
+      "description": "User's local date (for kind plantnet and the 'app' geocode row: the UTC date)",
       "format": "date",
       "type": "string"
     },
     "kind": {
-      "description": "identify = photo IDs used; identify_bonus = reward videos watched that day (each adds 5 photo IDs); rename = name corrections; plantnet = Pl@ntNet calls the whole app made that UTC day (user_id 'app')",
+      "description": "identify = photo IDs used; identify_bonus = reward videos watched that day (each adds 5 photo IDs); rename = name corrections; voice = voice recordings transcribed; plantnet = Pl@ntNet calls the whole app made that UTC day (user_id 'app'); weather_note = the day's weather note (one row per user, data = the note, so the AI writes it once a day); geocode = city lookups on OpenStreetMap that day (user_id 'app': whole app, data.last_ms = the last call, to keep to 1 a second)",
       "enum": [
         "identify",
         "identify_bonus",
         "rename",
         "health",
         "chat",
-        "plantnet"
+        "plantnet",
+        "voice",
+        "weather_note",
+        "geocode"
       ],
       "type": "string"
     },
