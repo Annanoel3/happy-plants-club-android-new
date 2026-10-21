@@ -3,9 +3,10 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 // "Did you know…" pushes about things Happy Plants can do, so people find the features
 // they haven't used. Runs every hour (workflow "Feature Tips"); each person gets at most
 // two a week, on their own two weekdays, around lunchtime (12-2 PM their time), and never:
-//   - on a day they already got another push (watering, care, frost),
+//   - on a day they already got another push (watering, care, frost, the daily weather push),
 //   - while they're away on a trip,
-//   - if they turned Tips (or all notifications) off in Settings,
+//   - if they turned "Tips and reminders to come back" (notifications_tips) or all
+//     notifications off in Settings,
 //   - about a feature they've used lately, or the same tip again within 90 days,
 //   - in their first 3 days (they're still finding their way around anyway).
 // Tapping a tip opens the screen it's about (data.screen; the app build with the
@@ -19,7 +20,20 @@ function osAuth(key: string | undefined | null): string {
     return k.startsWith('os_v2') ? `Key ${k}` : `Basic ${k}`;
 }
 function validTz(tz: any): string {
+    // No time zone saved: Central, like the weather push (undefined would mean UTC here)
+    if (!tz) return 'America/Chicago';
     try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return tz; } catch { return 'America/Chicago'; }
+}
+// Every user, a page at a time, oldest first (a single list() call only returns the newest 1,000)
+async function allUsers(db: any): Promise<any[]> {
+    const out: any[] = [];
+    const PAGE = 500;
+    for (let skip = 0; skip < 100000; skip += PAGE) {
+        const page = (await db.User.list('created_date', PAGE, skip)) || [];
+        out.push(...page);
+        if (page.length < PAGE) break;
+    }
+    return out;
 }
 function localParts(tz: string) {
     const p: Record<string, string> = {};
@@ -148,7 +162,7 @@ Deno.serve(async (req) => {
         }
 
         const now = Date.now();
-        const users = (await db.User.list('-created_date', 1000)) || [];
+        const users = await allUsers(db);
         const subs = (await db.Subscription.filter({ active: true }, '-updated_date', 1000).catch(() => [])) || [];
         const plusIds = new Set(subs.filter((s: any) => !s.expires_at || Date.parse(s.expires_at) > now).map((s: any) => s.user_id));
         const trips = (await db.VacationDay.list('-created_date', 1000).catch(() => [])) || [];
@@ -171,6 +185,8 @@ Deno.serve(async (req) => {
             if (u.tip_push_day === day) { bump('already_today'); continue; }
             // another push already went out today
             if (u.care_push_day === day || u.frost_push_day === day) { bump('other_push'); continue; }
+            // The daily weather push (sendDailyWeather marks the local day it went out)
+            if (u.last_weather_push_date === day) { bump('other_push'); continue; }
             const dwr = (await db.DailyWateringReminder.filter({ user_email: u.email, reminder_date: day }).catch(() => [])) || [];
             if (dwr.some((r: any) => (r.scheduled_notification_ids || []).length)) { bump('other_push'); continue; }
             // away
@@ -206,7 +222,7 @@ Deno.serve(async (req) => {
             await db.User.update(u.id, { tip_push_day: day, tip_log: { ...log, [tip.key]: day } }); // claim first: never twice
             const r = await sendPush(u.email, tip, day);
             bump(r.id ? 'sent' : 'failed');
-            if (!r.id) console.warn('tip push failed', u.email, JSON.stringify(r.detail).slice(0, 200));
+            if (!r.id) console.warn('tip push failed', u.id, JSON.stringify(r.detail?.errors || r.detail).slice(0, 120));
         }
         return Response.json({ success: true, stats, ...(body.dry ? { plan } : {}) });
     } catch (error) {
