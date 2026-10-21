@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Shuffle, Share2, PlayCircle, Flame } from 'lucide-react';
 import { toast } from 'sonner';
@@ -25,6 +25,34 @@ const sizeFor = (w) => {
   const longest = Math.max(...w.split(/[ -]/).map((s) => s.length));
   return w.length <= 6 ? 'text-[15px]' : longest <= 8 ? 'text-[13px]' : longest <= 10 ? 'text-[11.5px]' : 'text-[10px]';
 };
+
+// A word that shrinks just enough to fit its tile without breaking mid-word. Measured on the
+// phone itself (fonts differ between phones), so the tile never has to grow to fit it.
+let measureCtx = null;
+function FitWord({ word, max = 15, min = 9 }) {
+  const ref = useRef(null);
+  const [size, setSize] = useState(max);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const box = el?.parentElement;
+    if (!el || !box) return undefined;
+    const fit = () => {
+      const pad = parseFloat(getComputedStyle(box).paddingLeft) + parseFloat(getComputedStyle(box).paddingRight);
+      const avail = box.clientWidth - pad - 2;
+      if (avail <= 0) return;
+      const cs = getComputedStyle(el);
+      measureCtx = measureCtx || document.createElement('canvas').getContext('2d');
+      measureCtx.font = `${cs.fontWeight} 100px ${cs.fontFamily}`;
+      const widest = Math.max(...word.toUpperCase().split(/[ -]/).map((t) => measureCtx.measureText(t).width)) / 100;
+      setSize(Math.max(min, Math.min(max, Math.floor((avail / widest) * 2) / 2)));
+    };
+    fit();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null;
+    ro?.observe(box);
+    return () => ro?.disconnect();
+  }, [word, max, min]);
+  return <span ref={ref} style={{ fontSize: `${size}px` }}>{word}</span>;
+}
 
 function MiniTile({ word, selected, dark }) {
   return (
@@ -240,10 +268,10 @@ export default function GardenGroups() {
               const on = selected.includes(w);
               return (
                 <button key={w} onClick={() => toggle(w)} aria-pressed={on}
-                  className={`h-16 min-w-0 overflow-hidden break-words rounded-xl px-1 font-bold uppercase leading-tight text-center transition active:scale-95 ${sizeFor(w)} ${
+                  className={`h-16 min-w-0 overflow-hidden break-words rounded-xl px-1 font-bold uppercase leading-tight text-center transition active:scale-95 ${
                     on ? 'bg-green-700 text-white shadow-inner' : dark ? 'bg-white/10 text-white' : 'bg-[#f3ede1] text-gray-900 shadow-sm'}`}
                   style={on && shake ? { animation: 'ggshake .45s' } : undefined}>
-                  {w}
+                  <FitWord word={w} />
                 </button>
               );
             })}
