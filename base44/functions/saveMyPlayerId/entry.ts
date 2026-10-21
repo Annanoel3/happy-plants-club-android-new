@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
-        console.log(`Saving OneSignal player ID ${playerId} for user ${user.email}`);
+        console.log('Saving a OneSignal player ID for user', user.id);
 
         // Get current user record to check existing player IDs
         const currentUser = await base44.asServiceRole.entities.User.filter({ 
