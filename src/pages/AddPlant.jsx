@@ -22,6 +22,15 @@ import { AREA_OPTIONS } from "@/lib/areas";
 
 
 
+// Plain words for a failed add. The server answers 400 when it found no plant names.
+function addFailText(e) {
+  const status = e?.status ?? e?.response?.status;
+  const noPlants = status === 400 || /identify any plants/i.test(String(e?.error || e?.data?.error || ''));
+  return noPlants
+    ? "We couldn't find any plant names in that. Try something like \"Snake plant, Pothos\"."
+    : "Couldn't add those plants. Check your signal and try again.";
+}
+
 export default function AddPlant() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -132,7 +141,9 @@ export default function AddPlant() {
             name: 'New plant',
             image_url: file_url,
             ...(thumbUpload?.file_url ? { thumbnail_url: thumbUpload.file_url } : {}),
-            last_watered: today,
+            // Not watered in the app yet: due today until they say when it was last watered
+            // (asked in "Check your new plant"; never per plant when several are added)
+            next_watering_due: today,
             total_waterings: 0,
             add_status: 'identifying',
             // Several photos at once: no question per plant, they wait under "Newly added"
@@ -162,13 +173,14 @@ export default function AddPlant() {
       } else if (nudged) {
         if (approved.length) toast.success(`Naming ${approved.length} now.`);
       } else if (!approved.length) {
-        toast(`Saved ${waiting.length === 1 ? 'your plant' : `${waiting.length} plants`}. You're out of photo IDs for today, so ${waiting.length === 1 ? 'it gets' : 'they get'} named tomorrow. Typing a name is always free.`, { duration: 8000 });
+        toast(`Saved ${waiting.length === 1 ? 'your plant' : `${waiting.length} plants`}. You're out of photo IDs for today, so ${waiting.length === 1 ? 'it gets' : 'they get'} named tomorrow. Typing a plant's name doesn't use a photo ID.`, { duration: 8000 });
       } else {
         toast(`Naming ${approved.length} now. ${waiting.length} more ${waiting.length === 1 ? 'is' : 'are'} saved and get named tomorrow (out of photo IDs for today).`, { duration: 8000 });
       }
       navigate('/Dashboard');
     } catch (error) {
-      toast.error('Error processing images: ' + (error?.message || 'Unknown error'));
+      console.error('Add by photo failed:', error);
+      toast.error("Couldn't add those photos. Check your signal and try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -211,7 +223,7 @@ export default function AddPlant() {
       const transcriptData = { transcript: await transcribe(audioBlob, audioBlob.type || 'audio/webm') };
 
       if (!transcriptData?.transcript) {
-        toast.error('Could not transcribe audio');
+        toast.error("We couldn't hear that. Try again, a little closer to the phone.");
         return;
       }
 
@@ -231,10 +243,11 @@ export default function AddPlant() {
         try { sessionStorage.setItem('hp_add_ad_pending', '1'); } catch { /* ignore */ }
         navigate('/Dashboard');
       } else {
-        toast.error('Could not add plants: ' + (result.error || 'Unknown error'));
+        toast.error(addFailText(result));
       }
     } catch (error) {
-      toast.error('Error processing voice: ' + (error?.message || 'Unknown error'));
+      console.error('Add by voice failed:', error);
+      toast.error(addFailText(error));
     } finally {
       setIsProcessing(false);
     }
@@ -265,10 +278,11 @@ export default function AddPlant() {
         try { sessionStorage.setItem('hp_add_ad_pending', '1'); } catch { /* ignore */ }
         navigate('/Dashboard');
       } else {
-        toast.error('Could not add plants: ' + (result.error || 'Unknown error'));
+        toast.error(addFailText(result));
       }
     } catch (error) {
-      toast.error('Error adding plants: ' + (error?.message || 'Unknown error'));
+      console.error('Add by name failed:', error);
+      toast.error(addFailText(error));
     } finally {
       setIsProcessing(false);
     }
