@@ -169,7 +169,7 @@ export default function PlantDetail() {
       } catch (err) {
         console.error("Error fetching plant:", err);
         // No signal: keep showing the plant we already have instead of "not found"
-        const status = err?.response?.status;
+        const status = err?.status ?? err?.response?.status; // SDK errors carry .status
         if (!status || status >= 500) throw err;
         return null;
       }
