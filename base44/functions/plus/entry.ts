@@ -124,6 +124,19 @@ function pushHistory(list: any, entry: any) {
     return arr;
 }
 
+// Every user, a page at a time, oldest first (new sign-ups land on the last page, so paging
+// doesn't shift). A single list() call only returns the newest 1,000.
+async function allUsers(db: any): Promise<any[]> {
+    const out: any[] = [];
+    const PAGE = 500;
+    for (let skip = 0; skip < 100000; skip += PAGE) {
+        const page = (await db.User.list('created_date', PAGE, skip)) || [];
+        out.push(...page);
+        if (page.length < PAGE) break;
+    }
+    return out;
+}
+
 // ---------------------------------------------------------------- Plus
 async function isPlus(db: any, userId: string): Promise<boolean> {
     const s = (await db.Subscription.filter({ user_id: userId }))?.[0];
@@ -1161,7 +1174,9 @@ Deno.serve(async (req) => {
             const plusIds = new Set(subs
                 .filter((s: any) => !s.expires_at || Date.parse(s.expires_at) > now)
                 .map((s: any) => s.user_id));
-            const users = (await db.User.list('-created_date', 1000)) || [];
+            // Everyone, a page at a time: one list() call only returns the newest 1,000, so
+            // older Plus members (and the owners of older plants below) were skipped
+            const users = await allUsers(db);
             // Trips by owner, for the garden-wide vacation pause
             const tripsBy = new Map<string, any[]>();
             for (const v of ((await db.VacationDay.list('-created_date', 1000).catch(() => [])) || [])) {
@@ -1177,7 +1192,7 @@ Deno.serve(async (req) => {
                 try {
                     if (needsGeocode(u) && geocodes < 20) {
                         geocodes++;
-                        await saveGeo(db, u, String(u.location).trim(), await geocode(String(u.location)));
+                        await saveGeo(db, u, String(u.location).trim(), await geocode(db, u, String(u.location)));
                         bump('geocoded');
                     }
                     const tz = validTz(u.timezone);
@@ -1201,7 +1216,7 @@ Deno.serve(async (req) => {
                             await db.User.update(u.id, { care_push_day: today }); // claim first: never twice
                             const s = await sendCarePush(u.email, due);
                             bump(s.id ? 'care_sent' : 'care_failed');
-                            if (!s.id) console.warn('care push failed', u.email, JSON.stringify(s.detail).slice(0, 200));
+                            if (!s.id) console.warn('care push failed', u.id, JSON.stringify(s.detail?.errors || s.detail).slice(0, 120));
                         }
                     }
 
@@ -1232,13 +1247,13 @@ Deno.serve(async (req) => {
                                 }
                                 const f = await sendFrostPush(u.email, cold, low, !!away);
                                 bump(f.id ? 'frost_sent' : 'frost_failed');
-                                if (!f.id) console.warn('frost push failed', u.email, JSON.stringify(f.detail).slice(0, 200));
+                                if (!f.id) console.warn('frost push failed', u.id, JSON.stringify(f.detail?.errors || f.detail).slice(0, 120));
                             }
                         }
                     }
                 } catch (e) {
                     bump('error');
-                    console.error('plus sweep user error', u.email, (e as Error).message);
+                    console.error('plus sweep user error', u.id, (e as Error).message);
                 }
             }
             // Watering profiles and seasons: everyone, not just Plus.
@@ -1281,15 +1296,18 @@ Deno.serve(async (req) => {
             //    try again here on the server, up to 3 tries per plant.
             try {
                 // ...and named plants whose care sheet didn't finish (typed names, or the app closed)
-                const pendingCare = ((await db.Plant.filter({ 'add_info.care_pending': true }, 'created_date', 20).catch(() => [])) || [])
+                // Newest first: oldest first meant 20 plants that can never finish (out of tries,
+                // waiting for IDs) would fill the list and nothing newer got retried again
+                const pendingCare = ((await db.Plant.filter({ 'add_info.care_pending': true }, '-created_date', 50).catch(() => [])) || [])
                     .filter((p: any) => !p.add_info?.care_done && !['identifying', 'failed'].includes(p.add_status));
-                const stuck = [...((await db.Plant.filter({ add_status: { $in: ['identifying', 'failed'] } }, 'created_date', 20)) || []), ...pendingCare];
+                const stuck = [...((await db.Plant.filter({ add_status: { $in: ['identifying', 'failed'] } }, '-created_date', 50)) || []), ...pendingCare];
                 let retried = 0;
                 for (const p of stuck) {
                     if (retried >= 3) break; // each one takes up to a minute
                     const info = p.add_info || {};
                     const tries = Number(info.tries) || 0;
-                    if (tries >= 3 || info.error === 'limit_reached' || (!p.image_url && !info.typed)) continue;
+                    // retries_used: identifyPlantWithExpert won't retry that photo for free any more
+                    if (tries >= 3 || info.error === 'limit_reached' || info.error === 'retries_used' || (!p.image_url && !info.typed)) continue;
                     const started = Date.parse(info.care_started_at || info.named_at || info.started_at || p.created_date) || 0;
                     const wait = p.add_status === 'failed' ? 30 * 60 * 1000 : 10 * 60 * 1000;
                     if (now - started < wait) continue;
@@ -1329,7 +1347,10 @@ Deno.serve(async (req) => {
                 }
             }
             if (!text) return Response.json({ success: true, status: 'missing' });
-            const g = await geocode(text);
+            const g = await geocode(db, user, text);
+            if (g.status === 'error' && g.detail === 'limit') {
+                return Response.json({ success: false, status: 'error', error: "That's a lot of place lookups for one day. Try again tomorrow." }, { status: 429 });
+            }
             if (g.status === 'error') {
                 return Response.json({ success: false, status: 'error', error: "Couldn't reach the map service. Try again in a minute." }, { status: 502 });
             }
@@ -1346,7 +1367,7 @@ Deno.serve(async (req) => {
         if (action === 'weather') {
             if (!plus) return Response.json({ success: true, plus: false });
             if (needsGeocode(user)) {
-                const g = await geocode(String(user.location));
+                const g = await geocode(db, user, String(user.location));
                 await saveGeo(db, user, String(user.location).trim(), g);
             }
             const today = dayOf(now, validTz(user.timezone));
