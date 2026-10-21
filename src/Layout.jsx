@@ -160,7 +160,14 @@ function LayoutContent({ children, currentPageName }) {
     const current = document.documentElement.getAttribute('data-theme') || theme;
     const currentIndex = themes.indexOf(current);
     const nextIndex = (currentIndex + 1) % themes.length;
-    setTheme(themes[nextIndex]);
+    const next = themes[nextIndex];
+    if (next === theme) {
+      // Our saved state already says this theme (the page changed it behind our back): apply it directly
+      localStorage.setItem('theme', next);
+      document.documentElement.setAttribute('data-theme', next);
+      window.dispatchEvent(new Event('hp-theme-change'));
+    }
+    setTheme(next);
   };
 
   const getActiveButtonClass = () => {
