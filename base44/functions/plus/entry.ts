@@ -1356,7 +1356,8 @@ Deno.serve(async (req) => {
             if (!text) return Response.json({ success: true, status: 'missing' });
             const g = await geocode(db, user, text);
             if (g.status === 'error' && g.detail === 'limit') {
-                return Response.json({ success: false, status: 'error', error: "That's a lot of place lookups for one day. Try again tomorrow." }, { status: 429 });
+                const msg = "That's a lot of place lookups for one day. Try again tomorrow.";
+                return Response.json({ success: false, status: 'error', error: msg, detail: msg }, { status: 429 });
             }
             if (g.status === 'error') {
                 return Response.json({ success: false, status: 'error', error: "Couldn't reach the map service. Try again in a minute." }, { status: 502 });
