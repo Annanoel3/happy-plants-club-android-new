@@ -112,30 +112,30 @@ Deno.serve(async (req) => {
 // Re-read one person from RevenueCat and save it. RevenueCat's answer is the truth, so this
 // is the same for every event type, including both sides of a TRANSFER.
 async function syncUser(db: any, user: any, ev: any, transferredAway: boolean) {
-        const event = String(ev.type || 'webhook');
-        const info = await fetchRevenueCat(user.id);
-        if (info.configured) {
-            await saveSubscription(db, user.id, user.email, info, event);
-        } else if (ev.type === 'TRANSFER') {
-            // No secret key: the event doesn't say what moved, so only switch the old account off
-            if (transferredAway) {
-                await saveSubscription(db, user.id, user.email, {
-                    active: false, entitlement: null, product_id: null, expires_at: null,
-                    will_renew: false, store: null, sandbox: false,
-                }, event);
-            }
-        } else {
-            // No secret key yet: fall back to the event itself
-            const exp = ev.expiration_at_ms ? Number(ev.expiration_at_ms) : null;
-            const ended = ['EXPIRATION', 'REFUND'].includes(ev.type);
+    const event = String(ev.type || 'webhook');
+    const info = await fetchRevenueCat(user.id);
+    if (info.configured) {
+        await saveSubscription(db, user.id, user.email, info, event);
+    } else if (ev.type === 'TRANSFER') {
+        // No secret key: the event doesn't say what moved, so only switch the old account off
+        if (transferredAway) {
             await saveSubscription(db, user.id, user.email, {
-                active: !ended && (exp === null || exp > Date.now()),
-                entitlement: (ev.entitlement_ids || [])[0] || null,
-                product_id: ev.product_id || null,
-                expires_at: exp ? new Date(exp).toISOString() : null,
-                will_renew: !['CANCELLATION', 'EXPIRATION', 'REFUND'].includes(ev.type),
-                store: ev.store || null,
-                sandbox: ev.environment === 'SANDBOX',
+                active: false, entitlement: null, product_id: null, expires_at: null,
+                will_renew: false, store: null, sandbox: false,
             }, event);
         }
+    } else {
+        // No secret key yet: fall back to the event itself
+        const exp = ev.expiration_at_ms ? Number(ev.expiration_at_ms) : null;
+        const ended = ['EXPIRATION', 'REFUND'].includes(ev.type);
+        await saveSubscription(db, user.id, user.email, {
+            active: !ended && (exp === null || exp > Date.now()),
+            entitlement: (ev.entitlement_ids || [])[0] || null,
+            product_id: ev.product_id || null,
+            expires_at: exp ? new Date(exp).toISOString() : null,
+            will_renew: !['CANCELLATION', 'EXPIRATION', 'REFUND'].includes(ev.type),
+            store: ev.store || null,
+            sandbox: ev.environment === 'SANDBOX',
+        }, event);
+    }
 }
