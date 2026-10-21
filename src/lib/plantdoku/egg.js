@@ -37,11 +37,23 @@ export function eggFor(day) {
 }
 
 const FOUND_KEY = 'hp_pd_found';
+const SAVED_KEY = 'hp_pd_found_saved'; // the user record already has plantdoku_found
 export function plantdokuFound() {
   try { return localStorage.getItem(FOUND_KEY) === '1'; } catch { return false; }
 }
+let saving = false;
+// Runs on every game screen open, so the user record is written once, not every time
 export async function markPlantdokuFound() {
-  try { localStorage.setItem(FOUND_KEY, '1'); } catch { /* ignore */ }
-  try { window.dispatchEvent(new Event('hp-pd-found')); } catch { /* ignore */ }
-  try { await base44.auth.updateMe({ plantdoku_found: true }); } catch { /* ignore */ }
+  if (!plantdokuFound()) {
+    try { localStorage.setItem(FOUND_KEY, '1'); } catch { /* ignore */ }
+    try { window.dispatchEvent(new Event('hp-pd-found')); } catch { /* ignore */ }
+  }
+  let saved = false;
+  try { saved = localStorage.getItem(SAVED_KEY) === '1'; } catch { /* ignore */ }
+  if (saved || saving) return;
+  saving = true; // one try per app session if it keeps failing (offline, signed out)
+  try {
+    await base44.auth.updateMe({ plantdoku_found: true });
+    try { localStorage.setItem(SAVED_KEY, '1'); } catch { /* ignore */ }
+  } catch { /* ignore: tried again next session */ }
 }
