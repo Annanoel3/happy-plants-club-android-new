@@ -5,38 +5,34 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { X, UserCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
+import { COMMUNITY_OPEN } from "@/pages/Feed";
+import { profilePath } from "@/lib/community";
 
-export default function NotificationPopup() {
+// Pops up "Follow request approved" for the person who asked to follow. Only that kind of
+// notice pops (likes and comments show as the Community badge instead). Notices are created
+// only by the community function, and carry the other person's user id, never their email.
+export default function NotificationPopup({ user: userProp }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(userProp || null);
 
   useEffect(() => {
-    loadUser();
-  }, []);
+    if (userProp) { setUser(userProp); return; }
+    base44.auth.me().then(setUser).catch(() => {});
+  }, [userProp]);
 
-  const loadUser = async () => {
-    try {
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-    } catch (error) {
-      console.error('Error loading user:', error);
-    }
-  };
-
-  // Only show notifications for private profiles (follow request approvals)
   const { data: notifications = [] } = useQuery({
     queryKey: ['notifications', user?.email],
     queryFn: async () => {
-      if (!user || !user.profile_private) return [];
-      const notifs = await base44.entities.Notification.filter({ 
+      const notifs = await base44.entities.Notification.filter({
         user_email: user.email,
-        dismissed: false
-      }, '-created_date', 10);
-      return notifs;
+        dismissed: false,
+        type: 'follow_approved',
+      }, '-created_date', 5);
+      return (notifs || []).filter((n) => n.type === 'follow_approved');
     },
-    enabled: !!user && user.profile_private === true,
-    refetchInterval: 90000, // was 10s; follow-approval popups don't need near-realtime polling
+    enabled: !!user?.email && COMMUNITY_OPEN,
+    refetchInterval: 90000, // follow-approval popups don't need near-realtime polling
   });
 
   const dismissMutation = useMutation({
@@ -53,13 +49,18 @@ export default function NotificationPopup() {
 
   const handleNotificationClick = (notification) => {
     dismissMutation.mutate(notification.id);
-    if (notification.from_user_email) {
-      navigate(`/Profile?email=${notification.from_user_email}`);
-    }
+    const path = profilePath(notification.from_user_id);
+    if (path) navigate(path);
   };
 
+  if (!notifications.length) return null;
+
   return (
-    <div className="fixed top-6 right-6 z-50 space-y-3 max-w-sm">
+    // Below the phone's status bar (safe area), not under it
+    <div
+      className="fixed right-4 left-4 sm:left-auto z-50 space-y-3 sm:max-w-sm"
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+    >
       <AnimatePresence>
         {notifications.map((notification) => (
           <motion.div
@@ -80,9 +81,7 @@ export default function NotificationPopup() {
                       onClick={() => handleNotificationClick(notification)}
                       className="text-left w-full"
                     >
-                      <p className="font-semibold theme-text text-sm mb-1">
-                        {notification.type === 'follow_approved' && '✅ Follow Request Approved'}
-                      </p>
+                      <p className="font-semibold theme-text text-sm mb-1">✅ Follow request approved</p>
                       <p className="theme-text-secondary text-sm">
                         {notification.message}
                       </p>
@@ -98,6 +97,7 @@ export default function NotificationPopup() {
                       e.stopPropagation();
                       dismissMutation.mutate(notification.id);
                     }}
+                    aria-label="Close"
                     className="flex-shrink-0 text-gray-400 hover:text-gray-600"
                   >
                     <X className="w-4 h-4" />
