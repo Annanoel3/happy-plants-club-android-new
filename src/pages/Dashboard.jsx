@@ -279,7 +279,8 @@ export default function Dashboard() {
 
   const plantsList = useMemo(() => (Array.isArray(plants) ? plants : []), [plants]);
   // Couldn't load the garden and there's no saved copy to show: say so (not "Start your garden")
-  const plantsFailed = !!error && isPlaceholderData;
+  // (a failed first load has no data at all; a failed refresh keeps the last list)
+  const plantsFailed = !!error && !Array.isArray(plants);
   const plantsLoading = isPlaceholderData && !error;
   // Plants still being added get their category with their care sheet: not "uncategorized"
   const hasUncategorized = plantsList.some(p => !NEW_STATUSES.includes(p.add_status) && !carePending(p) && !CATEGORIES.includes(p.plant_type));
