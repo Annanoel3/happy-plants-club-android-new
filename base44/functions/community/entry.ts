@@ -566,6 +566,8 @@ Deno.serve(async (req) => {
     if (action === 'approve' || action === 'decline') {
       const request = (await db.FollowRequest.filter({ id: cleanId(body?.request_id) }))?.[0];
       if (!request || request.target_email !== me.email) return err(404, 'not_found', 'That request isn’t there anymore.');
+      // Already answered (a double tap): don't notify twice
+      if (request.status !== 'pending') return Response.json({ ok: true, state: request.status === 'approved' ? 'approved' : 'declined' });
       const requester = await userByEmail(request.requester_email);
       const same = (await db.FollowRequest.filter({ requester_email: request.requester_email, target_email: me.email, status: 'pending' })) || [];
       const approve = action === 'approve' && !!requester && !(await isBlockedBetween(request.requester_email));
