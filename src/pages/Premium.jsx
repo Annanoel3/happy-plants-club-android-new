@@ -1,12 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, Loader2, Sparkles, ShieldCheck, Leaf, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import {
   getPremiumStatus, billingAvailable, getPlans, buyPlan, restorePurchases, manageSubscriptionUrl,
+  playLinkProps, PREMIUM_STATUS_EVENT,
 } from "@/lib/premium";
-
-const PLAY_URL = "https://play.google.com/store/apps/details?id=com.mediocreatbest.happyplants";
 
 function periodWords(iso) {
   return { P1M: "month", P1Y: "year", P1W: "week", P3M: "3 months", P6M: "6 months" }[iso] || iso || "period";
@@ -34,6 +33,11 @@ export default function Premium() {
   const [choice, setChoice] = useState("annual");
   const [busy, setBusy] = useState(null);
 
+  const loadPlans = useCallback(async () => {
+    setPlans(null);
+    try { setPlans(await getPlans()); } catch (e) { setPlans({ error: e?.message || "offerings" }); }
+  }, []);
+
   useEffect(() => {
     (async () => {
       const [s, b] = await Promise.all([
@@ -42,11 +46,21 @@ export default function Premium() {
       ]);
       setStatus(s);
       setBilling(b);
-      if (b.available) {
-        try { setPlans(await getPlans()); } catch (e) { setPlans({ error: e?.message || "offerings" }); }
-      }
+      if (b.available) loadPlans();
     })();
+  }, [loadPlans]);
+
+  // Any later status check (back from the background, a late purchase) updates this page too
+  useEffect(() => {
+    const on = (e) => { if (e.detail?.success) setStatus(e.detail); };
+    window.addEventListener(PREMIUM_STATUS_EVENT, on);
+    return () => window.removeEventListener(PREMIUM_STATUS_EVENT, on);
   }, []);
+
+  const retry = () => {
+    if (!status?.success) getPremiumStatus().catch(() => {});
+    loadPlans();
+  };
 
   const savings = useMemo(() => {
     const m = plans?.monthly?.priceMicros, a = plans?.annual?.priceMicros;
@@ -67,10 +81,11 @@ export default function Premium() {
         setStatus(r.status);
         toast.success("Welcome to Happy Plants Plus! 🌿");
       } else {
-        toast.message("Purchase received — it can take a minute to activate. Tap Restore if it doesn't.");
+        toast.message("Purchase received. It can take a few minutes to turn on. If it doesn't, tap Restore purchases.");
       }
     } catch (e) {
-      toast.error("The purchase didn't go through. You haven't been charged.");
+      // Build 13 can't tell a pending payment from a failed one, so say what's true for both
+      toast.error("The purchase didn't finish. If you were charged, Plus turns on by itself in a few minutes, or tap Restore purchases.", { duration: 10000 });
     } finally { setBusy(null); }
   };
 
@@ -85,12 +100,14 @@ export default function Premium() {
     } finally { setBusy(null); }
   };
 
+  // All numbers come from the server (functions/premium), so this page never goes stale
   const limits = status?.limits;
+  const idr = status?.id_rules;
   const rows = [
-    { k: "identify", label: "Plant IDs per day" },
-    { k: "health", label: "Health checks per day" },
-    { k: "chat", label: "AI chat messages per day" },
-  ];
+    idr && { k: "ids", label: "Photo IDs per day", free: idr.daily, plus: idr.plus },
+    limits?.health && { k: "health", label: "Health checks per day", ...limits.health },
+    limits?.chat && { k: "chat", label: "AI chat messages per day", ...limits.chat },
+  ].filter(Boolean);
 
   if (!status && !billing) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-green-600" /></div>;
@@ -98,6 +115,9 @@ export default function Premium() {
 
   const plus = !!status?.plus;
   const s = status?.subscription;
+  // Builds before 13 have no billing bridge and can't send links out to the Play Store app
+  // (they'd show an error page), so those get written directions instead of a button.
+  const oldBuild = billing?.reason === "update_needed";
 
   return (
     <div className="min-h-screen theme-bg px-4 pt-4 pb-28">
@@ -122,10 +142,10 @@ export default function Premium() {
             <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>Plant doctor follow-ups</b> with a treatment plan and re-check reminders</span></li>
             <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>Growth time-lapse</b> with a photo guide that lines up every shot</span></li>
             <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>Home-screen widget</b> with one-tap watering</span></li>
-            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>No ads</b>, and <b>way more</b> plant IDs, health checks and AI chat</span></li>
+            <li className="flex gap-3"><Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}><b>No ads</b>, and <b>way more</b> photo IDs, health checks and AI chat</span></li>
             <li className="flex gap-3"><Leaf className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /><span className={text}>Everything else in Happy Plants stays free</span></li>
           </ul>
-          {limits && (
+          {rows.length > 0 && (
             <table className="w-full mt-5 text-sm">
               <thead>
                 <tr className={sub}><th className="text-left font-medium pb-2"></th><th className="font-medium pb-2">Free</th><th className="font-medium pb-2">Plus</th></tr>
@@ -134,12 +154,17 @@ export default function Premium() {
                 {rows.map((r) => (
                   <tr key={r.k} className={`border-t ${dark ? "border-white/10" : "border-gray-100"}`}>
                     <td className={`py-2 ${text}`}>{r.label}</td>
-                    <td className={`py-2 text-center ${sub}`}>{limits[r.k].free}</td>
-                    <td className="py-2 text-center font-semibold text-green-600">{limits[r.k].plus}</td>
+                    <td className={`py-2 text-center ${sub}`}>{r.free}</td>
+                    <td className="py-2 text-center font-semibold text-green-600">{r.plus}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+          {idr && (
+            <p className={`text-xs mt-2 ${sub}`}>
+              Free: {idr.intro} photo IDs in your first {idr.intro_hours} hours, then {idr.daily} a day. Each video you watch adds {idr.per_ad} more (up to {idr.max_ads} videos a day).
+            </p>
           )}
         </div>
 
@@ -152,31 +177,36 @@ export default function Premium() {
                 {s.sandbox ? " (test purchase)" : ""}
               </p>
             )}
-            {s?.store !== "promotional" && (
-              <a href={manageSubscriptionUrl(s?.product_id)} target="_blank" rel="noreferrer"
+            {s?.store !== "promotional" && (oldBuild ? (
+              <p className={`text-sm mt-3 ${sub}`}>To manage or cancel, open the Play Store app, tap your profile picture, then Payments &amp; subscriptions → Subscriptions.</p>
+            ) : (
+              <a {...playLinkProps(manageSubscriptionUrl(s?.product_id))}
                  className="mt-4 block text-center w-full rounded-full border border-green-600 text-green-700 font-semibold py-2.5 bg-white">
                 Manage or cancel in Google Play
               </a>
-            )}
+            ))}
           </div>
         ) : !billing?.available ? (
           <div className={`rounded-2xl p-5 mb-4 text-center ${card}`}>
-            {billing?.reason === "update_needed" ? (
+            {oldBuild ? (
               <>
                 <p className={`font-semibold ${text}`}>Update Happy Plants to subscribe</p>
-                <p className={`text-sm mt-1 ${sub}`}>Your version of the app doesn't have subscriptions yet.</p>
-                <a href={PLAY_URL} target="_blank" rel="noreferrer" className="mt-4 inline-block rounded-full bg-green-700 text-white font-semibold px-5 py-2.5">Open Google Play</a>
+                <p className={`text-sm mt-1 ${sub}`}>Your version of the app doesn't have subscriptions yet. Open the Play Store app, find Happy Plants, and tap Update.</p>
               </>
             ) : billing?.reason === "web" ? (
               <p className={`font-semibold ${text}`}>Subscribe from the Happy Plants Android app.</p>
             ) : (
-              <p className={`font-semibold ${text}`}>Plus is almost ready — check back soon!</p>
+              <p className={`font-semibold ${text}`}>Subscriptions aren't available in this version of the app.</p>
             )}
           </div>
         ) : plans?.error || !(plans?.monthly || plans?.annual) ? (
           <div className={`rounded-2xl p-5 mb-4 text-center ${card}`}>
             {!plans ? <Loader2 className="w-6 h-6 animate-spin text-green-600 mx-auto" /> : (
-              <p className={`font-semibold ${text}`}>Plus is almost ready — check back soon!</p>
+              <>
+                <p className={`font-semibold ${text}`}>Couldn't load prices.</p>
+                <p className={`text-sm mt-1 ${sub}`}>Check your connection and try again.</p>
+                <button onClick={retry} className="mt-4 inline-block rounded-full bg-green-700 text-white font-semibold px-5 py-2.5">Try again</button>
+              </>
             )}
           </div>
         ) : (
