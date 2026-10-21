@@ -86,9 +86,9 @@ async function identifyWithPlantNet(imageUrl, extra?: { bytes: Uint8Array; mime:
             res = await send();
         }
         if (!res.ok) {
-            // 429 = today's 500 are used up (not counted); anything else still used one
+            // 429 = refused (today's 500 used up, or too many at once): not counted, and not
+            // treated as "used up" either, so one burst can't switch Pl@ntNet off for the day
             if (res.status !== 429) pnRecord();
-            else pnRecord(0);
             console.warn('[PlantNet] HTTP', res.status, await res.text().catch(() => ''));
             return null;
         }
