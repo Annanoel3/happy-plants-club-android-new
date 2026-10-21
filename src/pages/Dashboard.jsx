@@ -161,6 +161,8 @@ export default function Dashboard() {
     setAuthError(false);
     try {
       const currentUser = await base44.auth.me();
+      setUser(currentUser);
+      setWateringRemindersEnabled(currentUser?.notifications_watering !== false);
       // Brand-new account: finish signing up first. Anyone already set up (profile done, or
       // plants in the garden) stays here even without a city; a small prompt asks for it.
       if (!currentUser?.location && !currentUser?.profile_complete) {
@@ -171,8 +173,6 @@ export default function Dashboard() {
           return;
         }
       }
-      setUser(currentUser);
-      setWateringRemindersEnabled(currentUser?.notifications_watering !== false);
     } catch (error) {
       console.error('Auth error:', error);
       const status = httpStatus(error);
@@ -184,7 +184,7 @@ export default function Dashboard() {
     }
   };
 
-  const { data: plants, isLoading, error, refetch, isPlaceholderData, isFetching } = useQuery({
+  const { data: plants, error, refetch, isPlaceholderData, isFetching } = useQuery({
     queryKey: ['plants', user?.email],
     queryFn: async () => {
       try {
@@ -280,7 +280,7 @@ export default function Dashboard() {
   const plantsList = useMemo(() => (Array.isArray(plants) ? plants : []), [plants]);
   // Couldn't load the garden and there's no saved copy to show: say so (not "Start your garden")
   const plantsFailed = !!error && isPlaceholderData;
-  const plantsLoading = isPlaceholderData && !error && (isFetching || isLoading);
+  const plantsLoading = isPlaceholderData && !error;
   // Plants still being added get their category with their care sheet: not "uncategorized"
   const hasUncategorized = plantsList.some(p => !NEW_STATUSES.includes(p.add_status) && !carePending(p) && !CATEGORIES.includes(p.plant_type));
 
