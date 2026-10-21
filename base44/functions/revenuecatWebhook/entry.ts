@@ -12,6 +12,7 @@ async function fetchRevenueCat(appUserId: string) {
     if (!key) return { configured: false as const };
     const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}`, {
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) throw new Error(`RevenueCat ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const j = await res.json();
@@ -75,26 +76,54 @@ Deno.serve(async (req) => {
     try {
         const body = await req.json();
         const ev = body?.event || {};
-        const ids: string[] = [ev.app_user_id, ev.original_app_user_id, ...(Array.isArray(ev.aliases) ? ev.aliases : [])]
+        const list = (v: any) => (Array.isArray(v) ? v : []);
+        // TRANSFER events have no app_user_id: the purchase moved from transferred_from to
+        // transferred_to (e.g. the same Google account signed in to a different Happy Plants
+        // account and tapped Restore). Both sides are re-read below, so the old account loses Plus.
+        const transferredFrom = new Set(list(ev.transferred_from).filter((x: any) => typeof x === 'string'));
+        const ids: string[] = [ev.app_user_id, ev.original_app_user_id, ...list(ev.aliases), ...transferredFrom, ...list(ev.transferred_to)]
             .filter((x: any) => typeof x === 'string' && x && !x.startsWith('$RCAnonymousID'));
         const base44 = createClientFromRequest(req);
         const db = base44.asServiceRole.entities;
 
-        // Our app user ids are Base44 user ids; find the one that exists
-        let user: any = null;
-        for (const id of [...new Set(ids)]) {
+        // Our app user ids are Base44 user ids; update every one of them that exists
+        const users: any[] = [];
+        for (const id of [...new Set(ids)].slice(0, 10)) {
             if (!/^[a-f0-9]{24}$/i.test(id)) continue; // Base44 ids only
-            try { user = (await db.User.filter({ id }))?.[0]; } catch { user = null; }
-            if (user) break;
+            let u: any = null;
+            try { u = (await db.User.filter({ id }))?.[0]; } catch { u = null; }
+            if (u) users.push(u);
         }
-        if (!user) {
+        if (!users.length) {
             console.warn('revenuecatWebhook: no matching user for', ids, ev.type);
             return Response.json({ ok: true, ignored: 'no_user' }); // 200 so RevenueCat doesn't retry forever
         }
 
+        for (const user of users) {
+            await syncUser(db, user, ev, transferredFrom.has(user.id));
+        }
+        return Response.json({ ok: true, users: users.length });
+    } catch (e) {
+        console.error('revenuecatWebhook', e);
+        return Response.json({ error: (e as Error).message }, { status: 500 }); // RevenueCat retries
+    }
+});
+
+// Re-read one person from RevenueCat and save it. RevenueCat's answer is the truth, so this
+// is the same for every event type, including both sides of a TRANSFER.
+async function syncUser(db: any, user: any, ev: any, transferredAway: boolean) {
+        const event = String(ev.type || 'webhook');
         const info = await fetchRevenueCat(user.id);
         if (info.configured) {
-            await saveSubscription(db, user.id, user.email, info, String(ev.type || 'webhook'));
+            await saveSubscription(db, user.id, user.email, info, event);
+        } else if (ev.type === 'TRANSFER') {
+            // No secret key: the event doesn't say what moved, so only switch the old account off
+            if (transferredAway) {
+                await saveSubscription(db, user.id, user.email, {
+                    active: false, entitlement: null, product_id: null, expires_at: null,
+                    will_renew: false, store: null, sandbox: false,
+                }, event);
+            }
         } else {
             // No secret key yet: fall back to the event itself
             const exp = ev.expiration_at_ms ? Number(ev.expiration_at_ms) : null;
@@ -107,11 +136,6 @@ Deno.serve(async (req) => {
                 will_renew: !['CANCELLATION', 'EXPIRATION', 'REFUND'].includes(ev.type),
                 store: ev.store || null,
                 sandbox: ev.environment === 'SANDBOX',
-            }, String(ev.type || 'webhook'));
+            }, event);
         }
-        return Response.json({ ok: true });
-    } catch (e) {
-        console.error('revenuecatWebhook', e);
-        return Response.json({ error: (e as Error).message }, { status: 500 }); // RevenueCat retries
-    }
-});
+}
