@@ -244,7 +244,7 @@ const AI_LIMITS: Record<string, { free: number; plus: number }> = {
 // ---- Photo IDs (always on) -----------------------------------------------------
 // Free: 15 in the first 24 hours after signing up (to add the whole garden), then 5 a
 // day; each reward video adds 5 more (up to 3 videos a day). Plus: 200 a day. Admins
-// count as Plus. A plant is charged once, however many times naming it is retried.
+// count as Plus. What one photo ID buys (retries, extra photos) is below, at PlantIdCharge.
 // The same block is in functions/premium (status, reserve, reward) — keep them in step.
 const ID_RULES = { intro: 15, introHours: 24, daily: 5, perAd: 5, maxAds: 3, plus: 200 };
 function dayIn(tz: string | undefined, when: Date): string {
@@ -308,6 +308,74 @@ async function takeOneId(base44: any, user: any) {
         return { blocked: null, day: null };
     }
 }
+
+// ---- Who paid for which photo ID: PlantIdCharge (server-only) ---------------------------
+// Plant.add_info belongs to the plant's owner (the app writes it), so "already paid"
+// (id_paid) and the retry counters there could be edited to name plants for free forever.
+// The rules now live in PlantIdCharge, which only this function (service role) touches:
+//  - Naming a plant from its photo costs 1 photo ID (one row per charge, with the photo).
+//  - If that try fails with an error, or gets stuck, the SAME plant + photo is tried again
+//    free, at most 2 times. Once it's named, naming it again (a new photo, or "try again"
+//    on a named plant) costs 1 more.
+//  - premium/reserve_ids charges first and marks the plant add_info.id_paid = that day. That
+//    mark is only believed while the owner has a charge that day no plant has used yet:
+//    every charge (made there or here) gets one row here, and a claim counts only if its
+//    row is among the first N rows of that day, N = the photo IDs counted that day. So a
+//    made-up id_paid can't name anything that wasn't paid for.
+//  - Plants added before this table existed (LEGACY_BEFORE) keep the old "id_paid means
+//    paid" rule once, so the hourly sweep can finish them without charging twice.
+//  - Extra close-up photos stay free, 3 per plant (one 'extra' row each). The care sheet for
+//    the name our own photo ID settled is retried free 3 times, then counts as a typed name.
+const LEGACY_BEFORE = Date.parse('2026-10-22T00:00:00Z');
+const FREE_RETRIES = 2;
+const EXTRA_PHOTOS = 3;
+const CARE_RETRIES = 3;
+const RUN_LOCK_MS = 4 * 60 * 1000; // a try this old with no answer is stuck
+const CLAIM_DAYS = 3;              // a reserve older than this isn't believed
+const PAID_SOURCES = ['identify', 'reserve', 'legacy'];
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const oldestFirst = (a: any, b: any) => String(a.created_date || '').localeCompare(String(b.created_date || '')) || String(a.id).localeCompare(String(b.id));
+const isLegacy = (plant: any) => (Date.parse(plant?.created_date || '') || 0) < LEGACY_BEFORE;
+const sameName = (a: any, b: any) => !!String(a || '').trim() && String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+// This owner's rows for one plant, newest first
+async function chargeRows(sdb: any, plantId: string, userId: string) {
+    const rows = (await sdb.PlantIdCharge.filter({ plant_id: plantId }, '-created_date', 100).catch(() => [])) || [];
+    return rows.filter((r: any) => r.user_id === userId);
+}
+function chargeRow(user: any, plant: any, extra: any) {
+    return { plant_id: plant.id, user_id: user.id, user_email: user.email, image_url: String(plant.image_url || ''), charged_at: new Date().toISOString(), tries: 0, free_retries: 0, care_tries: 0, ...extra };
+}
+// Is add_info.id_paid (set by premium/reserve_ids) backed by a charge nobody has used yet?
+// Returns the claimed row, or null.
+async function claimReserved(sdb: any, user: any, plant: any, idPaid: any, extra: any) {
+    const day = String(idPaid || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+    const now = new Date();
+    if (day > dayIn(user.timezone, now) || day < dayIn(user.timezone, new Date(now.getTime() - CLAIM_DAYS * 86400e3))) return null;
+    const row = await sdb.PlantIdCharge.create(chargeRow(user, plant, { ...extra, source: 'reserve', day }));
+    try {
+        const [usage, rows] = await Promise.all([
+            sdb.AiUsage.filter({ user_id: user.id, day, kind: 'identify' }),
+            sdb.PlantIdCharge.filter({ user_id: user.id, day }, 'created_date', 1000),
+        ]);
+        const counted = (usage || []).reduce((s: number, r: any) => s + (Number(r.count) || 0), 0);
+        const paid = (rows || []).filter((r: any) => PAID_SOURCES.includes(r.source)).sort(oldestFirst);
+        const at = paid.findIndex((r: any) => r.id === row.id);
+        if (at >= 0 && at < counted) return row;
+    } catch (e) {
+        console.warn('reserve check failed', (e as Error).message);
+    }
+    await sdb.PlantIdCharge.delete(row.id).catch(() => {});
+    return null;
+}
+// Two calls for the same plant at once: the last one to write its run_id goes ahead.
+async function holdRun(sdb: any, row: any, patch: any): Promise<boolean> {
+    await sdb.PlantIdCharge.update(row.id, patch);
+    await sleep(400);
+    const again = (await sdb.PlantIdCharge.filter({ id: row.id }).catch(() => []))?.[0];
+    return again?.run_id === patch.run_id;
+}
+const busyResponse = () => Response.json({ error: 'busy', detail: 'This plant is already being named. Give it a minute.' }, { status: 409 });
 function aiLocalDay(tz?: string): string {
     let zone = tz || 'America/Chicago';
     try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); } catch { zone = 'America/Chicago'; }
