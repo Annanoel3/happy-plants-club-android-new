@@ -72,6 +72,8 @@ export default function VacationReview() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [pdfLink, setPdfLink] = useState(null); // { url, at } (older builds only)
   const [pdfFile, setPdfFile] = useState(null); // { b64, name }: the last PDF, to send again
+  // Changed the plan or notes: the last PDF is out of date, so don't offer to send it again
+  useEffect(() => { setPdfFile(null); }, [visitEvery, generalNotes, customInstructions, plantNotes]);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   useEffect(() => {
