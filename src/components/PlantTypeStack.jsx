@@ -88,7 +88,7 @@ function PlantTileCard({ plant, wateringRemindersEnabled, gradientIndex, plus, h
   return (
     <div
       onClick={() => navigate(`/PlantDetail?id=${plant.id}`)}
-      className={`relative rounded-2xl overflow-hidden cursor-pointer select-none aspect-square active:scale-95 transition-transform ${needsWater && wateringRemindersEnabled ? 'ring-1 ring-blue-400/60' : ''}`}
+      className={`relative rounded-2xl overflow-hidden cursor-pointer select-none aspect-square active:scale-95 transition-transform ${needsWater ? 'ring-1 ring-blue-400/60' : ''}`}
       style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.28)' }}
     >
       {/* Background */}
@@ -160,9 +160,9 @@ function getGradient(index) {
   return CARD_GRADIENTS[index % CARD_GRADIENTS.length];
 }
 
-function getWateringStatus(plant, wateringRemindersEnabled) {
+// The garden's bell only turns off pop-up reminders: what's due still shows on every card
+function getWateringStatus(plant) {
   if (plant?.status === 'wilted') return { status: 'wilted', text: 'HELP!', color: 'bg-red-500/90 text-white' };
-  if (!wateringRemindersEnabled) return null;
   if (!plant?.next_watering_due) return null;
   try {
     // Calendar days, not elapsed 24h blocks: differenceInDays truncated 'due tomorrow'
@@ -312,7 +312,7 @@ function PlantCard({ plant, wateringRemindersEnabled, index, isExpanded, onClick
         {/* Top scrim */}
         <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/55 to-transparent pointer-events-none" style={{ height: '50%' }} />
 
-        {needsWater && wateringRemindersEnabled && (
+        {needsWater && (
           <div className="absolute inset-0 bg-blue-500/15 pointer-events-none" />
         )}
 
