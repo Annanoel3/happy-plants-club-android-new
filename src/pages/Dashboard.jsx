@@ -22,6 +22,7 @@ import NewPlantsNotice from "@/components/NewPlantsNotice";
 import PhotoIdsBar from "@/components/PhotoIdsBar";
 import IdsWelcome from "@/components/IdsWelcome";
 import PlantdokuEgg from "@/components/PlantdokuEgg";
+import { themeEggFound, markThemeEggFound } from "@/lib/themeEgg";
 import { getIdStatus, isWaitingForId, nameWaitingPlants, carePending, carePendingNow } from "@/lib/plantIds";
 import { fetchTrips, tripCovering, welcomeBackTrip, niceDay, addDays } from "@/lib/vacation";
 import { whenPopupFree, releasePopup, popupBusy } from "@/lib/popupGate";
@@ -472,7 +473,17 @@ export default function Dashboard() {
     document.documentElement.setAttribute('data-theme', nextTheme);
     
     window.dispatchEvent(new Event('storage'));
+
+    // Found it: the text goes away for good, and Kawaii + the seasonal theme move into the
+    // theme button in the side menu
+    if (!themeEggDone) {
+      setThemeEggDone(true);
+      markThemeEggFound();
+      toast.success('Secret themes unlocked! Switch between them anytime with the theme button in the menu.');
+    }
   };
+  const [themeEggDone, setThemeEggDone] = useState(() => themeEggFound());
+  const showThemeEgg = !themeEggDone && !themeEggFound(user);
 
   const cycleAllThemes = () => {
     const allThemes = [
@@ -1085,14 +1096,14 @@ export default function Dashboard() {
           )}
 
           <PlantdokuEgg page="garden" className="mt-8" />
-          <div className="mt-10 flex justify-center">
+          {showThemeEgg && <div className="mt-10 flex justify-center">
             <button
               onClick={cycleSecretTheme}
               className="text-[10px] opacity-20 hover:opacity-50 transition-opacity theme-text-secondary px-2 py-1"
             >
               don't click this
             </button>
-          </div>
+          </div>}
         </div>
       </div>
 
