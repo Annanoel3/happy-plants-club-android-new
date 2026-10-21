@@ -679,9 +679,9 @@ export default function PlantDetail() {
   if (!plant) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center theme-bg">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold theme-text mb-4">Plant not found or access denied</h2>
-          <p className="theme-text mb-6">The plant with ID "{plantId}" does not exist or does not belong to your garden.</p>
+        <div className="text-center px-6">
+          <h2 className="text-2xl font-bold theme-text mb-4">We couldn't find this plant</h2>
+          <p className="theme-text mb-6">It may have been removed from your garden.</p>
           <Button onClick={() => navigate('/Dashboard')} className="bg-green-600 hover:bg-green-700">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Garden
@@ -839,10 +839,12 @@ export default function PlantDetail() {
               allPlants={gardenPlants}
               ui={ui}
               navigate={navigate}
-              onDone={() => {
+              onDone={(saved) => {
                 queryClient.invalidateQueries({ queryKey: ['plant'] });
                 queryClient.invalidateQueries({ queryKey: ['plants'] });
-                toast.success("Saved. It's out of Newly added.");
+                toast.success(saved?.add_status === 'done'
+                  ? "Saved. It's out of Newly added."
+                  : "Saved. It moves out of Newly added once it has a name.");
               }}
             />
           </div>
@@ -868,7 +870,15 @@ export default function PlantDetail() {
             </button>
           )}
           {plant.last_watered && (
-            <p className={`text-sm mt-1 ${ui.sub}`}>Last watered {format(parseISO(String(plant.last_watered).slice(0, 10)), 'EEE, MMM d')}</p>
+            <p className={`text-sm mt-1 ${ui.sub}`}>
+              {(Number(plant.total_waterings) || 0) > 0
+                ? `Last watered ${format(parseISO(String(plant.last_watered).slice(0, 10)), 'EEE, MMM d')}`
+                : (() => {
+                    // Not logged in the app: it's the owner's rough answer from when it was added
+                    const n = differenceInCalendarDays(new Date(), parseISO(String(plant.last_watered).slice(0, 10)));
+                    return n <= 0 ? 'Last watered today' : `Last watered about ${n} day${n === 1 ? '' : 's'} ago`;
+                  })()}
+            </p>
           )}
           {plus && hintLine(plant) && <p className={`mt-2 text-sm font-semibold ${ui.text}`}>{hintLine(plant)}</p>}
           <Button onClick={() => setShowWaterDialog(true)} className="mt-4 w-full h-12 text-base bg-blue-600 hover:bg-blue-700 gap-2">
@@ -953,6 +963,7 @@ export default function PlantDetail() {
                   <Plus className="w-4 h-4" /> Add
                 </button>
               </div>
+              <NotificationsOffNote light={ui.light} className="mt-2" />
               {reminders.length === 0 ? (
                 <p className={`mt-1 text-sm ${ui.sub}`}>None for this plant.</p>
               ) : (
@@ -994,7 +1005,7 @@ export default function PlantDetail() {
                   ))}
                 </div>
               ) : (
-                <p className={`mt-1 text-sm ${ui.sub}`}>None yet. Tags help you filter your garden.</p>
+                <p className={`mt-1 text-sm ${ui.sub}`}>None yet. Search your garden for a tag to find every plant that has it.</p>
               )}
             </section>
 
@@ -1006,7 +1017,7 @@ export default function PlantDetail() {
                   🏖️ Reminders paused for this plant
                   {plant.vacation_end_date ? ` until ${format(parseISO(plant.vacation_end_date), 'MMM d')}` : ''}.
                 </p>
-                <Button size="sm" variant="outline" onClick={() => toggleVacationModeMutation.mutate({ enabled: false, startDate: null, endDate: null })}>
+                <Button size="sm" variant="outline" disabled={turnOffPlantVacationMutation.isPending} onClick={() => turnOffPlantVacationMutation.mutate()}>
                   Turn off
                 </Button>
               </section>
@@ -1085,14 +1096,13 @@ export default function PlantDetail() {
                   </Button>
                   {progressPhoto.sheet}
                 </div>
-                {(progressPhotoNotes || isUploadingProgress) && ( // Show notes input only if there are notes or uploading
-                  <Input
-                    placeholder="Add notes for this photo..."
-                    value={progressPhotoNotes}
-                    onChange={(e) => setProgressPhotoNotes(e.target.value)}
-                    className="theme-input"
-                  />
-                )}
+                {/* Typed before adding the photo; saved with it */}
+                <Input
+                  placeholder="Notes for the next photo (optional)"
+                  value={progressPhotoNotes}
+                  onChange={(e) => setProgressPhotoNotes(e.target.value)}
+                  className="theme-input mt-3"
+                />
               </CardHeader>
               <CardContent>
                 {progressPhotos.length === 0 ? (
@@ -1191,6 +1201,39 @@ export default function PlantDetail() {
             <DialogTitle className={getTextColor()}>Edit Plant Details</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* A wrong ID can be fixed any time: redoes its care for the right plant */}
+            <div className={`rounded-xl p-3 ${isThemeLight(theme) ? 'bg-gray-50' : 'bg-white/5'}`}>
+              <p className={`text-sm font-medium ${getTextColor()}`}>What plant is this?</p>
+              <p className={`text-sm ${getSecondaryTextColor()}`}>
+                {plant.name || 'Not named yet'}{plant.scientific_name && plant.scientific_name !== plant.name ? <i> · {plant.scientific_name}</i> : null}
+              </p>
+              {!renameOpen ? (
+                <button onClick={() => { setRenameOpen(true); setRenameText(""); }} className="mt-1 text-sm font-semibold text-green-600 underline">
+                  Change what plant this is
+                </button>
+              ) : (
+                <div className="mt-2">
+                  <label htmlFor="rename-plant" className={`block text-sm font-medium mb-1 ${getTextColor()}`}>Plant name</label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="rename-plant"
+                      value={renameText}
+                      onChange={(e) => setRenameText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') renamePlant(); }}
+                      placeholder="e.g. Snake plant"
+                      className="theme-input"
+                      autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="done"
+                    />
+                    <Button onClick={renamePlant} disabled={renaming || !renameText.trim()} className="bg-green-600 hover:bg-green-700 shrink-0" aria-label="Use this name">
+                      {renaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                  <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>
+                    {renaming ? 'Updating its care for that plant…' : "We'll redo its care, watering schedule and how it's watered for this plant."}
+                  </p>
+                </div>
+              )}
+            </div>
             <div>
               <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Nickname</label>
               <Input
@@ -1213,10 +1256,12 @@ export default function PlantDetail() {
               <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Watering Frequency (days)</label>
               <Input
                 type="number"
+                inputMode="numeric"
                 min="1"
                 max="365"
-                value={editData.water_frequency_days || plant?.water_frequency_days || 7}
-                onChange={(e) => setEditData({...editData, water_frequency_days: parseInt(e.target.value) || 7})}
+                value={editData.water_frequency_days ?? ""}
+                onChange={(e) => setEditData({...editData, water_frequency_days: e.target.value.replace(/[^0-9]/g, '').slice(0, 3)})}
+                placeholder={String(plant?.water_frequency_days || 7)}
                 className="theme-input"
               />
               <p className={`text-xs mt-1 ${getSecondaryTextColor()}`}>
@@ -1383,13 +1428,13 @@ export default function PlantDetail() {
               </Select>
             </div>
             <div>
-              <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Plant Type</label>
+              <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Category in your garden</label>
               <Select
                 value={editData.plant_type}
                 onValueChange={(value) => setEditData({...editData, plant_type: value})}
               >
                 <SelectTrigger className="theme-input">
-                  <SelectValue />
+                  <SelectValue placeholder="Not set" />
                 </SelectTrigger>
                 <SelectContent>
                   {PLANT_TYPES.map(type => (
@@ -1437,6 +1482,7 @@ export default function PlantDetail() {
             <DialogTitle className={getTextColor()}>Create Reminder</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <NotificationsOffNote light={isThemeLight(theme)} />
             <div>
               <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Title</label>
               <Input
