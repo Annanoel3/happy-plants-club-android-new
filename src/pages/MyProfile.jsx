@@ -77,8 +77,9 @@ export default function MyProfile() {
     enabled: !!user,
   });
 
-  const handleLogout = () => {
-    base44.auth.logout();
+  // Same logout as Settings: base44.auth.logout also unlinks this phone from pushes
+  const handleLogout = async () => {
+    await base44.auth.logout();
   };
 
   const getThemedClasses = () => {
