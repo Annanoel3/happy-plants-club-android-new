@@ -20,7 +20,9 @@ function aiLocalDay(tz?: string): string {
     for (const x of new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())) p[x.type] = x.value;
     return `${p.year}-${p.month}-${p.day}`;
 }
-async function useAiQuota(base44: any, user: any, kind: string) {
+// The limit is checked BEFORE the AI call (checkAiQuota), but a use is only counted AFTER the
+// AI answered (countAiUse), so a crash or bad input never uses up a chat.
+async function checkAiQuota(base44: any, user: any, kind: string) {
     try {
         const db = base44.asServiceRole.entities;
         const day = aiLocalDay(user.timezone);
@@ -33,20 +35,35 @@ async function useAiQuota(base44: any, user: any, kind: string) {
         const plus = user?.role === 'admin' || !!(sub && sub.active && (!sub.expires_at || Date.parse(sub.expires_at) > Date.now()));
         const limit = (AI_LIMITS[kind] || AI_LIMITS.chat)[plus ? 'plus' : 'free'];
         const enforce = (Deno.env.get('AI_LIMITS_ON') || '').trim().toLowerCase() === 'true';
-        const row = rows?.[0];
-        const used = row?.count || 0;
-        if (enforce && used >= limit) return { allowed: false, plus, limit, used };
-        if (row) await db.AiUsage.update(row.id, { count: used + 1 });
-        else await db.AiUsage.create({ user_id: user.id, user_email: user.email, day, kind, count: 1 });
-        return { allowed: true, plus, limit, used: used + 1 };
+        const used = rows?.[0]?.count || 0;
+        if (enforce && used >= limit) return { allowed: false, plus, limit, used, day };
+        return { allowed: true, plus, limit, used, day };
     } catch (e) {
         console.warn('AI quota check failed, allowing:', (e as Error).message);
-        return { allowed: true, plus: false, limit: 0, used: 0 };
+        return { allowed: true, plus: false, limit: 0, used: 0, day: null };
+    }
+}
+async function countAiUse(base44: any, user: any, kind: string, q: any) {
+    try {
+        const db = base44.asServiceRole.entities;
+        const day = q?.day || aiLocalDay(user.timezone);
+        // Read again: the count may have moved while the AI was answering
+        const row = (await db.AiUsage.filter({ user_id: user.id, day, kind }))?.[0];
+        if (row) await db.AiUsage.update(row.id, { count: (row.count || 0) + 1 });
+        else await db.AiUsage.create({ user_id: user.id, user_email: user.email, day, kind, count: 1 });
+    } catch (e) {
+        console.warn('AI use count failed:', (e as Error).message);
     }
 }
 function aiLimitResponse(kind: string, q: any) {
     return Response.json({ error: 'limit_reached', limit_reached: true, kind, limit: q.limit, plus: q.plus }, { status: 429 });
 }
+
+// Cost caps: only the last HISTORY_TURNS messages go to the model, and each message the
+// person sends is cut to MAX_MESSAGE characters (they're told when it was cut).
+const HISTORY_TURNS = 10;
+const MAX_MESSAGE = 2000;
+const CUT_NOTE = `(Your message was long, so I read the first ${MAX_MESSAGE.toLocaleString('en-US')} characters.)`;
 
 Deno.serve(async (req) => {
     try {
@@ -57,8 +74,15 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { plant_id, message, conversation_id } = await req.json();
-        const aiQuota = await useAiQuota(base44, user, 'chat');
+        const body = await req.json().catch(() => null);
+        const plant_id = body?.plant_id;
+        const conversation_id = body?.conversation_id || null;
+        let message = typeof body?.message === 'string' ? body.message.trim() : '';
+        if (!plant_id || !message) return Response.json({ error: 'Type a question first.', detail: 'Type a question first.' }, { status: 400 });
+        const cut = message.length > MAX_MESSAGE;
+        if (cut) message = message.slice(0, MAX_MESSAGE);
+
+        const aiQuota = await checkAiQuota(base44, user, 'chat');
         if (!aiQuota.allowed) return aiLimitResponse('chat', aiQuota);
 
         // Get plant data
@@ -69,13 +93,13 @@ Deno.serve(async (req) => {
         const plant = plants[0];
 
         // Get or create conversation
-        let conversationHistory = [];
+        let conversationHistory: any[] = [];
         let convId = conversation_id;
 
         if (conversation_id) {
             const convs = await base44.entities.PlantConversation.filter({ id: conversation_id });
             if (convs && convs.length > 0) {
-                conversationHistory = convs[0].messages || [];
+                conversationHistory = Array.isArray(convs[0].messages) ? convs[0].messages : [];
             }
         } else {
             // Create new conversation
@@ -104,18 +128,27 @@ User location: ${user.location}
 
 Answer questions about this specific plant, provide care tips, troubleshoot problems, and help with any concerns. Be friendly, concise, and actionable.`;
 
+        // Only the recent turns (each cut to the same size) go to the model; the whole
+        // conversation is still saved and shown in the app.
+        const recent = conversationHistory.slice(-HISTORY_TURNS)
+            .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant'))
+            .map((m: any) => ({ role: m.role, content: typeof m.content === 'string' ? m.content.slice(0, MAX_MESSAGE) : m.content }));
         const messages = [
             { role: 'system', content: systemPrompt },
-            ...conversationHistory,
+            ...recent,
             { role: 'user', content: message }
         ];
 
         const response = await openai.chat.completions.create({
             model: "gpt-6-luna",
-            messages: messages,
+            messages: messages as any,
         });
 
-        const aiResponse = response.choices[0].message.content;
+        const aiResponse = response.choices?.[0]?.message?.content || '';
+        if (!aiResponse) throw new Error('empty answer');
+
+        // The AI answered: now it counts as one of today's chats
+        await countAiUse(base44, user, 'chat', aiQuota);
 
         // Update conversation
         conversationHistory.push(
@@ -123,20 +156,22 @@ Answer questions about this specific plant, provide care tips, troubleshoot prob
             { role: 'assistant', content: aiResponse }
         );
 
+        // The answer was paid for: show it even if saving it fails
         await base44.entities.PlantConversation.update(convId, {
             messages: conversationHistory
-        });
+        }).catch((e: any) => console.error('saving the chat failed:', e?.message));
 
         return Response.json({
-            response: aiResponse,
-            conversation_id: convId
+            response: cut ? `${CUT_NOTE}\n\n${aiResponse}` : aiResponse,
+            conversation_id: convId,
+            ...(cut ? { trimmed: true, notice: CUT_NOTE } : {}),
         });
 
     } catch (error) {
-        console.error('Error in chatWithPlant:', error);
+        console.error('Error in chatWithPlant:', (error as Error).message);
         return Response.json({ 
             response: "Sorry, I encountered an error. Could you try again?",
-            error: error.message 
+            error: (error as Error).message 
         }, { status: 500 });
     }
 });
