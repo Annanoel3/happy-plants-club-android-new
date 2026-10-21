@@ -35,6 +35,7 @@ import AdManager from './components/shared/AdManager';
 import UpdatePrompt from '@/components/UpdatePrompt';
 import UpgradeNudge from '@/components/UpgradeNudge';
 import StatusBarStrip from '@/components/StatusBarStrip';
+import { COMMUNITY_OPEN } from '@/pages/Feed';
 import { themeEggFound } from '@/lib/themeEgg';
 import PushRouter from '@/components/PushRouter';
 
@@ -223,7 +224,7 @@ function LayoutContent({ children, currentPageName }) {
         dismissed: false,
       });
     },
-    enabled: !!user,
+    enabled: !!user && COMMUNITY_OPEN,
     // Badge count only; refetches on app focus and every 2 min
     refetchInterval: 120000,
   });
@@ -241,8 +242,9 @@ function LayoutContent({ children, currentPageName }) {
     { title: "My Garden", url: "/Dashboard", icon: Home },
     { title: "Schedule", url: "/Schedule", icon: Calendar },
     { title: "Community", url: "/Feed", icon: MessageCircle, badge: user?.notifications_enabled !== false ? feedNotifications.length : 0 },
-    // Back with Community (it was taken out with it on June 24, 2026)
-    { title: "Find Friends", url: "/Search", icon: Search, badge: pendingRequests.length },
+    // Back with Community (it was taken out with it on June 24, 2026). Shown only while
+    // Community is open (see COMMUNITY_OPEN in pages/Feed.jsx)
+    ...(COMMUNITY_OPEN ? [{ title: "Find Friends", url: "/Search", icon: Search, badge: pendingRequests.length }] : []),
     { title: "Plant Expert", url: "/PlantChat", icon: MessageCircle },
     ...(showPd ? [{ title: "Garden Games", url: "/Games", icon: Puzzle }] : []),
     // Admins only: review Community reports
