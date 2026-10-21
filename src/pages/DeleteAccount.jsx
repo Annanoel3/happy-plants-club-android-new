@@ -14,18 +14,21 @@ const DELETED_URL = "/DeleteAccount?deleted=1";
 export default function DeleteAccount() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [status, setStatus] = useState(() => {
-    try { return new URLSearchParams(window.location.search).get("deleted") === "1" ? "deleted" : "checking"; } catch { return "checking"; }
-  });
+  const [status, setStatus] = useState("checking");
   const [email, setEmail] = useState("");
 
   useEffect(() => {
-    if (status === "deleted") return;
     let cancelled = false;
     (async () => {
       const signedIn = await base44.auth.isAuthenticated().catch(() => false);
       if (cancelled) return;
-      if (!signedIn) { setStatus("signed_out"); return; }
+      if (!signedIn) {
+        // ?deleted=1 is where we land after deleting (signed out by then)
+        let justDeleted = false;
+        try { justDeleted = new URLSearchParams(window.location.search).get("deleted") === "1"; } catch { /* ignore */ }
+        setStatus(justDeleted ? "deleted" : "signed_out");
+        return;
+      }
       const me = await base44.auth.me().catch(() => null);
       if (cancelled) return;
       setEmail(me?.email || "");
@@ -92,6 +95,9 @@ export default function DeleteAccount() {
             <p className="text-sm text-muted-foreground">
               If you had Happy Plants Plus, remember to cancel it in Google Play &gt; Payments &amp; subscriptions &gt; Subscriptions.
             </p>
+            <Button variant="outline" className="w-full" onClick={() => window.location.assign('/')}>
+              Done
+            </Button>
           </CardContent>
         </Card>
       </div>
