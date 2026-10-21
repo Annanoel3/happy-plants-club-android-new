@@ -1,17 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Delete, Share2, PlayCircle, Flame, Lightbulb, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { localToday } from '@/lib/dates';
-import { ANSWERS } from '@/lib/games/sproutAnswers';
-import { useGameTheme, getDone, setDone, streakFor, countFinish, adBeforeNext, seededRng, shuffleWith, dayNumber } from '@/lib/games/common';
+import { ALL_ANSWERS, dailyAnswer, practiceWord } from '@/lib/games/sproutAnswers';
+import { useGameTheme, useToday, getDone, setDone, streakFor, countFinish, adBeforeNext } from '@/lib/games/common';
 import { markPlantdokuFound } from '@/lib/plantdoku/egg';
 import { usePlus } from '@/lib/plus';
 import { rewardedAvailable, showRewardedAd } from '@/lib/admob';
 import GameHeader from '@/components/games/GameHeader';
 import GameTutorial from '@/components/games/GameTutorial';
+import NewDailyBar from '@/components/games/NewDailyBar';
 
-// Sprout Word: guess the hidden 5-letter plant or garden word in 6 tries.
+// Sprout Word: guess the hidden 5-letter plant, garden or nature word in 6 tries.
+// Which word is today's, and the separate practice words: src/lib/games/sproutAnswers.js.
 // Green = right letter, right spot. Yellow = in the word, somewhere else. Gray = not in it.
 // Guesses can be any real 5-letter English word. Same daily word for everyone.
 // Hints: each one shows one letter in its right spot and costs a reward video (Plus: unlimited).
@@ -25,13 +27,6 @@ const COLORS = {
   no: 'bg-gray-400 border-gray-400 text-white',
 };
 const RANK = { no: 1, close: 2, right: 3 };
-
-const ORDER = shuffleWith(seededRng('sprout-word-order-v1'), ANSWERS);
-const START = dayNumber('2026-10-19');
-export function dailyAnswer(day) {
-  const i = (((dayNumber(day) - START) % ORDER.length) + ORDER.length) % ORDER.length;
-  return ORDER[i];
-}
 
 /** ['right'|'close'|'no'] per letter, counting repeated letters correctly */
 export function scoreGuess(guess, answer) {
@@ -53,7 +48,7 @@ async function loadWords() {
   if (wordSet) return wordSet;
   const m = await import('@/lib/games/words5');
   wordSet = new Set(m.WORDS.split(' '));
-  ANSWERS.forEach((a) => wordSet.add(a));
+  ALL_ANSWERS.forEach((a) => wordSet.add(a));
   return wordSet;
 }
 
@@ -67,26 +62,41 @@ function Tile({ letter, state, big = true }) {
 
 export default function SproutWord() {
   const { dark, ui } = useGameTheme();
-  const today = localToday();
+  // The daily's date is locked when the screen opens: midnight never swaps the word mid-game.
+  // It moves to the new day only when the player taps Daily / "Play it", or leaves and comes back.
+  const today = useToday();
+  const [day, setDay] = useState(localToday);
   const [mode, setMode] = useState('daily');
-  const [practiceWord, setPracticeWord] = useState(null);
-  const answer = mode === 'daily' ? dailyAnswer(today) : practiceWord;
-  const storeKey = mode === 'daily' ? `hp_sw_${today}` : null;
+  const [practice, setPractice] = useState(null);
+  const recent = useRef([]);
+  const answer = mode === 'daily' ? dailyAnswer(day) : practice;
+  const storeKey = mode === 'daily' ? `hp_sw_${day}` : null;
 
   const [guesses, setGuesses] = useState([]);
   const [current, setCurrent] = useState('');
   const [shake, setShake] = useState(false);
   const [words, setWords] = useState(null);
+  const [wordsFailed, setWordsFailed] = useState(false);
   const [tutorial, setTutorial] = useState(() => { try { return !localStorage.getItem(TUTORIAL_KEY); } catch { return true; } });
 
-  useEffect(() => { markPlantdokuFound(); loadWords().then(setWords).catch(() => setWords(new Set(ANSWERS))); }, []);
+  // The guess list is a separate download; if it fails, say so instead of rejecting every guess
+  const fetchWords = useCallback(() => {
+    setWordsFailed(false);
+    loadWords().then(setWords).catch(() => setWordsFailed(true));
+  }, []);
+  useEffect(() => { markPlantdokuFound(); fetchWords(); }, [fetchWords]);
 
-  // New puzzle: restore today's guesses (daily) or start fresh
+  // New puzzle: restore the daily's guesses or start fresh. A fresh one is a new puzzle
+  // starting, so it's when the "one ad per two finished puzzles" check runs.
   useEffect(() => {
+    if (!answer) return;
     let g = [];
     if (storeKey) { try { g = JSON.parse(localStorage.getItem(storeKey) || '[]'); } catch { g = []; } }
-    setGuesses(Array.isArray(g) ? g.filter((x) => typeof x === 'string' && x.length === LEN).slice(0, TRIES) : []);
+    g = Array.isArray(g) ? g.filter((x) => typeof x === 'string' && x.length === LEN).slice(0, TRIES) : [];
+    setGuesses(g);
     setCurrent('');
+    if (!g.length && !(mode === 'daily' && getDone('sproutword', day))) adBeforeNext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answer, storeKey]);
   useEffect(() => { if (storeKey) { try { localStorage.setItem(storeKey, JSON.stringify(guesses)); } catch { /* ignore */ } } }, [guesses, storeKey]);
 
@@ -129,7 +139,8 @@ export default function SproutWord() {
     if (!over || counted === answer) return;
     setCounted(answer);
     if (mode === 'daily') {
-      if (!getDone('sproutword', today)) { setDone('sproutword', { won, tries: guesses.length, hints: revealed.length }, today); countFinish(); }
+      // Losses get a done mark too (no replaying the daily); only wins keep the streak going
+      if (!getDone('sproutword', day)) { setDone('sproutword', { won, tries: guesses.length, hints: revealed.length }, day); countFinish(); }
     } else countFinish();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [over, answer]);
@@ -152,11 +163,14 @@ export default function SproutWord() {
   const submit = useCallback(() => {
     if (over) return;
     if (current.length < LEN) { bump('Not enough letters'); return; }
-    if (!words) { bump('One sec, loading words…'); return; }
+    if (!words) {
+      if (wordsFailed) { bump("Couldn't load the word list. Check your signal."); fetchWords(); } else bump('One sec, loading words…');
+      return;
+    }
     if (!words.has(current)) { bump("That's not in the word list"); return; }
     setGuesses((g) => [...g, current]);
     setCurrent('');
-  }, [current, over, words]);
+  }, [current, over, words, wordsFailed, fetchWords]);
   const press = useCallback((key) => {
     if (over || tutorial) return;
     if (key === 'enter') submit();
@@ -174,17 +188,22 @@ export default function SproutWord() {
     return () => window.removeEventListener('keydown', onKey);
   }, [press]);
 
+  // Practice words come from their own list, never a daily word (see sproutAnswers.js)
   const playAnother = () => {
-    adBeforeNext();
-    const pool = ANSWERS.filter((a) => a !== dailyAnswer(today) && a !== practiceWord);
-    setPracticeWord(pool[Math.floor(Math.random() * pool.length)]);
+    const w = practiceWord(recent.current);
+    recent.current = [...recent.current.slice(-19), w];
+    setPractice(w);
     setMode('practice');
   };
+  const toDaily = () => {
+    setDay(localToday());
+    setMode('daily');
+  };
   const share = async () => {
-    const day = new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const dayLabel = new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const grid = guesses.map((g) => scoreGuess(g, answer).map((s) => (s === 'right' ? '🟩' : s === 'close' ? '🟨' : '⬜')).join('')).join('\n');
     const hintsText = revealed.length ? ` (${revealed.length} hint${revealed.length === 1 ? '' : 's'})` : '';
-    const text = `Sprout Word ${day} 🔤 ${won ? guesses.length : 'X'}/${TRIES}${hintsText}\n${grid}\nhappyplants.club`;
+    const text = `Sprout Word ${dayLabel} 🔤 ${won ? guesses.length : 'X'}/${TRIES}${hintsText}\n${grid}\nhappyplants.club`;
     if (Capacitor.isNativePlatform()) {
       try { await registerPlugin('NotifyBridge').shareText({ text, title: 'Sprout Word' }); return; } catch { /* older build */ }
     }
@@ -197,11 +216,12 @@ export default function SproutWord() {
     if (r === guesses.length && !over) return { letters: [...current.padEnd(LEN, ' ')], states: null, active: true };
     return { letters: Array(LEN).fill(' '), states: null };
   });
-  const streak = streakFor('sproutword', today);
+  const streak = streakFor('sproutword', day);
+  const newDay = mode === 'daily' && today !== day;
   const steps = [
     {
       title: 'Guess the hidden plant word',
-      text: "It's always a 5-letter plant or garden word, like TULIP or BASIL. You get 6 tries.",
+      text: "It's always a 5-letter plant, garden or nature word, like TULIP, BASIL or FROST. You get 6 tries.",
       pic: <div className="grid grid-cols-5 gap-1.5 max-w-[220px] mx-auto">{[...'tulip'].map((c, i) => <Tile key={i} letter={c} />)}</div>,
     },
     {
@@ -236,10 +256,12 @@ export default function SproutWord() {
       <style>{'@keyframes hp-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}'}</style>
       <div className="max-w-md mx-auto px-4 pt-4">
         <GameHeader title="Sprout Word" emoji="🔤" ui={ui} onHelp={() => setTutorial(true)}
-          subtitle={mode === 'daily' ? `Daily word · ${new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}` : 'Practice word'}
+          subtitle={mode === 'daily' ? `Daily word · ${new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}` : 'Practice word'}
           right={streak > 0 ? <span className={`flex items-center gap-1 rounded-xl px-3 py-2 border font-bold ${ui.card} ${ui.text}`}><Flame className="w-4 h-4 text-orange-500" />{streak}</span> : null} />
 
-        <p className={`text-sm mb-3 ${ui.sub}`}>Guess the <b className={ui.text}>5-letter plant word</b>. 🟩 right spot · 🟨 in the word, wrong spot · ⬜ not in the word.</p>
+        {newDay && <NewDailyBar ui={ui} onGo={toDaily} />}
+
+        <p className={`text-sm mb-3 ${ui.sub}`}>Guess the <b className={ui.text}>5-letter plant, garden or nature word</b>. 🟩 right spot · 🟨 in the word, wrong spot · ⬜ not in the word.</p>
 
         <div className="grid gap-1.5 max-w-[300px] mx-auto" role="grid" aria-label="Guesses">
           {rows.map((row, r) => (
@@ -300,7 +322,10 @@ export default function SproutWord() {
             <p className={`text-2xl font-bold mt-1 ${ui.text}`}>{won ? (guesses.length === 1 ? 'First try!' : `Got it in ${guesses.length}/${TRIES}`) : 'So close!'}</p>
             <p className={`mt-1 ${ui.sub}`}>The word was <b className={`uppercase ${ui.text}`}>{answer}</b>.</p>
             {mode === 'daily' && (
-              <p className={`text-sm mt-2 ${ui.sub}`}><Flame className="w-4 h-4 inline text-orange-500" /> {streak} day streak · New word tomorrow</p>
+              <p className={`text-sm mt-2 ${ui.sub}`}>
+                {won ? <><Flame className="w-4 h-4 inline text-orange-500" /> {streak} day streak</> : 'Streak starts again with your next win'}
+                {!newDay && ' · New word tomorrow'}
+              </p>
             )}
             <div className="flex flex-wrap gap-2 mt-4">
               {mode === 'daily' && (
@@ -308,7 +333,7 @@ export default function SproutWord() {
               )}
               <button onClick={playAnother} className={`flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold border active:scale-95 ${ui.chip}`}><PlayCircle className="w-4 h-4" /> Play another</button>
               {mode === 'practice' && (
-                <button onClick={() => { adBeforeNext(); setMode('daily'); }} className={`rounded-xl px-3 py-2.5 text-sm font-semibold border active:scale-95 ${ui.chip}`}>Today's word</button>
+                <button onClick={toDaily} className={`rounded-xl px-3 py-2.5 text-sm font-semibold border active:scale-95 ${ui.chip}`}>Today's word</button>
               )}
             </div>
           </div>
