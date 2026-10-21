@@ -1077,6 +1077,7 @@ Deno.serve(async (req) => {
         }
         const db = svc ? base44.asServiceRole.entities : base44.entities;
         const cache = base44.asServiceRole.entities; // CareSheet: researched care sheets, shared per region
+        const sdb = base44.asServiceRole.entities; // PlantIdCharge: who paid for which photo ID
 
         // ---- New flow: the plant record already exists; do the work here and save it,
         // so it finishes even if the phone closes the app or loses signal.
@@ -1093,14 +1094,8 @@ Deno.serve(async (req) => {
                 // Typing a name isn't a photo ID
                 const q = await useAiQuota(base44, user, 'rename');
                 if (!q.allowed) return aiLimitResponse('rename', q);
-            } else if (!info.id_paid && plant.image_url) {
-                const t = await takeOneId(base44, user);
-                if (t.blocked) {
-                    await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: 'limit_reached' } }).catch(() => {});
-                    return t.blocked;
-                }
-                info.id_paid = t.day || today;
             }
+            // Photo IDs are charged in paths b, c and d below, from PlantIdCharge (not add_info.id_paid)
             const context = contextFor(user, plant, today);
             // Seasonal numbers belong to the plant the care sheet was written for
             const clearSeasons = (p: any) => (p.care_profile?.user_interval ? {} : { water_days_grow: null, water_days_rest: null, water_rest_season: null, water_season: null });
@@ -1178,18 +1173,51 @@ Deno.serve(async (req) => {
             //    it's a different plant now, write the care sheet for the new name.
             if (typeof body.extra_photo === 'string' && body.extra_photo.length) {
                 if (!plant.image_url) return Response.json({ error: 'No photo on this plant' }, { status: 400 });
-                if ((Number(info.extra_tries) || 0) >= 3) return Response.json({ error: 'too_many', detail: 'Three extra photos already tried for this plant' }, { status: 429 });
+                const tooMany = () => Response.json({ error: 'too_many', detail: 'Three extra photos already tried for this plant' }, { status: 429 });
+                // Counted server-side ('extra' rows); add_info.extra_tries is only for the app's button
+                const mine = await chargeRows(sdb, plant.id, user.id);
+                if (Math.max(mine.filter((r: any) => r.source === 'extra').length, Number(info.extra_tries) || 0) >= EXTRA_PHOTOS) return tooMany();
                 if (body.extra_photo.length > 6_000_000) return Response.json({ error: 'Photo too large' }, { status: 413 });
+                // Extra photos are free for a plant whose own photo ID was paid for; otherwise
+                // this one is its photo ID (as before)
+                const paidFor = mine.find((r: any) => PAID_SOURCES.includes(r.source) && r.image_url === String(plant.image_url))
+                    || (isLegacy(plant) && info.id_paid ? await sdb.PlantIdCharge.create(chargeRow(user, plant, { source: 'legacy', status: 'named', named_sci: String(plant.scientific_name || '') })).catch(() => null) : null);
+                let paidRow: any = paidFor;
+                if (!paidRow) {
+                    const t = await takeOneId(base44, user);
+                    if (t.blocked) return t.blocked;
+                    paidRow = await sdb.PlantIdCharge.create(chargeRow(user, plant, { source: 'identify', day: t.day || today, status: 'named', tries: 1, named_sci: String(plant.scientific_name || '') })).catch(() => null);
+                    info.id_paid = t.day || today;
+                }
+                // Claim one of the 3: the first 3 'extra' rows count, so two at once can't both slip in
+                const mark = await sdb.PlantIdCharge.create(chargeRow(user, plant, { source: 'extra', status: 'running' }));
+                const extrasNow = ((await sdb.PlantIdCharge.filter({ plant_id: plant.id, source: 'extra' }, 'created_date', 50).catch(() => [])) || [])
+                    .filter((r: any) => r.user_id === user.id).sort(oldestFirst);
+                const slot = extrasNow.findIndex((r: any) => r.id === mark.id);
+                if (slot < 0 || slot >= EXTRA_PHOTOS) {
+                    await sdb.PlantIdCharge.delete(mark.id).catch(() => {});
+                    return tooMany();
+                }
                 const mime = /^image\/(jpeg|png|webp)$/.test(String(body.mime || '')) ? String(body.mime) : 'image/jpeg';
                 const b64 = body.extra_photo.replace(/^data:[^,]*,/, '');
                 const bin = atob(b64);
                 const bytes = new Uint8Array(bin.length);
                 for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
                 const meter = newMeter();
-                info.extra_tries = (Number(info.extra_tries) || 0) + 1;
-                const r = await identify(rid, plant.image_url, context, undefined, meter, {}, { bytes, mime, dataUrl: `data:${mime};base64,${b64}` });
+                info.extra_tries = slot + 1;
+                let r: any;
+                try {
+                    r = await identify(rid, plant.image_url, context, undefined, meter, {}, { bytes, mime, dataUrl: `data:${mime};base64,${b64}` });
+                } catch (e) {
+                    // Still counts as one of the 3 (it was paid for on the OpenAI bill)
+                    await sdb.PlantIdCharge.update(mark.id, { status: 'failed' }).catch(() => {});
+                    throw e;
+                }
+                await sdb.PlantIdCharge.update(mark.id, { status: 'named' }).catch(() => {});
                 const judged = r.plantData;
                 const changed = !!judged.scientific_name && !sameSpecies(judged.scientific_name, plant.scientific_name);
+                // The name our photo ID settled on moves with it (path b trusts only that name)
+                if (changed && paidRow) await sdb.PlantIdCharge.update(paidRow.id, { named_sci: String(judged.scientific_name).slice(0, 120), care_tries: 0 }).catch(() => {});
                 const choices = r.identification?.confidence === 'high' ? [] : await buildChoices(judged, r.identification?.alternatives || [], r.pn, cache).catch(() => []);
                 const size = PLANT_SIZES.includes(judged.plant_size) ? judged.plant_size : null;
                 await db.Plant.update(plant.id, {
@@ -1217,6 +1245,25 @@ Deno.serve(async (req) => {
             const namedNoCare = !!plant.image_url && info.care_pending && !info.care_done && !!plant.scientific_name;
             if (typedPlant || namedNoCare) {
                 if (info.care_done) return Response.json({ success: true, plant });
+                // A photo plant's care sheet is retried free for the name our own photo ID settled
+                // (3 times per charge). If the name was edited since, there's no record of paying,
+                // or the free tries are used, it counts as a typed name.
+                let ownerNamed = false;
+                if (namedNoCare) {
+                    const paidRows = (await chargeRows(sdb, plant.id, user.id)).filter((r: any) => PAID_SOURCES.includes(r.source));
+                    let cur: any = paidRows[0]?.image_url === String(plant.image_url) ? paidRows[0] : null;
+                    if (!cur && !paidRows.length && isLegacy(plant) && info.id_paid) {
+                        cur = await sdb.PlantIdCharge.create(chargeRow(user, plant, { source: 'legacy', status: 'named', named_sci: String(plant.scientific_name || '') })).catch(() => null);
+                    }
+                    const free = !!cur && cur.status === 'named' && sameName(cur.named_sci, plant.scientific_name) && (Number(cur.care_tries) || 0) < CARE_RETRIES;
+                    if (free) {
+                        await sdb.PlantIdCharge.update(cur.id, { care_tries: (Number(cur.care_tries) || 0) + 1 }).catch(() => {});
+                    } else {
+                        ownerNamed = !(cur && sameName(cur.named_sci, plant.scientific_name));
+                        const q = await useAiQuota(base44, user, 'rename');
+                        if (!q.allowed) return aiLimitResponse('rename', q);
+                    }
+                }
                 info.tries = (Number(info.tries) || 0) + 1;
                 info.care_started_at = new Date().toISOString();
                 if (typedPlant) info.started_at = info.care_started_at;
@@ -1225,7 +1272,7 @@ Deno.serve(async (req) => {
                     const meter = newMeter();
                     const fresh = await saveCare(typedPlant
                         ? { name: plant.name, scientific_name: plant.scientific_name || plant.name, typed: true, meter, cache }
-                        : { name: plant.name, scientific_name: plant.scientific_name, plant_size: plant.plant_size || null, meter, cache }, null);
+                        : { name: plant.name, scientific_name: plant.scientific_name, plant_size: plant.plant_size || null, owner_named: ownerNamed, meter, cache }, null);
                     return Response.json({ success: true, plant: fresh });
                 } catch (e) { return careFailed(e); }
             }
@@ -1235,6 +1282,43 @@ Deno.serve(async (req) => {
             //    the photo, and usually already started while the name was being settled) is saved
             //    a few seconds later.
             if (!plant.image_url) return Response.json({ error: 'No photo on this plant' }, { status: 400 });
+            // Which charge this try runs under (rules at PlantIdCharge, near the top)
+            const runId = `${rid}-${Date.now().toString(36)}`;
+            const running = { status: 'running', run_id: runId, run_at: new Date().toISOString() };
+            const paidRows = (await chargeRows(sdb, plant.id, user.id)).filter((r: any) => PAID_SOURCES.includes(r.source));
+            const cur: any = paidRows[0]?.image_url === String(plant.image_url) ? paidRows[0] : null; // the newest charge, if it's for this photo
+            let charge: any = null;
+            if (cur) {
+                if (cur.status === 'running' && Date.now() - (Date.parse(cur.run_at || '') || 0) < RUN_LOCK_MS) return busyResponse();
+                const unused = cur.status === 'paid';
+                const retry = (cur.status === 'failed' || cur.status === 'running') && (Number(cur.free_retries) || 0) < FREE_RETRIES;
+                if (unused || retry) {
+                    const ok = await holdRun(sdb, cur, { ...running, tries: (Number(cur.tries) || 0) + 1, ...(retry ? { free_retries: (Number(cur.free_retries) || 0) + 1 } : {}) });
+                    if (!ok) return busyResponse();
+                    charge = cur;
+                }
+            } else if (info.id_paid) {
+                charge = isLegacy(plant) && !paidRows.length
+                    ? await sdb.PlantIdCharge.create(chargeRow(user, plant, { ...running, tries: 1, source: 'legacy', ...(/^\d{4}-\d{2}-\d{2}/.test(String(info.id_paid)) ? { day: String(info.id_paid).slice(0, 10) } : {}) }))
+                    : await claimReserved(sdb, user, plant, info.id_paid, { ...running, tries: 1 });
+            }
+            if (!charge) {
+                // The sweep only finishes tries that were paid for; it never charges twice for one
+                // photo. Mark it so the sweep stops picking it (the owner can still tap Try again).
+                if (svc && cur) {
+                    await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, tries: Math.max(3, Number(info.tries) || 0), error: 'retries_used' } }).catch(() => {});
+                    return Response.json({ error: 'retries_used', detail: 'The free retries for this photo are used up' }, { status: 409 });
+                }
+                const t = await takeOneId(base44, user);
+                if (t.blocked) {
+                    await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: 'limit_reached' } }).catch(() => {});
+                    return t.blocked;
+                }
+                charge = await sdb.PlantIdCharge.create(chargeRow(user, plant, { ...running, tries: 1, source: 'identify', day: t.day || today }))
+                    .catch((e: any) => { console.warn('charge record failed', e?.message); return null; });
+            }
+            info.id_paid = charge?.day || info.id_paid || today; // for the app and premium; the server goes by PlantIdCharge
+            const settleCharge = (patch: any) => (charge ? sdb.PlantIdCharge.update(charge.id, patch).catch(() => {}) : Promise.resolve());
             info.tries = (Number(info.tries) || 0) + 1;
             info.started_at = new Date().toISOString();
             delete info.error;
@@ -1250,6 +1334,7 @@ Deno.serve(async (req) => {
                 }, meter);
             } catch (e) {
                 console.error(`[${rid}] identify failed`, (e as Error).message);
+                await settleCharge({ status: 'failed' }); // the next try of this photo is free (2 at most)
                 await db.Plant.update(plant.id, { add_status: 'failed', add_info: { ...info, error: (e as Error).message.slice(0, 200) } }).catch(() => {});
                 return Response.json({ error: "Couldn't identify this plant", detail: (e as Error).message }, { status: 502 });
             }
@@ -1269,6 +1354,7 @@ Deno.serve(async (req) => {
                     named_ms: Date.now() - Date.parse(info.started_at) },
             };
             await db.Plant.update(plant.id, named);
+            await settleCharge({ status: 'named', named_sci: named.scientific_name || '', care_tries: 0 });
             try {
                 const ready = spec && sameSpecies(spec.sci, judged.scientific_name) ? spec.p : null;
                 let fresh = await saveCare({ name: named.name, scientific_name: named.scientific_name, plant_size: size, meter, cache }, ready);
@@ -1289,7 +1375,7 @@ Deno.serve(async (req) => {
         if (!image_url) return Response.json({ error: 'No image_url provided' }, { status: 400 });
         const t = await takeOneId(base44, user);
         if (t.blocked) return t.blocked;
-        console.log(`[${rid}] 🌱 identifyPlantWithExpert`, image_url);
+        console.log(`[${rid}] 🌱 identifyPlantWithExpert (old flow)`);
         const r = await identify(rid, image_url, contextFor(user, null, today));
         const c = await writeCare(user, null, today, { name: r.plantData.name, scientific_name: r.plantData.scientific_name, cache: base44.asServiceRole.entities });
         return Response.json({ success: true, plantData: { ...r.plantData, ...c.fields }, identification: r.identification });
