@@ -393,7 +393,9 @@ function regionSizes(size, regions) {
  *   solution: solution[row] = column
  * Deterministic for a given seed + size. Sizes 5–9.
  */
-function makePuzzle(seedString, size) {
+// patient: keep looking (all 400 tries) for a no-guessing puzzle before settling for a last
+// resort. Must match src/lib/plantdoku/engine.js exactly (same puzzle on the phone and here).
+function makePuzzle(seedString, size, { patient = true }: { patient?: boolean } = {}) {
   const N = Math.max(5, Math.min(9, Math.floor(Number(size) || 8)));
   const rng = seededRng(`${seedString}|${N}`);
   // Best: solvable by plain deduction, no 1-cell region, at most two tiny (1–2 cell) regions.
@@ -415,9 +417,16 @@ function makePuzzle(seedString, size) {
       if (!good) good = out;
     } else if (!fallback) fallback = out;
     if (attempt >= 40 && good) return good;
-    if (attempt >= 80 && fallback) return fallback;
+    if (!patient && attempt >= 80 && fallback) return fallback;
   }
   return good || fallback;
+}
+
+// The patient search starts here; earlier dailies stay exactly as they were played
+const PATIENT_FROM = '2026-10-22';
+function dailyPuzzle(dateStr) {
+  const day = String(dateStr).slice(0, 10);
+  return makePuzzle(dailySeed(day), dailySize(day), { patient: day >= PATIENT_FROM });
 }
 
 // ---------- Daily puzzle ----------
@@ -642,7 +651,7 @@ Deno.serve(async (req) => {
 
         if (body.action === 'hint') {
             if (run.finished_at) return Response.json({ error: 'finished' }, { status: 400 });
-            const puzzle = makePuzzle(dailySeed(date), size);
+            const puzzle = dailyPuzzle(date);
             const hint = hintFor(size, puzzle.regions, puzzle.solution, cleanPlants(size, body.plants));
             if (!hint) return Response.json({ success: true, hint: null, hints: run.hints || 0 });
             const hints = (run.hints || 0) + 1;
@@ -654,7 +663,7 @@ Deno.serve(async (req) => {
             if (run.finished_at) {
                 return Response.json({ success: true, already: true, seconds: run.seconds, raw_seconds: run.raw_seconds, hints: run.hints || 0, board: await boardFor(db, date, user.id), stats: await statsFor(db, user.id, date) });
             }
-            const puzzle = makePuzzle(dailySeed(date), size);
+            const puzzle = dailyPuzzle(date);
             const plants = cleanPlants(size, body.plants);
             if (!isSolved(size, puzzle.regions, plants)) return Response.json({ error: 'not_solved' }, { status: 400 });
             const raw = Math.round(activeMs(run, now) / 1000);
