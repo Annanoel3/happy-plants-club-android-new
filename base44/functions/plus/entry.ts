@@ -601,6 +601,13 @@ function careDueToday(plants: any[], today: string, lat?: any) {
     due.sort((a, b) => a.next.localeCompare(b.next));
     return due;
 }
+// Why OneSignal said no, without the email addresses its errors can list
+function osWhy(detail: any): string {
+    const e = detail?.errors ?? detail;
+    if (Array.isArray(e)) return e.map(String).join('; ').slice(0, 160);
+    if (e && typeof e === 'object') return Object.keys(e).join(', ');
+    return String(e || '').slice(0, 160);
+}
 function osAuth(key: string | undefined | null): string {
     const k = (key || '').trim();
     return k.startsWith('os_v2') ? `Key ${k}` : `Basic ${k}`;
@@ -1216,7 +1223,7 @@ Deno.serve(async (req) => {
                             await db.User.update(u.id, { care_push_day: today }); // claim first: never twice
                             const s = await sendCarePush(u.email, due);
                             bump(s.id ? 'care_sent' : 'care_failed');
-                            if (!s.id) console.warn('care push failed', u.id, JSON.stringify(s.detail?.errors || s.detail).slice(0, 120));
+                            if (!s.id) console.warn('care push failed', u.id, osWhy(s.detail));
                         }
                     }
 
@@ -1247,7 +1254,7 @@ Deno.serve(async (req) => {
                                 }
                                 const f = await sendFrostPush(u.email, cold, low, !!away);
                                 bump(f.id ? 'frost_sent' : 'frost_failed');
-                                if (!f.id) console.warn('frost push failed', u.id, JSON.stringify(f.detail?.errors || f.detail).slice(0, 120));
+                                if (!f.id) console.warn('frost push failed', u.id, osWhy(f.detail));
                             }
                         }
                     }
