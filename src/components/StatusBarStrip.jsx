@@ -21,10 +21,13 @@ export default function StatusBarStrip() {
 
   useEffect(() => {
     if (!native) return undefined;
+    // Several places switch the theme (menu button, the garden's secret button, Settings),
+    // so watch the page's theme itself rather than any one of them
     const sync = () => setTheme(document.documentElement.getAttribute('data-theme') || 'light');
-    window.addEventListener('hp-theme-change', sync);
+    const mo = new MutationObserver(sync);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     sync();
-    return () => window.removeEventListener('hp-theme-change', sync);
+    return () => mo.disconnect();
   }, [native]);
 
   // White icons on every theme now (the strip is always a deep color)
