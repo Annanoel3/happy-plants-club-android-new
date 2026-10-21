@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Cloud, X } from "lucide-react";
 import { whenPopupFree, releasePopup } from "@/lib/popupGate";
 
+let weatherInFlight = false;
+
 export default function DailyWeatherPopup() {
   const [isOpen, setIsOpen] = useState(false);
   const [weatherMessage, setWeatherMessage] = useState("");
@@ -122,14 +124,19 @@ export default function DailyWeatherPopup() {
 
   const checkAndShowWeather = async (forceShow = false) => {
     const today = localToday();
-    const lastShown = localStorage.getItem('lastWeatherShown');
+    let lastShown = null;
+    try { lastShown = localStorage.getItem('lastWeatherShown'); } catch { /* ignore */ }
 
     if (!forceShow && lastShown === today) {
       return;
     }
-
-    // Set immediately to prevent duplicate calls from concurrent renders
-    localStorage.setItem('lastWeatherShown', today);
+    // One look per app session at a time (the garden can mount twice). The day is only marked
+    // once the popup really shows, so a failed fetch (no signal) tries again next visit.
+    if (!forceShow) {
+      if (weatherInFlight) return;
+      try { if (sessionStorage.getItem('hp_weather_checked') === today) return; } catch { /* ignore */ }
+    }
+    weatherInFlight = true;
 
     setIsLoading(true);
     try {
@@ -185,15 +192,22 @@ export default function DailyWeatherPopup() {
             // (The weather lookup is slow; if they've already left this page, don't queue it.)
             if (mountedRef.current) {
               cancelWaitRef.current = whenPopupFree('weather', () => {
-                if (mountedRef.current) setIsOpen(true);
-                else releasePopup('weather');
+                if (mountedRef.current) {
+                  setIsOpen(true);
+                  // Shown: that's today's weather done
+                  try { localStorage.setItem('lastWeatherShown', today); } catch { /* ignore */ }
+                } else releasePopup('weather');
               });
             }
+        } else {
+          // Fetched fine, but nothing worth showing at this hour: don't fetch again this session
+          try { sessionStorage.setItem('hp_weather_checked', today); } catch { /* ignore */ }
         }
       }
     } catch (error) {
       console.error('Error fetching weather:', error);
     } finally {
+      weatherInFlight = false;
       setIsLoading(false);
     }
   };
