@@ -262,7 +262,8 @@ export default function PlantDetail() {
       setEditData({
         nickname: plant.nickname || "",
         location: plant.location || "",
-        environment: plant.environment || "Indoor",
+        // Not set stays not set (it used to save "Indoor" for any plant without one)
+        environment: plant.environment || "",
         sun_exposure: plant.sun_exposure || "",
         pot_type: plant.pot_type || "",
         pot_size: plant.pot_size || "",
@@ -342,6 +343,7 @@ export default function PlantDetail() {
       const typed = parseInt(String(clean.water_frequency_days ?? '').trim(), 10);
       const every = typed >= 1 ? Math.min(365, typed) : (Number(plant?.water_frequency_days) || 7);
       if (typed >= 1) clean.water_frequency_days = every; else delete clean.water_frequency_days;
+      if (!clean.environment) delete clean.environment;
       // Only one of the garden's categories is saved; unset stays unset (no "Other")
       if (!PLANT_TYPES.includes(clean.plant_type) || clean.plant_type === plant?.plant_type) delete clean.plant_type;
       const seasonal = Number(plant?.water_days_grow) > 0 && Number(plant?.water_days_rest) > 0;
@@ -1322,7 +1324,7 @@ export default function PlantDetail() {
                 onValueChange={(value) => setEditData({...editData, environment: value})}
               >
                 <SelectTrigger className="theme-input">
-                  <SelectValue />
+                  <SelectValue placeholder="Not set" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Indoor">Indoor</SelectItem>
