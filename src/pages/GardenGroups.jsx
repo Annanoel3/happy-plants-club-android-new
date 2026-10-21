@@ -19,7 +19,12 @@ const LEVELS = {
 const MAX_MISTAKES = 4;
 const TUTORIAL_KEY = 'hp_gg_tutorial_v1';
 
-const sizeFor = (w) => (w.length <= 6 ? 'text-[15px]' : w.length <= 9 ? 'text-[12.5px]' : 'text-[11px]');
+// Text size goes by the longest single word on the tile (two-word names wrap onto two lines),
+// so every name fits inside a tile of one fixed size
+const sizeFor = (w) => {
+  const longest = Math.max(...w.split(/[ -]/).map((s) => s.length));
+  return w.length <= 6 ? 'text-[15px]' : longest <= 8 ? 'text-[13px]' : longest <= 10 ? 'text-[11.5px]' : 'text-[10px]';
+};
 
 function MiniTile({ word, selected, dark }) {
   return (
@@ -235,7 +240,7 @@ export default function GardenGroups() {
               const on = selected.includes(w);
               return (
                 <button key={w} onClick={() => toggle(w)} aria-pressed={on}
-                  className={`min-h-[64px] rounded-xl px-1 font-bold uppercase leading-tight text-center transition active:scale-95 ${sizeFor(w)} ${
+                  className={`h-16 min-w-0 overflow-hidden break-words rounded-xl px-1 font-bold uppercase leading-tight text-center transition active:scale-95 ${sizeFor(w)} ${
                     on ? 'bg-green-700 text-white shadow-inner' : dark ? 'bg-white/10 text-white' : 'bg-[#f3ede1] text-gray-900 shadow-sm'}`}
                   style={on && shake ? { animation: 'ggshake .45s' } : undefined}>
                   {w}
