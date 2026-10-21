@@ -459,12 +459,25 @@ function weatherTemplate(f: any): string {
     }
     return `${first} ${tip}`;
 }
+// One note per person per local day: the first one of the day is kept (AiUsage kind
+// 'weather_note', one row per person, data = the note) and the app's weather card and the
+// morning push reuse it, so the AI is asked at most once a day per person. It's a server-only
+// row, so it can't be cleared to get more. A move to another place the same day gets a fresh
+// note from the template (no AI).
 async function weatherNote(db: any, user: any, now: number, memo: Map<string, any>) {
     if (needsGeocode(user)) {
-        const g = await geocode(String(user.location));
+        const g = await geocode(db, user, String(user.location));
         await saveGeo(db, user, String(user.location).trim(), g);
     }
     if (typeof user.location_lat !== 'number' || typeof user.location_lon !== 'number') return null;
+    const day = dayOf(now, validTz(user.timezone));
+    const place = `${user.location_lat},${user.location_lon}`;
+    let noteRow: any = null;
+    try { noteRow = user.id ? (await db.AiUsage.filter({ user_id: user.id, kind: 'weather_note' }))?.[0] || null : null; } catch { noteRow = null; }
+    const kept = noteRow?.day === day && noteRow?.data && typeof noteRow.data === 'object' ? noteRow.data : null;
+    if (kept?.message && kept.place === place) {
+        return { message: kept.message, location: kept.location ?? null, facts: kept.facts ?? null, warning: !!kept.warning };
+    }
     const wx = await loadWeather(db, user.location_lat, user.location_lon, memo);
     const s = summarize(wx.hours, now, validTz(user.timezone));
     if (s.high_f === null) return null;
@@ -479,7 +492,8 @@ async function weatherNote(db: any, user: any, now: number, memo: Map<string, an
     };
     let message = weatherTemplate(f);
     const key = Deno.env.get('OPENAI_API_KEY');
-    if (key) {
+    const askAi = !!key && !kept?.ai; // the AI already had its one go today
+    if (askAi) {
         try {
             const openai = new OpenAI({ apiKey: key });
             const r = await openai.chat.completions.create({
@@ -498,7 +512,17 @@ async function weatherNote(db: any, user: any, now: number, memo: Map<string, an
     }
     // A real warning: frost/freeze for outdoor plants, or extreme heat
     const warning = (outdoor && f.low_f !== null && f.low_f <= 35) || f.high_f >= 100;
-    return { message, location: f.place, facts: f, warning };
+    const note = { message, location: f.place, facts: f, warning };
+    if (user.id) {
+        try {
+            const data = { ...note, place, ai: !!(kept?.ai || askAi) };
+            if (noteRow) await db.AiUsage.update(noteRow.id, { day, data, count: noteRow.day === day ? (Number(noteRow.count) || 0) + 1 : 1 });
+            else await db.AiUsage.create({ user_id: user.id, user_email: user.email, kind: 'weather_note', day, count: 1, data });
+        } catch (e) {
+            console.warn('weather note save failed', (e as Error).message);
+        }
+    }
+    return note;
 }
 
 // ---------------------------------------------------------------- care pushes
