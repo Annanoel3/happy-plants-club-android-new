@@ -284,7 +284,7 @@ export default function PlantDetail() {
   const waterPlantMutation = useMutation({
     mutationFn: async () => {
       // Saved on the phone first, then sent (lib/watering): if the app closes or there's
-      // no signal, it's sent later. The server also clears this plant from game events.
+      // no signal, it's sent later.
       const waterDate = wateringDate || localToday();
       const plantData = plant || await base44.entities.Plant.get(plantId);
       if (!plantData) throw new Error('Plant not found');
