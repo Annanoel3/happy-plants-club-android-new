@@ -16,34 +16,24 @@
   ],
   "rls": {
     "create": {
-      "$or": [
-        {
-          "data.follower_email": "{{user.email}}"
-        },
-        {
-          "data.following_email": "{{user.email}}"
-        }
-      ]
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "delete": {
-      "$or": [
-        {
-          "data.follower_email": "{{user.email}}"
-        },
-        {
-          "data.following_email": "{{user.email}}"
-        }
-      ]
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "update": {
-      "$or": [
-        {
-          "data.follower_email": "{{user.email}}"
-        },
-        {
-          "data.following_email": "{{user.email}}"
-        }
-      ]
+      "user_condition": {
+        "role": "admin"
+      }
     }
   },
   "type": "object"
