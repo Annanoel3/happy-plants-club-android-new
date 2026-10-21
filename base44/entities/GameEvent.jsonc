@@ -1,9 +1,20 @@
 {
   "name": "GameEvent",
-  "type": "object",
   "properties": {
+    "affected_plant_ids": {
+      "description": "IDs of plants affected by this event",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "event_date": {
+      "description": "When the event occurred",
+      "format": "date",
+      "type": "string"
+    },
     "event_type": {
-      "type": "string",
+      "description": "Type of weather event",
       "enum": [
         "drought",
         "heatwave",
@@ -13,32 +24,43 @@
         "blizzard",
         "flood"
       ],
-      "description": "Type of weather event"
-    },
-    "event_date": {
-      "type": "string",
-      "format": "date",
-      "description": "When the event occurred"
-    },
-    "affected_plant_ids": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "IDs of plants affected by this event"
-    },
-    "resolved": {
-      "type": "boolean",
-      "default": false,
-      "description": "Whether the user has resolved this event"
+      "type": "string"
     },
     "message": {
-      "type": "string",
-      "description": "Message to display to the user"
+      "description": "Message to display to the user",
+      "type": "string"
+    },
+    "resolved": {
+      "default": false,
+      "description": "Whether the user has resolved this event",
+      "type": "boolean"
     }
   },
   "required": [
     "event_type",
     "event_date"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "type": "object"
 }

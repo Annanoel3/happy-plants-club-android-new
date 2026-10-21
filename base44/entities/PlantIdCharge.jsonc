@@ -1,0 +1,102 @@
+{
+  "description": "Server-only record of photo IDs charged per plant + photo, free retries, extra close-up photos and care-sheet retries, so the plant's owner can't edit 'already paid' or retry counts (Plant.add_info is theirs). Written and read only by identifyPlantWithExpert (service role). One row per charge (source identify/reserve/legacy) or per extra photo (source extra).",
+  "name": "PlantIdCharge",
+  "properties": {
+    "care_tries": {
+      "default": 0,
+      "description": "Free care-sheet retries used for the settled name (max 3)",
+      "type": "number"
+    },
+    "charged_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "day": {
+      "description": "The AiUsage day the photo ID was counted on (empty for extra)",
+      "format": "date",
+      "type": "string"
+    },
+    "free_retries": {
+      "default": 0,
+      "description": "Free retries used after errors (max 2)",
+      "type": "number"
+    },
+    "image_url": {
+      "description": "The plant photo this charge is for; a new photo is a new charge",
+      "type": "string"
+    },
+    "named_sci": {
+      "description": "The scientific name this photo ID settled on",
+      "type": "string"
+    },
+    "plant_id": {
+      "type": "string"
+    },
+    "run_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "source": {
+      "description": "identify = charged by identifyPlantWithExpert; reserve = a charge premium/reserve_ids made before naming, claimed here; legacy = plant charged before this table existed; extra = one extra close-up photo (free, 3 per plant)",
+      "enum": [
+        "identify",
+        "reserve",
+        "legacy",
+        "extra"
+      ],
+      "type": "string"
+    },
+    "status": {
+      "description": "paid = charged, not used yet; running = naming now; failed = last try errored; named = named",
+      "enum": [
+        "paid",
+        "running",
+        "failed",
+        "named"
+      ],
+      "type": "string"
+    },
+    "tries": {
+      "default": 0,
+      "type": "number"
+    },
+    "user_email": {
+      "description": "So deleteMyAccount can remove the rows",
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "plant_id",
+    "user_id",
+    "source"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "type": "object"
+}
