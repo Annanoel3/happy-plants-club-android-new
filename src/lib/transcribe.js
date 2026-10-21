@@ -5,6 +5,8 @@
 import { base44 } from '@/api/base44Client';
 
 const INLINE_MAX = 4 * 1024 * 1024;
+// transcribeVoice refuses anything bigger (about 6 MB), so don't spend an upload on it
+const MAX_BYTES = 6 * 1024 * 1024;
 
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
@@ -18,6 +20,7 @@ function blobToBase64(blob) {
 /** Returns the transcript text ('' if nothing was heard). Throws on failure. */
 export async function transcribe(blob, mime) {
   const type = mime || blob?.type || 'audio/webm';
+  if (blob.size > MAX_BYTES) throw new Error("That recording is too long. Try a shorter one (under about 5 minutes).");
   let body;
   if (blob.size <= INLINE_MAX) {
     body = { audio_base64: await blobToBase64(blob), mime: type };
