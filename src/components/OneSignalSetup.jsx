@@ -116,8 +116,8 @@ export default function OneSignalSetup({ user }) {
     let stopped = false;
     const check = async (force) => {
       if (stopped || showing.current || cancelWait.current || askedBefore()) return;
-      // Plain screen changes check at most every 20 s (each check reads one plant)
-      if (!force && Date.now() - lastCheck.current < 20000) return;
+      // Screen changes check at most every 20 s, plant saves every 5 s (each check reads one plant)
+      if (Date.now() - lastCheck.current < (force ? 5000 : 20000)) return;
       lastCheck.current = Date.now();
       if (!(await readyToAsk(window.location.pathname)) || stopped) return;
       // Wait until no other popup (camera/mic sheet, update, weather) is showing
@@ -129,7 +129,7 @@ export default function OneSignalSetup({ user }) {
         }
         showing.current = true;
         setShowAsk(true);
-      }, { firstDelay: 2500 });
+      }, { firstDelay: 2500, maxWaitMs: 10 * 60 * 1000 });
     };
     check(false);
     // First plant just saved
