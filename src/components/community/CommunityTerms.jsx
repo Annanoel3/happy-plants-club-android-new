@@ -40,7 +40,6 @@ export function useCommunityTerms() {
       })
       .catch(() => { if (!gone && state === 'checking') setState('needed'); });
     return () => { gone = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // The server refused something because the rules aren't agreed on the account: ask again
   useEffect(() => {
