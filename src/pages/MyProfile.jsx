@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import ShareGardenCard from "@/components/ShareGardenCard";
 import AchievementsCard, { useStats } from "@/components/AchievementsCard";
 import { withPendingWaterings } from "@/lib/outbox";
+import { community } from "@/lib/community";
 
 export default function MyProfile() {
   const navigate = useNavigate();
@@ -60,23 +61,19 @@ export default function MyProfile() {
     enabled: !!user,
   });
 
-  const { data: followerCount = 0 } = useQuery({
-    queryKey: ['followerCount', user?.email],
+  // Follower counts come from the community function (follows can't be read directly). It also
+  // gives older accounts a handle if they never got one.
+  const { data: myCounts } = useQuery({
+    queryKey: ['myCommunityCounts', user?.email],
     queryFn: async () => {
-      const follows = await base44.entities.Follow.filter({ following_email: user.email });
-      return follows.length;
+      const r = await community('profile', {});
+      if (r?.person?.handle && !user?.handle) setUser((u) => (u ? { ...u, handle: r.person.handle } : u));
+      return r?.counts || null;
     },
     enabled: !!user,
   });
-
-  const { data: followingCount = 0 } = useQuery({
-    queryKey: ['followingCount', user?.email],
-    queryFn: async () => {
-      const follows = await base44.entities.Follow.filter({ follower_email: user.email });
-      return follows.length;
-    },
-    enabled: !!user,
-  });
+  const followerCount = myCounts?.followers || 0;
+  const followingCount = myCounts?.following || 0;
 
   // Same logout as Settings: base44.auth.logout also unlinks this phone from pushes
   const handleLogout = async () => {
@@ -173,7 +170,7 @@ export default function MyProfile() {
 
               <div className="flex gap-3 max-w-xs mx-auto">
                 <Button
-                  onClick={() => navigate('/Settings')}
+                  onClick={() => navigate('/ProfileSetup?edit=1')}
                   variant="outline"
                   className={`flex-1 ${getThemedClasses()} ${getTextColor()}`}
                   size="lg"
