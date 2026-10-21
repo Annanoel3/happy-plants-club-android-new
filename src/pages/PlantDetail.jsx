@@ -1643,55 +1643,6 @@ export default function PlantDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Vacation Mode Dialog for setting dates */}
-      <Dialog open={showVacationModeDialog} onOpenChange={setShowVacationModeDialog}>
-        <DialogContent className={getThemedClasses()}>
-          <DialogHeader>
-            <DialogTitle className={getTextColor()}>Set Vacation Dates</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>Start Date</label>
-              <Input
-                type="date"
-                value={vacationStartDate}
-                onChange={(e) => setVacationStartDate(e.target.value)}
-                className="theme-input"
-              />
-            </div>
-            <div>
-              <label className={`block text-sm font-medium mb-2 ${getTextColor()}`}>End Date</label>
-              <Input
-                type="date"
-                value={vacationEndDate}
-                onChange={(e) => setVacationEndDate(e.target.value)}
-                className="theme-input"
-              />
-            </div>
-            <Button
-              onClick={() => {
-                if (!vacationStartDate || !vacationEndDate) {
-                  toast.error("Please select both start and end dates.");
-                  return;
-                }
-                if (new Date(vacationStartDate) > new Date(vacationEndDate)) {
-                  toast.error("Start date cannot be after end date.");
-                  return;
-                }
-                toggleVacationModeMutation.mutate({
-                  enabled: true,
-                  startDate: vacationStartDate,
-                  endDate: vacationEndDate,
-                });
-              }}
-              disabled={toggleVacationModeMutation.isPending}
-              className="w-full bg-green-600 hover:bg-green-700"
-            >
-              {toggleVacationModeMutation.isPending ? "Activating..." : "Activate Vacation Mode"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
