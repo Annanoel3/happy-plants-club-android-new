@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Sparkles } from 'lucide-react';
 import { claimPopup, releasePopup } from '@/lib/popupGate';
+import { openInPlay, PLAY_STORE_URL } from '@/lib/premium';
 
 // "There's an update!" popup, same idea as ADHDone's: it only says there's an
 // update, shows on every app open until the phone is updated, and the Update
@@ -14,7 +15,6 @@ import { claimPopup, releasePopup } from '@/lib/popupGate';
 // the call just fails and nothing shows.
 
 const NotifyBridge = registerPlugin('NotifyBridge');
-const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.mediocreatbest.happyplants';
 
 export default function UpdatePrompt() {
   const [show, setShow] = useState(false);
@@ -50,9 +50,11 @@ export default function UpdatePrompt() {
       const { result } = await NotifyBridge.startAppUpdate();
       if (result === 'started') return; // Play takes over and restarts the app
       if (result === 'cancelled') { setBusy(false); return; }
-      window.open(PLAY_URL, '_blank'); // Play couldn't do it in-app: open the store page
+      // Play couldn't do it in-app: open the store page in the Play Store app. This popup only
+      // shows on build 13+, which sends intent: links out of the app (see openInPlay).
+      openInPlay(PLAY_STORE_URL);
     } catch {
-      window.open(PLAY_URL, '_blank');
+      openInPlay(PLAY_STORE_URL);
     }
     setBusy(false);
   };
