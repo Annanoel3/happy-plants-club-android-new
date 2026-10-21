@@ -1,6 +1,6 @@
 // The full Community feed, restored from before June 24, 2026, when the Base44 builder
-// deleted it to make the "Coming soon" screen. Hidden for now: see COMMUNITY_OPEN in
-// src/pages/Feed.jsx. Before opening it, see the notes there.
+// deleted it to make the "Coming soon" screen. Open since Oct 20, 2026: see COMMUNITY_OPEN
+// in src/pages/Feed.jsx.
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -29,6 +29,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { motion, AnimatePresence } from 'framer-motion';
+import QuietNote from "@/components/community/QuietNote";
+import PlantdokuEgg from "@/components/PlantdokuEgg";
 
 
 export default function CommunityFeed() {
@@ -72,11 +74,11 @@ export default function CommunityFeed() {
     
     handleThemeChange();
     window.addEventListener('storage', handleThemeChange);
-    const interval = setInterval(handleThemeChange, 100);
+    window.addEventListener('hp-theme-change', handleThemeChange); // was a 100ms poll
     
     return () => {
       window.removeEventListener('storage', handleThemeChange);
-      clearInterval(interval);
+      window.removeEventListener('hp-theme-change', handleThemeChange);
     };
   }, []);
 
@@ -315,20 +317,10 @@ export default function CommunityFeed() {
   };
 
   const handleCreatePost = () => {
-    console.log('handleCreatePost called', { newPost, uploadedImage });
     if (!newPost.trim() && !uploadedImage) { // Updated state names
       toast.error('Post cannot be empty');
       return;
     }
-
-    console.log('Creating post with:', {
-      content: newPost,
-      image_url: uploadedImage,
-      author_email: user.email,
-      author_name: user.full_name,
-      plant_id: selectedPlant?.id,
-      plant_name: selectedPlant?.nickname || selectedPlant?.name,
-    });
 
     createPostMutation.mutate({
       content: newPost, // Updated state name
@@ -351,7 +343,6 @@ export default function CommunityFeed() {
       toast.error('Comment cannot be empty');
       return;
     }
-    console.log('Submitting comment:', { postId, content });
     commentMutation.mutate({ postId, content });
   };
 
@@ -452,6 +443,8 @@ export default function CommunityFeed() {
               🌿
             </button>
           </div>
+
+          <QuietNote where="feed" className={`mb-6 ${getThemedClasses()}`} textClass={getTextColor()} />
 
           {isBanned && (
             <Card className={`mb-6 ${getThemedClasses()}`}>
@@ -554,7 +547,7 @@ export default function CommunityFeed() {
               <Card className={getThemedClasses()}>
                 <CardContent className="p-12 text-center">
                   <MessageCircle className={`w-16 h-16 mx-auto mb-4 ${getSecondaryTextColor()}`} />
-                  <p className={getSecondaryTextColor()}>{followingOnly ? 'No posts from people you follow yet.' : 'No posts yet. Be the first to share!'}</p>
+                  <p className={getSecondaryTextColor()}>{followingOnly ? 'No posts from people you follow yet.' : "No posts yet. You could be the very first! Share a photo of a plant you're proud of."}</p>
                 </CardContent>
               </Card>
             ) : (
