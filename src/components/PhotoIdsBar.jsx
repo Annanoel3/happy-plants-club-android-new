@@ -58,7 +58,7 @@ export default function PhotoIdsBar({ ids, mode = 'add', waitingCount = 0, text 
           {waitingCount} plant{waitingCount === 1 ? ' is' : 's are'} waiting for a photo ID
         </p>
         <p className={`text-xs mt-0.5 ${sub}`}>
-          {ids.left > 0 ? 'Naming them now…' : "They'll be named tomorrow on their own. Or open one and type its name (always free)."}
+          {ids.left > 0 ? 'Naming them now…' : "They'll be named tomorrow on their own. Or open one and type its name. Typing a plant's name doesn't use a photo ID."}
         </p>
         {ids.left === 0 && (canWatch || !ids.plus) && actions}
       </div>
@@ -83,7 +83,7 @@ export default function PhotoIdsBar({ ids, mode = 'add', waitingCount = 0, text 
     <div className={`rounded-2xl p-4 ${cardClass}`} role="status">
       <p className={`font-bold ${text}`}>You're out of photo IDs for today</p>
       <p className={`text-sm mt-1 ${sub}`}>
-        Photos you add now are saved and get named tomorrow. Typing a plant's name is always free.
+        Photos you add now are saved and get named tomorrow. Typing a plant's name doesn't use a photo ID.
         {ids.plus ? '' : ` You get ${ids.daily} free photo IDs a day.`}
       </p>
       {(canWatch || !ids.plus) && actions}
