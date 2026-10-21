@@ -723,13 +723,20 @@ Deno.serve(async (req) => {
           const t = (await ent.filter({ id: report.target_id }))?.[0];
           if (t?.hidden && t.hidden_reason === 'reports') await ent.update(t.id, { hidden: false, hidden_reason: '' });
         }
-        // Close every open report about the same thing
-        const same = await db.Report.filter({ target_type: report.target_type, target_email: report.target_email, status: 'open' });
+        // Close every open report about the same thing. Plant Expert answers (ai_answer) have no
+        // id or person to group by, so only that one report closes.
         const now = new Date().toISOString();
+        const close = { status: remove ? 'removed' : 'dismissed', resolved_at: now, resolved_by: me.email, resolved_note: String(body?.note || '').slice(0, 300) };
+        if (report.target_type === 'ai_answer' || (!report.target_id && !report.target_email)) {
+          await db.Report.update(report.id, close);
+          return Response.json({ ok: true });
+        }
+        const same = await db.Report.filter({ target_type: report.target_type, target_email: report.target_email, status: 'open' });
         for (const r of same || []) {
           if ((r.target_id || '') !== (report.target_id || '')) continue;
-          await db.Report.update(r.id, { status: remove ? 'removed' : 'dismissed', resolved_at: now, resolved_by: me.email, resolved_note: String(body?.note || '').slice(0, 300) });
+          await db.Report.update(r.id, close);
         }
+        if (report.status === 'open' && !(same || []).some((r: any) => r.id === report.id)) await db.Report.update(report.id, close);
         return Response.json({ ok: true });
       }
 
