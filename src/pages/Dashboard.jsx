@@ -640,6 +640,12 @@ export default function Dashboard() {
     }
   };
 
+  // Android Back closes these popups (their only button is "Got it" / "Ask me later")
+  const backRef = useRef({});
+  backRef.current = { closeBulk, closeWelcome };
+  useEffect(() => (bulkOpen ? registerBackHandler('New plants added', () => backRef.current.closeBulk()) : undefined), [bulkOpen]);
+  useEffect(() => (welcomeOpen ? registerBackHandler('Welcome back', () => backRef.current.closeWelcome('later')) : undefined), [welcomeOpen]);
+
   // A plant stuck "naming" for 3+ minutes (app was closed, signal dropped): ask the
   // server to try again. The server also retries on its own every hour.
   const identifyingKey = retryPlants.map((p) => p.id).join(',');
@@ -677,6 +683,30 @@ export default function Dashboard() {
     );
   }
 
+  // Couldn't reach the server to check the account: not the same as being signed out
+  if (!user && authError) {
+    return (
+      <div
+        className="fixed inset-0 flex items-center justify-center theme-bg overflow-hidden"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        <div className="text-center max-w-md px-6 w-full">
+          <div className={`rounded-3xl p-8 ${getThemedClasses()}`}>
+            <WifiOff className={`w-12 h-12 mx-auto mb-4 ${getSecondaryTextColor()}`} aria-hidden />
+            <h1 className={`text-2xl font-bold mb-2 ${getTextColor()}`}>Can't reach Happy Plants right now</h1>
+            <p className={`mb-6 ${getSecondaryTextColor()}`}>Check your signal, then try again.</p>
+            <button
+              onClick={() => { setAuthChecked(false); checkAuthentication(); }}
+              className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl shadow-lg text-lg"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div 
@@ -701,8 +731,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const eventsList = Array.isArray(activeEvents) ? activeEvents : [];
 
   // Check if there are plants needing water today
   const plantsNeedingWaterToday = plantsList.filter(plant => {
@@ -740,7 +768,7 @@ export default function Dashboard() {
   const remindLater = () => {
     try { localStorage.setItem('hp_round_later', localToday()); } catch { /* ignore */ }
     setLaterToday(true);
-    if (todayReminder && !todayReminder.dismissed) dismissWateringReminder('not_yet');
+    if (todayReminder && !todayReminder.dismissed) dismissWateringReminder();
   };
 
 
@@ -782,7 +810,7 @@ export default function Dashboard() {
         user={me || user}
         plus={plus}
         ui={roundUi}
-        onAllDone={() => { if (todayReminder && !todayReminder.dismissed) dismissWateringReminder('done'); }}
+        onAllDone={() => { if (todayReminder && !todayReminder.dismissed) dismissWateringReminder(); }}
       />
       <div className={`min-h-screen theme-bg overflow-y-auto ${selectMode ? 'pb-72' : 'pb-28'}`}>
         <div className="max-w-6xl mx-auto px-4 pt-6">
@@ -808,13 +836,16 @@ export default function Dashboard() {
               >
                 <Mic className="w-3 h-3" /> Quick Log
               </button>
-              <button
-                onClick={() => setShowAddCategory(true)}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 ${getThemedClasses()} ${getTextColor()}`}
-              >
-                <Plus className="w-3 h-3" /> Category
-              </button>
             </div>
+            {/* No city (cleared in Settings, or never set): a small ask, never a forced trip to Welcome */}
+            {!String((me || user)?.location || '').trim() && (
+              <button
+                onClick={() => setCityOpen(true)}
+                className={`mt-2 flex items-center gap-1.5 text-xs font-semibold underline ${getSecondaryTextColor()}`}
+              >
+                <MapPin className="w-3.5 h-3.5" /> Add your city for weather-smart care
+              </button>
+            )}
           </div>
 
           {/* Toolbar: count, sort, select, view, reminders */}
@@ -989,30 +1020,13 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Emergency Alert */}
-          {eventsList.length > 0 && (
-            <div className="mb-5 rounded-2xl overflow-hidden shadow-lg border border-red-400/40 bg-gradient-to-r from-red-500/20 to-orange-500/10 backdrop-blur-md">
-              <div className="flex items-center gap-4 p-4">
-                <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                  <AlertCircle className="w-5 h-5 text-red-400" />
-                </div>
-                <div className="flex-1">
-                  <p className={`font-bold text-sm ${getTextColor()}`}>⚠️ Weather Emergency</p>
-                  {eventsList.map(event => (
-                    <p key={event.id} className={`text-xs ${getSecondaryTextColor()}`}>{event.message}</p>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Search */}
           {plantsList.length > 0 && (
             <div className={`relative mb-5 flex items-center rounded-2xl px-4 py-2.5 ${getThemedClasses()}`}>
               <Search className={`w-4 h-4 flex-shrink-0 mr-3 ${getSecondaryTextColor()}`} />
               <input
                 type="text"
-                placeholder="Search by type or name..."
+                placeholder="Search by name, type or tag..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className={`flex-1 bg-transparent text-sm outline-none ${getTextColor()} placeholder:opacity-50`}
@@ -1053,7 +1067,25 @@ export default function Dashboard() {
           )}
 
           {/* Stacked wallet cards grouped by plant type */}
-          {plantsList.length === 0 ? (
+          {plantsFailed ? (
+            <div className={`text-center py-16 rounded-3xl ${getThemedClasses()} px-8`} role="status">
+              <WifiOff className={`w-10 h-10 mx-auto mb-4 ${getSecondaryTextColor()}`} aria-hidden />
+              <h2 className={`text-xl font-bold mb-2 ${getTextColor()}`}>Can't reach Happy Plants right now</h2>
+              <p className={`text-sm mb-6 ${getSecondaryTextColor()}`}>Your plants are safe. Check your signal, then try again.</p>
+              <button
+                onClick={() => refetch()}
+                disabled={isFetching}
+                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-lg disabled:opacity-60"
+              >
+                {isFetching ? 'Trying…' : 'Try again'}
+              </button>
+            </div>
+          ) : plantsLoading ? (
+            <div className="py-20 flex flex-col items-center" role="status">
+              <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin mb-3" />
+              <p className={`text-sm ${getSecondaryTextColor()}`}>Loading your garden…</p>
+            </div>
+          ) : plantsList.length === 0 ? (
             <div className={`text-center py-20 rounded-3xl ${getThemedClasses()} px-8`}>
               <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-5">
                 <Sparkles className="w-10 h-10 text-emerald-500" />
@@ -1128,12 +1160,7 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      <AddCategoryModal
-        isOpen={showAddCategory}
-        onClose={() => setShowAddCategory(false)}
-        user={user}
-        theme={theme}
-      />
+      <LocationDialog open={cityOpen} onOpenChange={setCityOpen} user={me || user} plus={plus} />
     </>
   );
 }
