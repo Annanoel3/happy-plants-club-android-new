@@ -133,7 +133,6 @@ Deno.serve(async (req) => {
             for (const l of logs) logged.set(`${l.plant_id}|${String(l.watered_date).slice(0, 10)}`, l);
             let watered = 0, skipped = 0;
             const results: any[] = [];
-            const wateredIds: string[] = [];
             for (const it of items) {
                 const p: any = byId.get(it.plant_id);
                 if (!p) { results.push({ plant_id: it.plant_id, status: 'not_found' }); continue; }
@@ -171,25 +170,12 @@ Deno.serve(async (req) => {
                 ]);
                 logged.set(key, log);
                 byId.set(p.id, { ...p, ...patch });
-                wateredIds.push(p.id);
                 watered++;
                 results.push({
                     plant_id: p.id, status: 'watered', date: it.date, log_id: log?.id || null,
                     grew: stage !== (p.growth_stage || 'seedling'), stage,
                     last_watered: patch.last_watered ?? p.last_watered, next_watering_due: patch.next_watering_due ?? p.next_watering_due,
                 });
-            }
-            // Game events ("thirsty plants") are solved by watering the plants in them
-            if (wateredIds.length) {
-                try {
-                    const events = (await base44.entities.GameEvent.filter({ resolved: false })) || [];
-                    for (const ev of events) {
-                        const ids2: string[] = Array.isArray(ev.affected_plant_ids) ? ev.affected_plant_ids : [];
-                        if (!ids2.some((id) => wateredIds.includes(id))) continue;
-                        const left = ids2.filter((id) => !wateredIds.includes(id));
-                        await base44.entities.GameEvent.update(ev.id, left.length ? { affected_plant_ids: left } : { resolved: true });
-                    }
-                } catch (e) { console.warn('game events', (e as Error).message); }
             }
             return Response.json({ success: true, watered, skipped, today, results });
         }
