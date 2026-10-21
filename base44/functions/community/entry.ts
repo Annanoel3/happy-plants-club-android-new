@@ -655,8 +655,8 @@ Deno.serve(async (req) => {
       let photoToCheck: string | null = null;
       if (body?.handle !== undefined) {
         const handle = String(body.handle || '').trim().toLowerCase().replace(/^@/, '');
-        if (!/^[a-z0-9]{3,30}$/.test(handle)) return err(400, 'bad_handle', 'Handles are 3 to 30 letters or numbers.');
         if (handle !== me.handle) {
+          if (!/^[a-z0-9]{3,30}$/.test(handle)) return err(400, 'bad_handle', 'Handles are 3 to 30 letters or numbers.');
           if (RESERVED_HANDLES.has(handle)) return err(409, 'handle_taken', 'That handle is taken. Try another one.');
           const taken = ((await db.User.filter({ handle })) || []).some((u: any) => u.id !== me.id);
           if (taken) return err(409, 'handle_taken', 'That handle is taken. Try another one.');
