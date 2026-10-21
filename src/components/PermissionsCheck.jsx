@@ -40,9 +40,15 @@ export default function PermissionsCheck({ user }) {
 
   useEffect(() => {
     if (!user) return;
+    // Only the phone app can grant these; in a browser every row just said "denied"
+    if (!window.Capacitor?.isNativePlatform?.()) return;
     const alreadyAsked = localStorage.getItem('permissions_asked');
     if (alreadyAsked) return;
-    return whenPopupFree('permissions', () => setShowPrompt(true), { firstDelay: 2000 });
+    return whenPopupFree('permissions', () => {
+      // Not on top of the delete-account page; ask on a later screen instead
+      if (window.location.pathname.startsWith('/DeleteAccount')) { releasePopup('permissions'); return; }
+      setShowPrompt(true);
+    }, { firstDelay: 2000 });
   }, [user]);
 
   const handleMic = async () => {
