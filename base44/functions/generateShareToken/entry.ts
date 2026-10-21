@@ -38,6 +38,21 @@ Deno.serve(async (req) => {
 
         if (action === 'get') return Response.json({ success: true, ...view(existing) });
 
+        // The garden's name and description are shown to anyone with the link, so they go through
+        // the same check as Community posts. (Only this function can save them: SharedGarden's
+        // create/update rules are admin-only.)
+        const named = [body.public_name, body.public_description].filter((v) => v !== undefined && String(v).trim()).join('\n');
+        if (named) {
+            let mod: any = null;
+            try { mod = (await base44.functions.invoke('moderateContent', { content: named }))?.data; } catch { mod = null; }
+            if (!mod || typeof mod.appropriate !== 'boolean') {
+                return Response.json({ error: "We couldn't check that right now. Please try again in a minute." }, { status: 503 });
+            }
+            if (!mod.appropriate) {
+                return Response.json({ error: mod.reason || "That name or description can't be used. Please change it." }, { status: 422 });
+            }
+        }
+
         if (action === 'disable') {
             if (existing) await db.SharedGarden.update(existing.id, { is_active: false });
             return Response.json({ success: true, ...view(existing ? { ...existing, is_active: false } : null) });
