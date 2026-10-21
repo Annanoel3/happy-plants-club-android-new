@@ -34,6 +34,7 @@ import PermissionsCheck from "@/components/PermissionsCheck";
 import AdManager from './components/shared/AdManager';
 import UpdatePrompt from '@/components/UpdatePrompt';
 import UpgradeNudge from '@/components/UpgradeNudge';
+import StatusBarStrip from '@/components/StatusBarStrip';
 import PushRouter from '@/components/PushRouter';
 
 function LayoutContent({ children, currentPageName }) {
@@ -418,6 +419,7 @@ export default function Layout({ children, currentPageName }) {
       <PermissionsCheck user={user} />
       {user && <UpdatePrompt />}
       {user && <UpgradeNudge />}
+      <StatusBarStrip />
       <LayoutContent children={children} currentPageName={currentPageName} />
       
       <style>{`
