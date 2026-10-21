@@ -42,9 +42,6 @@ export default function Welcome() {
         
         
         setUser(currentUser); // Set the user state
-        console.log('✅ User authenticated:', currentUser.email);
-        console.log('📍 User location:', currentUser.location);
-        console.log('✅ Profile setup complete:', currentUser.profile_complete); // Using profile_complete as per outline
 
         // Navigation logic based on profile and location status
         if (currentUser.profile_complete && currentUser.location) {
@@ -58,7 +55,6 @@ export default function Welcome() {
         // So, component will render the location input form.
         
       } else {
-        console.log('❌ User not authenticated, redirecting to login');
         base44.auth.redirectToLogin('/Welcome'); // Redirect to login, then back to Welcome after auth
         return; // Stop further execution if redirecting
       }
@@ -78,8 +74,6 @@ export default function Welcome() {
 
     setIsSaving(true); // Use isSaving
     try {
-      console.log('💾 Saving location:', location.trim());
-      
       await base44.auth.updateMe({ 
         location: location.trim()
       });
@@ -87,7 +81,6 @@ export default function Welcome() {
       // can't be found, the garden page asks again later; it never blocks sign-up.
       import('@/lib/weather').then((m) => m.saveLocation(location.trim())).catch(() => {});
       
-      console.log('✅ Location saved successfully');
       toast.success("Welcome to Happy Plants! 🌿");
       
       // After saving location, the next step is typically ProfileSetup
@@ -98,8 +91,8 @@ export default function Welcome() {
         navigate("/ProfileSetup");
       }, 500);
     } catch (error) {
-      console.error('❌ Error saving location:', error);
-      toast.error("Error saving location: " + (error.message || "Unknown error"));
+      console.error('Error saving location:', error?.message || error);
+      toast.error("Couldn't save your location. Please try again.");
       setIsSaving(false); // Use isSaving
     }
   };
@@ -175,7 +168,7 @@ export default function Welcome() {
             <span className="text-4xl">🌱</span> {/* Changed icon */}
           </div>
           <h1 className={`text-3xl font-bold mb-2 ${getTextColor()}`}>Welcome to Happy Plants!</h1>
-          <p className={`text-sm ${getSecondaryTextColor()}`}>Your free plant care companion</p>
+          <p className={`text-sm ${getSecondaryTextColor()}`}>Your plant care companion</p>
         </div>
         
         <div className="space-y-4"> {/* Updated spacing */}
@@ -206,7 +199,7 @@ export default function Welcome() {
           </Button>
           
           <p className={`text-xs text-center ${getSecondaryTextColor()}`}>
-            Free forever. No subscriptions required.
+            Free to use. Plus is optional.
           </p>
         </div>
       </div>
