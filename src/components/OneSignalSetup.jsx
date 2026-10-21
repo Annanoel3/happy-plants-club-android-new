@@ -86,7 +86,9 @@ async function readyToAsk(pathname) {
   if (askedBefore() || !bridge()) return false;
   if (NO_ASK_PATHS.some((p) => pathname.startsWith(p))) return false;
   const me = await base44.auth.me().catch(() => null);
-  if (!me?.email || !me.location || !me.profile_complete) return false;
+  // Past sign-up: the garden only sends people back to Welcome when both are missing
+  // (many older accounts have a location but no profile_complete flag)
+  if (!me?.email || !(me.location || me.profile_complete)) return false;
   const perm = await getPushPermission();
   if (perm === 'granted') { markAsked(); return false; } // already on (older Android, or allowed before)
   const plants = await base44.entities.Plant.filter({ created_by: me.email }, '-created_date', 1).catch(() => []);
