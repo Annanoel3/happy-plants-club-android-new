@@ -79,6 +79,20 @@ export async function nameWaitingPlants() {
   return nameNewPlants(ids);
 }
 
+/** Plants whose spot was picked while they were still waiting for a name: once they're
+ *  named, they leave "Newly added" (named + a place = set up). Returns how many were moved. */
+const finished = new Set();
+export async function finishPlacedPlants(plants) {
+  const ready = (plants || []).filter((p) => p?.add_status === 'review' && p.add_info?.place_chosen
+    && String(p.location || '').trim() && !finished.has(p.id));
+  if (!ready.length) return 0;
+  ready.forEach((p) => finished.add(p.id));
+  const done = await Promise.allSettled(ready.map((p) => base44.entities.Plant.update(p.id, { add_status: 'done' })));
+  done.forEach((r, i) => { if (r.status === 'rejected') finished.delete(ready[i].id); });
+  refreshPlantData();
+  return done.filter((r) => r.status === 'fulfilled').length;
+}
+
 /** Watch a reward video, get 5 more photo IDs, and name plants that were waiting. */
 export async function watchForIds() {
   const r = await showRewardedAd();
