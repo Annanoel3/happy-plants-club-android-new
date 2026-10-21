@@ -99,6 +99,8 @@ export default function OneSignalSetup({ user }) {
   const showing = useRef(false);
   const lastCheck = useRef(0);
   const cancelWait = useRef(null);
+  const checking = useRef(false);
+  const checkRef = useRef(() => {});
 
   useEffect(() => {
     if (user) linkPhone(user);
@@ -115,11 +117,14 @@ export default function OneSignalSetup({ user }) {
     if (!user || askedBefore() || !bridge()) return undefined;
     let stopped = false;
     const check = async (force) => {
-      if (stopped || showing.current || cancelWait.current || askedBefore()) return;
+      if (stopped || checking.current || showing.current || cancelWait.current || askedBefore()) return;
       // Screen changes check at most every 20 s, plant saves every 5 s (each check reads one plant)
       if (Date.now() - lastCheck.current < (force ? 5000 : 20000)) return;
       lastCheck.current = Date.now();
-      if (!(await readyToAsk(window.location.pathname)) || stopped) return;
+      checking.current = true;
+      let ready = false;
+      try { ready = await readyToAsk(window.location.pathname); } finally { checking.current = false; }
+      if (!ready || stopped) return;
       // Wait until no other popup (camera/mic sheet, update, weather) is showing
       cancelWait.current = whenPopupFree('push-ask', () => {
         cancelWait.current = null;
@@ -131,15 +136,19 @@ export default function OneSignalSetup({ user }) {
         setShowAsk(true);
       }, { firstDelay: 2500, maxWaitMs: 10 * 60 * 1000 });
     };
-    check(false);
+    checkRef.current = check;
     // First plant just saved
     const onWrite = (e) => { if (e?.detail?.entity === 'Plant') setTimeout(() => check(true), 1500); };
     window.addEventListener('hp-data-write', onWrite);
     return () => {
       stopped = true;
+      checkRef.current = () => {};
       window.removeEventListener('hp-data-write', onWrite);
     };
-  }, [user, pathname]);
+  }, [user]);
+
+  // Look again on each screen change (e.g. back on the garden after adding a plant)
+  useEffect(() => { checkRef.current(false); }, [user, pathname]);
 
   useEffect(() => () => { cancelWait.current?.(); releasePopup('push-ask'); }, []);
 
