@@ -22,9 +22,9 @@ android {
     signingConfigs {
         release {
             storeFile file('release.keystore')
-            storePassword 'android123'
+            storePassword System.getenv('HP_SIGNING_PASSWORD') // removed from code: the real values live in key.properties on Anna's PC
             keyAlias 'release'
-            keyPassword 'android123'
+            keyPassword System.getenv('HP_SIGNING_PASSWORD') // removed from code: the real values live in key.properties on Anna's PC
         }
     }
     buildTypes {
