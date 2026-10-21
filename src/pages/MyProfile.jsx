@@ -10,6 +10,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import ShareGardenCard from "@/components/ShareGardenCard";
 import AchievementsCard, { useStats } from "@/components/AchievementsCard";
+import { withPendingWaterings } from "@/lib/outbox";
 
 export default function MyProfile() {
   const navigate = useNavigate();
@@ -47,14 +48,14 @@ export default function MyProfile() {
     }
   };
 
+  // Same list (and shared cache) as the garden: all plants (no 100 cap), waterings still
+  // waiting on this phone included. A failed load throws, so the saved garden isn't
+  // replaced by an empty list.
   const { data: plants = [] } = useQuery({
     queryKey: ['plants', user?.email],
     queryFn: async () => {
-      try {
-        return await base44.entities.Plant.filter({ created_by: user.email });
-      } catch (err) {
-        return [];
-      }
+      const result = await base44.entities.Plant.filter({ created_by: user.email }, undefined, 1000);
+      return withPendingWaterings(Array.isArray(result) ? result : []);
     },
     enabled: !!user,
   });
