@@ -200,8 +200,10 @@ export default function NewPlantReview({ plant, allPlants, ui, onDone, onLater, 
       const cur = fresh || local || {};
       const patch = { location: loc };
       // Out of "Newly added" only once it's named too. Still waiting for a name (out of photo
-      // IDs, or naming failed): it stays, so it still gets named.
+      // IDs, or naming failed): it stays, so it still gets named, and leaves on its own once
+      // it's named (place_chosen, see finishPlacedPlants).
       if (cur.add_status === 'review') patch.add_status = 'done';
+      else if (cur.add_status === 'failed') patch.add_info = { ...(cur.add_info || {}), place_chosen: true };
       if (env) patch.environment = env;
       const chosen = method || waterMethod(cur);
       if (chosen !== waterMethod(cur)) {
