@@ -8,7 +8,7 @@
       "type": "string"
     },
     "content": {
-      "description": "The post content",
+      "description": "The post content (empty for a photo-only post)",
       "type": "string"
     },
     "hidden": {
@@ -36,9 +36,7 @@
       "type": "string"
     }
   },
-  "required": [
-    "content"
-  ],
+  "required": [],
   "rls": {
     "create": {
       "user_condition": {
@@ -46,16 +44,14 @@
       }
     },
     "delete": {
-      "$or": [
-        {
-          "data.author_email": "{{user.email}}"
-        },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "update": {
       "user_condition": {

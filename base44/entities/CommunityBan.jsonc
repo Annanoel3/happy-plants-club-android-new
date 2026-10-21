@@ -1,0 +1,58 @@
+{
+  "name": "CommunityBan",
+  "properties": {
+    "banned_at": {
+      "description": "When access was turned off (ISO time)",
+      "type": "string"
+    },
+    "banned_by": {
+      "description": "Admin who turned it off",
+      "type": "string"
+    },
+    "lifted_at": {
+      "description": "When access was restored (empty while the ban is active)",
+      "type": "string"
+    },
+    "lifted_by": {
+      "description": "Admin who restored access",
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "user_email": {
+      "description": "Email of the person whose Community access is off",
+      "type": "string"
+    },
+    "user_id": {
+      "description": "Their user id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_email"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "type": "object"
+}
