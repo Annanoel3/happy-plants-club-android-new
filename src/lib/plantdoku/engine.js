@@ -367,8 +367,11 @@ function regionSizes(size, regions) {
  *   regions: flat row-major array (size*size) of region ids 0..size-1
  *   solution: solution[row] = column
  * Deterministic for a given seed + size. Sizes 5–9.
+ * patient: keep looking (all 400 tries) for a no-guessing puzzle before settling for a last
+ * resort. The old quick search gave up after 80 tries, so a few dailies needed guessing;
+ * dailyPuzzle() keeps it only for dates before PATIENT_FROM so past dailies never change.
  */
-export function makePuzzle(seedString, size) {
+export function makePuzzle(seedString, size, { patient = true } = {}) {
   const N = Math.max(5, Math.min(9, Math.floor(Number(size) || 8)));
   const rng = seededRng(`${seedString}|${N}`);
   // Best: solvable by plain deduction, no 1-cell region, at most two tiny (1–2 cell) regions.
@@ -390,7 +393,7 @@ export function makePuzzle(seedString, size) {
       if (!good) good = out;
     } else if (!fallback) fallback = out;
     if (attempt >= 40 && good) return good;
-    if (attempt >= 80 && fallback) return fallback;
+    if (!patient && attempt >= 80 && fallback) return fallback;
   }
   return good || fallback;
 }
@@ -400,6 +403,14 @@ export function makePuzzle(seedString, size) {
 /** dailySeed('YYYY-MM-DD') → seed string for that day's puzzle (same for everyone). */
 export function dailySeed(dateStr) {
   return `plantdoku-daily-${String(dateStr).slice(0, 10)}`;
+}
+
+// The patient search starts here; earlier dailies stay exactly as they were played
+export const PATIENT_FROM = '2026-10-22';
+/** dailyPuzzle('YYYY-MM-DD') → that day's puzzle. base44/functions/plantdoku has a copy: keep in step. */
+export function dailyPuzzle(dateStr) {
+  const day = String(dateStr).slice(0, 10);
+  return makePuzzle(dailySeed(day), dailySize(day), { patient: day >= PATIENT_FROM });
 }
 
 /**
