@@ -254,6 +254,8 @@ export default function SearchPage() {
           <p className={`text-sm ${getSecondaryTextColor()}`}>Connect with other plant lovers</p>
         </div>
 
+        <QuietNote where="friends" className={`mb-6 ${getThemedClasses()}`} textClass={getTextColor()} />
+
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-3 px-3">
           <Button
             onClick={() => setActiveTab('search')}
