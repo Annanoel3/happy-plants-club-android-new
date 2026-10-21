@@ -323,10 +323,11 @@ async function takeOneId(base44: any, user: any) {
 //    row is among the first N rows of that day, N = the photo IDs counted that day. So a
 //    made-up id_paid can't name anything that wasn't paid for.
 //  - Plants added before this table existed (LEGACY_BEFORE) keep the old "id_paid means
-//    paid" rule once, so the hourly sweep can finish them without charging twice.
+//    paid" rule once, so the hourly sweep can finish them without charging twice. (Newer
+//    plants the old code charged are covered by the reserve check above for 3 days.)
 //  - Extra close-up photos stay free, 3 per plant (one 'extra' row each). The care sheet for
 //    the name our own photo ID settled is retried free 3 times, then counts as a typed name.
-const LEGACY_BEFORE = Date.parse('2026-10-22T00:00:00Z');
+const LEGACY_BEFORE = Date.parse('2026-10-21T06:00:00Z');
 const FREE_RETRIES = 2;
 const EXTRA_PHOTOS = 3;
 const CARE_RETRIES = 3;
@@ -1181,7 +1182,7 @@ Deno.serve(async (req) => {
                 // Extra photos are free for a plant whose own photo ID was paid for; otherwise
                 // this one is its photo ID (as before)
                 const paidFor = mine.find((r: any) => PAID_SOURCES.includes(r.source) && r.image_url === String(plant.image_url))
-                    || (isLegacy(plant) && info.id_paid ? await sdb.PlantIdCharge.create(chargeRow(user, plant, { source: 'legacy', status: 'named', named_sci: String(plant.scientific_name || '') })).catch(() => null) : null);
+                    || (isLegacy(plant) && info.id_paid && !mine.some((r: any) => PAID_SOURCES.includes(r.source)) ? await sdb.PlantIdCharge.create(chargeRow(user, plant, { source: 'legacy', status: 'named', named_sci: String(plant.scientific_name || '') })).catch(() => null) : null);
                 let paidRow: any = paidFor;
                 if (!paidRow) {
                     const t = await takeOneId(base44, user);
