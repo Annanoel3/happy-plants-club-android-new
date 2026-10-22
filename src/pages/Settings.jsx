@@ -15,6 +15,7 @@ import { saveLocation } from "@/lib/weather";
 import { usePlus } from "@/lib/plus";
 import { COMMUNITY_OPEN } from "@/pages/Feed";
 import { getPushPermission, requestPushPermission } from "@/components/OneSignalSetup";
+import NotificationsOffNote from "@/components/NotificationsOffNote";
 
 const FEEDBACK_MAX = 2000;
 const DEFAULT_WEATHER_HOUR = 8; // sendDailyWeather's default: 8 AM local
@@ -523,6 +524,7 @@ export default function Settings() {
                     />
                   </button>
                 </div>
+                {notificationsWatering && <NotificationsOffNote popupsOnly />}
 
                 {plus && (
                   <div className="flex items-center justify-between">
